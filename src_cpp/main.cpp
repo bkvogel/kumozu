@@ -6,7 +6,7 @@
  * modification, are permitted provided that the following conditions are met:
  *
  * 1. Redistributions of source code must retain the above copyright notice, this
- *    list of conditions and the following disclaimer. 
+ *    list of conditions and the following disclaimer.
  * 2. Redistributions in binary form must reproduce the above copyright notice,
  *    this list of conditions and the following disclaimer in the documentation
  *    and/or other materials provided with the distribution.
@@ -23,7 +23,7 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  * The views and conclusions contained in the software and documentation are those
- * of the authors and should not be interpreted as representing official policies, 
+ * of the authors and should not be interpreted as representing official policies,
  * either expressed or implied, of the FreeBSD Project.
  *
  */
@@ -42,6 +42,8 @@
 #include "UnitTests.h"
 #include "ExamplesNeuralNet.h"
 #include "ExamplesRecSystem.h"
+#include "ExamplesPlot.h"
+#include "ExamplesMatrix.h"
 
 using namespace std;
 using namespace kumozu;
@@ -53,53 +55,69 @@ void run_unit_tests();
  */
 int main(int argc, char* argv[]) {
 
-	try {
-		// Set number of threads for OpenMP and OpenBlas.
-		omp_set_num_threads(12); // Set number of OpenMP threads.
-		//omp_set_num_threads(2); // Set number of OpenMP threads.
+  try {
+    // Set number of threads for OpenMP and OpenBlas.
+    omp_set_num_threads(8); // Set number of OpenMP threads for 5960x.
+    //omp_set_num_threads(2); // Set number of OpenMP threads for Macbook.
 
-		// Show first NaN exception in gdb. Only works on Linux.
-		//feenableexcept(FE_INVALID | FE_OVERFLOW); 
+    // Show first NaN exception in gdb. Only works on Linux.
+    //feenableexcept(FE_INVALID | FE_OVERFLOW);
 
-		// Unit Tests:
-		run_unit_tests();
+    if (argc == 2) {
+      std::string methodName = argv[1];
+      if (methodName == "example_plots") {
+        example_plots();
+        example_image_plots();
+        example_image_plots2();
+        example_image_plots_rgb();
+        example_multiplot();
+      }
+      if (methodName == "matrix_mult_benchmark") {
+        // Run to make sure BLAS library is set up correctly and gives reasonable performance.
+        benchmark_mat_mult();
+      }
+      else if (methodName == "test") {
+        // Unit tests
+        run_unit_tests();
+      }
+      else if (methodName == "matrix_examples") {
+        // Matrix utility examples:
+        example_matrix_utilities();
+      }
+      else if (methodName == "cifar10_example_1") {
+        cifar10_example_1();
+      }
+      else if (methodName == "mnist_example_1") {
+        mnist_example_1();
+      }
+      else if (methodName == "netflix_prize_example_1") {
+        netflix_prize_example_1();
+      }
+    }
+  }
+  catch (out_of_range) {
+    cerr << "Out of range error." << endl;
+  }
+  catch (...) {
+    cerr << "Unkown exception!" << endl;
+  }
 
-		if (argc == 2) {
-			std::string methodName = argv[1];
-			if (methodName == "cifar10_example_1") {
-				cifar10_example_1();
-			}
-			else if (methodName == "mnist_example_1") {
-				mnist_example_1();
-			}
-			else if (methodName == "netflix_prize_example_1") {
-				netflix_prize_example_1();
-			}
-		}
-	}
-	catch (out_of_range) {
-		cerr << "Out of range error." << endl;
-	}
-	catch (...) {
-		cerr << "Unkown exception!" << endl;
-	}
 
-
-	return EXIT_SUCCESS;
+  return EXIT_SUCCESS;
 }
 
 void run_unit_tests() {
 
-	//test_mat_mult();
-	//benchmark_mat_mult();
-	//stress_test_forward_prop();
+  //test_mat_mult();
+  //benchmark_mat_mult();
+  //stress_test_forward_prop();
 
-	/////////////////////
-	// Run an invdividual unit test:
-	//test_gradients_Network2DConv3F1();
-	//test_gradients_Network3DConv3F1();
-	//test_gradients_ConvLayer2D();
+  /////////////////////
+  // Run an invdividual unit test:
+  //test_gradients_Network2DConv3F1();
+  //test_gradients_Network3DConv3F1();
+  //test_gradients_ConvLayer2D();
 
-	// Run all unit tests:
-	//run_all_tests();
+  // Run all unit tests:
+  run_all_tests();
 }

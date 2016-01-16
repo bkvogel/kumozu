@@ -8,7 +8,7 @@
  * modification, are permitted provided that the following conditions are met:
  *
  * 1. Redistributions of source code must retain the above copyright notice, this
- *    list of conditions and the following disclaimer. 
+ *    list of conditions and the following disclaimer.
  * 2. Redistributions in binary form must reproduce the above copyright notice,
  *    this list of conditions and the following disclaimer in the documentation
  *    and/or other materials provided with the distribution.
@@ -25,63 +25,62 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  * The views and conclusions contained in the software and documentation are those
- * of the authors and should not be interpreted as representing official policies, 
+ * of the authors and should not be interpreted as representing official policies,
  * either expressed or implied, of the FreeBSD Project.
  *
  */
-#include "MatrixT.h"
+#include "Matrix.h"
 #include <iostream>
 #include <vector>
 #include <string>
 
 namespace kumozu {
-	/*
-	 * Represents a single element in a matrix of floats at the
-	 * specified row and column.
-	 */
-	struct Matrix_element {
-		int row;
-		int col;
-		float val;
-	};
+  /*
+   * Represents a single element in a matrix of floats at the
+   * specified row and column.
+   */
+  struct Matrix_element {
+    int row;
+    int col;
+    float val;
+  };
 
-	/*
-	 * An instance of this class represents a partially-observed matrix of floats.
-	 * The matrix supports fast iteration through its elements in the same order
-	 * that they were added.
-	 *
-	 * This matrix is backed by a vector of elements structs, which is publicly
-	 * ascesable.
-	 */
-	class Matrix_list {
+  /*
+   * An instance of this class represents a partially-observed matrix of floats.
+   * The matrix supports fast iteration through its elements in the same order
+   * that they were added.
+   *
+   * This matrix is backed by a vector of elements structs, which is publicly
+   * ascesable.
+   */
+  class Matrix_list {
 
-	public:
+  public:
 
-		/*
-		 * Construct a Matrix_list from the supplied dense matrix.
-		 */
-		Matrix_list(const Matrix& A);
+    /*
+     * Construct a Matrix_list from the supplied dense matrix.
+     */
+    Matrix_list(const MatrixF& A);
 
-		Matrix_list(int row_count, int col_count);
+    Matrix_list(int row_count, int col_count);
 
-		//~Matrix_list();
 
-		// Number of rows (not all of them necesarily used)
-		int rows;
-		// Number of columns (not all of them necesarily used)
-		int columns;
+    // Number of rows (not all of them necesarily used)
+    int rows;
+    // Number of columns (not all of them necesarily used)
+    int columns;
 
-		// List of the observed elements in the matrix.
-		std::vector<Matrix_element> observed_list;
+    // List of the observed elements in the matrix.
+    std::vector<Matrix_element> observed_list;
 
-		//std::string to_string();
+    //std::string to_string();
 
-	private:
-		Matrix_list() {}
+  private:
+    Matrix_list() {}
 
-	};
+  };
 
-	std::ostream& operator<<(std::ostream& os, const Matrix_list& m);
+  std::ostream& operator<<(std::ostream& os, const Matrix_list& m);
 
 }
 #endif

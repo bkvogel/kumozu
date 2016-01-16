@@ -6,7 +6,7 @@
  * modification, are permitted provided that the following conditions are met:
  *
  * 1. Redistributions of source code must retain the above copyright notice, this
- *    list of conditions and the following disclaimer. 
+ *    list of conditions and the following disclaimer.
  * 2. Redistributions in binary form must reproduce the above copyright notice,
  *    this list of conditions and the following disclaimer in the documentation
  *    and/or other materials provided with the distribution.
@@ -23,14 +23,14 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  * The views and conclusions contained in the software and documentation are those
- * of the authors and should not be interpreted as representing official policies, 
+ * of the authors and should not be interpreted as representing official policies,
  * either expressed or implied, of the FreeBSD Project.
  *
  */
 #ifndef _MATRIXIO_H
-#define	_MATRIXIO_H
+#define _MATRIXIO_H
 
-#include "MatrixT.h"
+#include "Matrix.h"
 #include <string>
 #include <vector>
 
@@ -42,38 +42,37 @@
  */
 namespace kumozu {
 
-    /*
-     * Save the contents of the supplied Matrix to a file. The data is saved as
-     * float type.
-     *
-     * @param A The matrix to write to a file.
-     * @param filename The name of the file. The contents of A will be written to
-     * this file. Any existing file with the same name will be overwritten.
-     */
-    void save_matrix(const Matrix &A, std::string filename);
+  /*
+   * Save the contents of the supplied MatrixF to a file. The data is saved as
+   * float type.
+   *
+   * @param A The matrix to write to a file.
+   * @param filename The name of the file. The contents of A will be written to
+   * this file. Any existing file with the same name will be overwritten.
+   */
+  void save_matrix(const MatrixF &A, std::string filename);
 
-	/*
-     * Save the contents of the supplied vector to a file. The data is saved as
-     * float type.
-     *
-     * @param A The vector to write to a file.
-     * @param filename The name of the file. The contents of A will be written to
-     * this file. Any existing file with the same name will be overwritten.
-     */
-void save_vector(const std::vector<float> &A, std::string filename);
+  /*
+   * Save the contents of the supplied vector to a file. The data is saved as
+   * float type.
+   *
+   * @param A The vector to write to a file.
+   * @param filename The name of the file. The contents of A will be written to
+   * this file. Any existing file with the same name will be overwritten.
+   */
+  void save_vector(const std::vector<float> &A, std::string filename);
 
-	/*
-	* Load a matrix from a file. The data in the file is represented as float
-	* type.
-	*
-	* @param filename The name of the file containing the matrix data.
-	* @return a new matrix containing the contents of file "filename."
-	*
-	*/
-	Matrix load_matrix(std::string filename);
+  /*
+   * Load a matrix from a file. The data in the file is represented as float
+   * type.
+   *
+   * @param filename The name of the file containing the matrix data.
+   * @return a new matrix containing the contents of file "filename."
+   *
+   */
+  MatrixF load_matrix(std::string filename);
 
 
 }
 
-#endif	/* _MATRIXIO_H */
-
+#endif  /* _MATRIXIO_H */

@@ -1,5 +1,5 @@
 #ifndef _EXAMPLESNEURALNET_H
-#define	_EXAMPLESNEURALNET_H
+#define _EXAMPLESNEURALNET_H
 /*
  * Copyright (c) 2005-2015, Brian K. Vogel
  * All rights reserved.
@@ -8,7 +8,7 @@
  * modification, are permitted provided that the following conditions are met:
  *
  * 1. Redistributions of source code must retain the above copyright notice, this
- *    list of conditions and the following disclaimer. 
+ *    list of conditions and the following disclaimer.
  * 2. Redistributions in binary form must reproduce the above copyright notice,
  *    this list of conditions and the following disclaimer in the documentation
  *    and/or other materials provided with the distribution.
@@ -25,7 +25,7 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  * The views and conclusions contained in the software and documentation are those
- * of the authors and should not be interpreted as representing official policies, 
+ * of the authors and should not be interpreted as representing official policies,
  * either expressed or implied, of the FreeBSD Project.
  *
  */
@@ -35,27 +35,19 @@ namespace kumozu {
   ////////////////////////////////////////////////////////////////////////////////
   // Neural network examples.
 
-	/*
-	 * Basic convolutional network: 1 convolutional hidden layer with ReLU activations +
-	 * 1 convolutional hidden layer with ReLU activations + max pooling layer +
-	 * hidden ReLU layer + output ReLU layer.
-	 *
-	 * This version uses Network2DConvFull3L implementation of the neural network.
-	 *
-	 * Results: Gets 0.48% error on MNIST test set when using Leaky ReLU activations and no dropout.
-	 */
-	void mnist_example_1();
+  /*
+   * Example deep convolutional network for MNIST.
+   */
+  void mnist_example_1();
 
-	/*
-	 * Train a convnet on CIFAR-10, save network parameters, and report 
-	 * test set error.
-	 *
-	 * The network has 3 convolutional layers and 1 fully-connected hidden layer.
-	 * Dropout can be applied to all layers.
-	 * Results: Gets 22% error on test set with no dropout.
-	 */
-	void cifar10_example_1();
+  /*
+   * Example deep convolutional network for CIFAR 10.
+    */
+  void cifar10_example_1();
+
+ 
+
 
 }
 
-#endif	/* _EXAMPLESNEURALNET_H */
+#endif  /* _EXAMPLESNEURALNET_H */

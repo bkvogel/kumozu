@@ -1,5 +1,3 @@
-#ifndef _EXAMPLESRECSYSTEM_H
-#define _EXAMPLESRECSYSTEM_H
 /*
  * Copyright (c) 2005-2015, Brian K. Vogel
  * All rights reserved.
@@ -30,29 +28,37 @@
  *
  */
 
+#include "Accumulator.h"
+#include "Utilities.h"
+
+using namespace std;
+
 namespace kumozu {
 
-  ////////////////////////////////////////////////////////////////////////////////
-  // Recommendation system examples.
+  void Accumulator::accumulate(float x) {
+    m_sum += x;
+    m_counter += m_batch_size;
+  }
 
-  /*
-   * Predict movie ratings using a matrix factorization model.
-   *
-   * Load Netflix prize data (training and test data).
-   *
-   * Learn model parameters.
-   *
-   * Predict movie ratings for (user, movie) pairs in the probe set (validation set).
-   *
-   * Model:
-   *
-   * We use the model X = W * H where
-   * X is the partially-observed user ratings matrix.
-   *
-   */
-  void netflix_prize_example_1();
+  void Accumulator::reset() {
+    m_sum = 0.0f;
+    m_counter = 0.0f;
+  }
 
+  float Accumulator::get_sum() const {
+    return m_sum;
+  }
+
+  float Accumulator::get_mean() const {
+    if (m_counter == 0) {
+      cerr << "Accumulator: get_mean() was called before anything was accumulated!" << endl;
+      exit(1);
+    }
+    return m_sum/static_cast<float>(m_counter);
+  }
+
+  int Accumulator::get_counter() const {
+    return m_counter;
+  }
 
 }
-
-#endif  /* _EXAMPLESRECSYSTEM_H */

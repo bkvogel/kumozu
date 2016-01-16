@@ -6,7 +6,7 @@
  * modification, are permitted provided that the following conditions are met:
  *
  * 1. Redistributions of source code must retain the above copyright notice, this
- *    list of conditions and the following disclaimer. 
+ *    list of conditions and the following disclaimer.
  * 2. Redistributions in binary form must reproduce the above copyright notice,
  *    this list of conditions and the following disclaimer in the documentation
  *    and/or other materials provided with the distribution.
@@ -23,7 +23,7 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  * The views and conclusions contained in the software and documentation are those
- * of the authors and should not be interpreted as representing official policies, 
+ * of the authors and should not be interpreted as representing official policies,
  * either expressed or implied, of the FreeBSD Project.
  *
  */
@@ -40,12 +40,26 @@
 #include <omp.h>
 #include <algorithm>
 
-#include "MatrixT.h"
+#include "Matrix.h"
 #include "MatrixIO.h"
 #include "UnitTests.h"
-#include "Network2DConv3F1.h"
-#include "Network3DConv3F1.h"
-#include "MinibatchNetworkTrainer.h"
+#include "PlotUtilities.h"
+
+#include "SequentialNetwork.h"
+#include "BoxActivationFunction.h"
+#include "ColumnActivationFunction.h"
+#include "ConvLayer3D.h"
+#include "BatchNormalization3D.h"
+#include "Dropout3D.h"
+#include "PoolingLayer.h"
+#include "ImageToColumnLayer.h"
+#include "Dropout1D.h"
+#include "LinearLayer.h"
+#include "BatchNormalization1D.h"
+#include "CrossEntropyCostFunction.h"
+#include "MinibatchTrainer.h"
+#include "Accumulator.h"
+
 
 // Uncomment following line to disable assertion checking.
 //#define NDEBUG
@@ -57,181 +71,948 @@ using namespace std;
 
 namespace kumozu {
 
-	
-	void mnist_example_1() {
-		cout << "MNIST Example 1" << endl << endl;
-		/////////////////////////////////////////////////////////////////////////////////////////
-		// Load training and test data
-		//
 
-		Matrix full_train_images = load_matrix("training_images.dat");
-		Matrix test_images_full = load_matrix("testing_images.dat");
-		vector<float> true_training_labels = load_matrix("array_training_labels.dat"); // fixme: float -> int 
-		vector<float> true_testing_labels = load_matrix("array_testing_labels.dat"); 
+  void mnist_example_1() {
+    cout << "MNIST Example 1" << endl << endl;
+    /////////////////////////////////////////////////////////////////////////////////////////
+    // Load training and test data
+    //
 
-		/////////////////////////////////////////////////////////////////////////////////////////
-		// Set parameters for each layer of the network.
-		//
-		
-		const int conv_filter_height1 = 5; // 9
-		const int conv_filter_width1 = 5; // 9
-		const int filter_count1 = 32; // 64 // Number of convolutional filters.
-		// For pooling layer 1
-		const vector<int> pooling_region_extents1 = {1, 3, 3};
-		// (depth, height, width)
-		const vector<int> pooling_output_extents1 = {filter_count1, 14, 14};
+    MatrixF full_train_images = load_matrix("training_images.dat");
+    MatrixF full_test_images = load_matrix("testing_images.dat");
+    MatrixF target_training_labels_float = load_matrix("array_training_labels.dat"); // fixme: float -> int
+    MatrixF target_testing_labels_float = load_matrix("array_testing_labels.dat");
 
-		const int conv_filter_height2 = 5; // 5
-		const int conv_filter_width2 = 5; // 5
-		//const int filter_count2 = 4*32; // 128
-		const int filter_count2 = 2*32; // 128
-		// For pooling layer 2
-		const vector<int> pooling_region_extents2 = {1, 3, 3};
-		// (depth, height, width)
-		const vector<int> pooling_output_extents2 = {filter_count2, 14, 14};
+    // Hack to put training labels in integer-valued matrix:
+    Matrix<int> target_training_labels(target_training_labels_float.get_extents());
+    for (int i = 0; i < target_training_labels.size(); i++) {
+      target_training_labels[i] = static_cast<int>(target_training_labels_float[i]);
+    }
+    Matrix<int> target_testing_labels(target_testing_labels_float.get_extents());
+    for (int i = 0; i < target_testing_labels.size(); i++) {
+      target_testing_labels[i] = static_cast<int>(target_testing_labels_float[i]);
+    }
+    cout << "Test examples = " << target_testing_labels.extent(0) << endl;
 
-		const int conv_filter_height3 = 3; // 5
-		const int conv_filter_width3 = 3; // 5
-		//const int filter_count3 = 4*4*32; // 128
-		const int filter_count3 = 3*32; // 128
+    /////////////////////////////////////////////////////////////////////////////////////////
+    // Set parameters for each layer of the network.
+    //
 
-		// For pooling layer 3
-		const vector<int> pooling_region_extents3 = {1, 3, 3};
-		// (depth, height, width)
-		const vector<int> pooling_output_extents3 = {filter_count3, 7, 7};
-
-		const int dim_fully_connected_hidden = 512;
-
-		// Amount of dropout for each layer. Expresssed as probability of keeping an activation.
-		//const vector<float> dropout_keep_probabilities = {1.0f, 0.9f, 0.8f, 0.5f};
-		const vector<float> dropout_keep_probabilities = {1.0f, 1.0f, 1.0f, 1.0f}; // Get it to overfit without dropout first.
-		const int maxout_factor = 1;
-		// Number of class labels. This is the number of digits(0 - 9).
-		const int class_label_count = 1 + static_cast<int>(*max_element(true_testing_labels.begin(), true_testing_labels.end()));  
-		const int image_height = full_train_images.extent(1); // Height of MNIST image
-		const int image_width = full_train_images.extent(2); // Width of MNIST image
-		const int minibatch_size = 50; // try 32-256
-		const vector<int> input_extents = {minibatch_size, image_height, image_width};
-		Network2DConv3F1 network(input_extents, 
-						  filter_count1, conv_filter_height1, conv_filter_width1, 
-										pooling_region_extents1, pooling_output_extents1,
-									filter_count2, conv_filter_height2, conv_filter_width2, 
-										pooling_region_extents2, pooling_output_extents2,
-										  filter_count3, conv_filter_height3, conv_filter_width3, 
-										pooling_region_extents3, pooling_output_extents3,
-										class_label_count,
-										  dim_fully_connected_hidden, maxout_factor,
-										BoxActivationFunction::ACTIVATION_TYPE::leakyReLU, 
-								 ColumnActivationFunction::ACTIVATION_TYPE::leakyReLU,
-										dropout_keep_probabilities);
-		
-		/////////////////////////////////////////////////////////////////////////////////////////
-		// Train the network
-		//
-		MinibatchNetworkTrainer trainer(network, full_train_images, test_images_full, true_training_labels, 
-										true_testing_labels);
-		trainer.train();
-
-		/////////////////////////////////////////////////////////////////////////////////////////
-		// Save parameters and stats.
-
-		// Save stats on learning progress.
-		trainer.save_learning_info("mnist_example");
-
-		// Save learned parameters
-		network.save_learning_info("mnist_example");
-	}
+    const int minibatch_size = 50; // 50 // try 10-200
 
 
+    const int dim_fully_connected_hidden = 512; // 512
 
-	void cifar10_example_1() {
-		cout << "CIFAR10 Example 1" << endl << endl;
-		/////////////////////////////////////////////////////////////////////////////////////////
-		// Load training and test data
-		//
-		Matrix full_train_images = load_matrix("training_images.dat");
-		Matrix test_images_full = load_matrix("testing_images.dat");
-		vector<float> true_training_labels = load_matrix("array_training_labels.dat"); // fixme: float -> int
-		vector<float> true_testing_labels = load_matrix("array_testing_labels.dat"); //
+    const int class_label_count = 1 + static_cast<int>(max_value(target_testing_labels));
+    cout << "Class label count = " << class_label_count << endl;
 
-		/////////////////////////////////////////////////////////////////////////////////////////
-		// Set parameters for each layer of the network.
-		//
-		
-		const int minibatch_size = 20; // try 32-256.
+    // Notes:
+    // image depth is full_train_images.extent(1), which is 1 for greyscale images, 3 for color
+    // image height is full_train_images.extent(2)
+    // image width is full_train_images.extent(3)
 
-		const int conv_filter_height1 = 5; // 9
-		const int conv_filter_width1 = 5; // 9
-		const int filter_count1 = 2*32; // 64 // Number of convolutional filters.
-		// For pooling layer 1
-		const vector<int> pooling_region_extents1 = {1, 3, 3};
-		// (depth, height, width)
-		const vector<int> pooling_output_extents1 = {filter_count1, 16, 16};
+    const bool conv_fixed_rand = false; //
+    const bool linear_fixed_rand = false; //
 
-		const int conv_filter_height2 = 5; // 5
-		const int conv_filter_width2 = 5; // 5
-		//const int filter_count2 = 4*32; // 128
-		const int filter_count2 = 2*2*32; // 128
-		// For pooling layer 2
-		const vector<int> pooling_region_extents2 = {1, 3, 3};
-		// (depth, height, width)
-		const vector<int> pooling_output_extents2 = {filter_count2, 8, 8};
+    // Try starting with large momentum and reduce as training progresses.
+    //float batch_norm_momentum = 0.05f; // 0.1
+    const bool enable_gamma_beta = true; // ok, this does seem to help if set true.
 
-		const int conv_filter_height3 = 5; // 5
-		const int conv_filter_width3 = 5; // 5
-		//const int filter_count3 = 4*4*32; // 128
-		const int filter_count3 = 2*3*32; // 128
-		// For pooling layer 3
-		const vector<int> pooling_region_extents3 = {1, 3, 3};
-		// (depth, height, width)
-		const vector<int> pooling_output_extents3 = {filter_count3, 4, 4};
+    const bool is_enable_bias_linear_layers = false;
 
-		const int dim_fully_connected_hidden = 512; // 512
-		const int maxout_factor = 1; // Set to 1 unless using maxout activations for fully-connected layers.
-		
-		// Amount of dropout for each layer. Expresssed as probability of keeping an activation.
-		const vector<float> dropout_keep_probabilities = {1.0f, 0.95f, 0.9f, 0.8f, 0.5f};
-		//const vector<float> dropout_keep_probabilities = {1.0f, 1.0f, 1.0f, 1.0f, 1.0f};
-		
-		const int class_label_count = 1 + static_cast<int>(*max_element(true_testing_labels.begin(), true_testing_labels.end()));  
-		const int image_depth = full_train_images.extent(1); // Width of CIFAR image
-		const int image_height = full_train_images.extent(2); // Height of CIFAR image
-		const int image_width = full_train_images.extent(3); // Width of CIFAR image
-		const vector<int> input_extents = {minibatch_size, image_depth, image_height, image_width};
-		Network3DConv3F1 network(input_extents, 
-						  filter_count1, conv_filter_height1, conv_filter_width1, 
-										pooling_region_extents1, pooling_output_extents1,
-									filter_count2, conv_filter_height2, conv_filter_width2, 
-										pooling_region_extents2, pooling_output_extents2,
-										  filter_count3, conv_filter_height3, conv_filter_width3, 
-										pooling_region_extents3, pooling_output_extents3,
-										class_label_count,
-										  dim_fully_connected_hidden, maxout_factor,
-										BoxActivationFunction::ACTIVATION_TYPE::leakyReLU, 
-								 ColumnActivationFunction::ACTIVATION_TYPE::leakyReLU,
-										dropout_keep_probabilities);
+    SequentialNetwork network("sequential network 1");
 
-		
-		/////////////////////////////////////////////////////////////////////////////////////////
-		// Train the network
-		//
-		MinibatchNetworkTrainer trainer(network, full_train_images, test_images_full, true_training_labels, 
-										true_testing_labels);
+    BoxActivationFunction::ACTIVATION_TYPE box_activation_type = BoxActivationFunction::ACTIVATION_TYPE::leakyReLU;
+    //BoxActivationFunction::ACTIVATION_TYPE box_activation_type = BoxActivationFunction::ACTIVATION_TYPE::ReLU;
+    ColumnActivationFunction::ACTIVATION_TYPE col_activation_type = ColumnActivationFunction::ACTIVATION_TYPE::leakyReLU;
+    //ColumnActivationFunction::ACTIVATION_TYPE col_activation_type = ColumnActivationFunction::ACTIVATION_TYPE::ReLU;
 
-		// Set number of iterations through training set.
-		trainer.set_max_learn_epochs(300); 
-		trainer.train();
+    // Notes:
+    // Pooling region extents are (depth, height, width) where depth is the number of convolution filter channels. Therefore,
+    // pooling is often performed along the height and width only, but you can try "3D max pooling" to include the depth also.
 
-		/////////////////////////////////////////////////////////////////////////////////////////
-		// Save parameters and stats.
+    const int filter_height1 = 3; //
+    const int filter_width1 = 3; //
+    const int filter_count1 = 64; // Number of convolutional filters.
+    const vector<int> pooling_region_extents1 = {1, 1, 1};
+    const vector<int> pooling_region_step_sizes1 = {1, 1, 1};
+    ConvLayer3D conv_layer1(filter_count1, filter_height1, filter_width1, "Conv Layer 1");
+    conv_layer1.enable_fixed_random_back_prop(conv_fixed_rand);
+    conv_layer1.enable_bias(is_enable_bias_linear_layers);
+    network.add_layer(conv_layer1);
+    BatchNormalization3D batch_norm3d_1(enable_gamma_beta, "Batch Normalization 3d 1");
+    network.add_layer(batch_norm3d_1);
+    BoxActivationFunction box_activation_layer1(box_activation_type, "Box Activation Function 1");
+    network.add_layer(box_activation_layer1);
+    PoolingLayer pooling_layer1(pooling_region_extents1, pooling_region_step_sizes1, "Pooling Layer 1");
+    //network.add_layer(pooling_layer1);
+    Dropout3D dropout3d_1(0.8f, "Dropout3D 1");
+    network.add_layer(dropout3d_1);
 
-		// Save stats on learning progress.
-		trainer.save_learning_info("cifar10_example");
+    const int filter_height2 = 3; // 5
+    const int filter_width2 = 3; // 5
+    const int filter_count2 = 64; //
+    ConvLayer3D conv_layer2(filter_count2, filter_height2, filter_width2, "Conv Layer 2");
+    conv_layer2.enable_fixed_random_back_prop(conv_fixed_rand);
+    conv_layer2.enable_bias(is_enable_bias_linear_layers);
+    network.add_layer(conv_layer2);
+    BatchNormalization3D batch_norm3d_2(enable_gamma_beta, "Batch Normalization 3d 2");
+    network.add_layer(batch_norm3d_2);
+    BoxActivationFunction box_activation_layer2(box_activation_type, "Box Activation Function 2");
+    network.add_layer(box_activation_layer2);
+    const vector<int> pooling_region_extents2 = {1, 3, 3};
+    const vector<int> pooling_region_step_sizes2 = {1, 2, 2};
+    PoolingLayer pooling_layer2(pooling_region_extents2, pooling_region_step_sizes2, "Pooling Layer 2");
+    network.add_layer(pooling_layer2);
+    Dropout3D dropout3d_2(0.8f, "Dropout3D 2");
+    network.add_layer(dropout3d_2);
 
-		// Save learned parameters
-		network.save_learning_info("cifar10_example");
+    const int filter_height3 = 3; // 5
+    const int filter_width3 = 3; // 5
+    const int filter_count3 = 128; // 128
+    ConvLayer3D conv_layer3(filter_count3, filter_height3, filter_width3, "Conv Layer 3");
+    conv_layer3.enable_fixed_random_back_prop(conv_fixed_rand);
+    conv_layer3.enable_bias(is_enable_bias_linear_layers);
+    network.add_layer(conv_layer3);
+    BatchNormalization3D batch_norm3d_3(enable_gamma_beta, "Batch Normalization 3d 3");
+    network.add_layer(batch_norm3d_3);
+    BoxActivationFunction box_activation_layer3(box_activation_type, "Box Activation Function 3");
+    network.add_layer(box_activation_layer3);
+    const vector<int> pooling_region_extents3 = {1, 1, 1};
+    const vector<int> pooling_region_step_sizes3 = {1, 1, 1};
+    PoolingLayer pooling_layer3(pooling_region_extents3, pooling_region_step_sizes3, "Pooling Layer 3");
+    //network.add_layer(pooling_layer3);
+    Dropout3D dropout3d_3(0.8f, "Dropout3D 3");
+    //network.add_layer(dropout3d_3);
 
-	}
+    const int filter_height4 = 3; // 5
+    const int filter_width4 = 3; // 5
+    const int filter_count4 = 128; // 128
+    ConvLayer3D conv_layer4(filter_count4, filter_height4, filter_width4, "Conv Layer 4");
+    conv_layer4.enable_fixed_random_back_prop(conv_fixed_rand);
+    conv_layer4.enable_bias(is_enable_bias_linear_layers);
+    network.add_layer(conv_layer4);
+    BatchNormalization3D batch_norm3d_4(enable_gamma_beta, "Batch Normalization 3d 4");
+    network.add_layer(batch_norm3d_4);
+    BoxActivationFunction box_activation_layer4(box_activation_type, "Box Activation Function 4");
+    network.add_layer(box_activation_layer4);
+    const vector<int> pooling_region_extents4 = {1, 3, 3};
+    const vector<int> pooling_region_step_sizes4 = {1, 2, 2};
+    PoolingLayer pooling_layer4(pooling_region_extents4, pooling_region_step_sizes4, "Pooling Layer 4");
+    network.add_layer(pooling_layer4);
+    Dropout3D dropout3d_4(0.8f, "Dropout3D 4");
+    network.add_layer(dropout3d_4);
+
+    const int filter_height5 = 3; // 5
+    const int filter_width5 = 3; // 5
+    const int filter_count5 = 256; // 128
+    ConvLayer3D conv_layer5(filter_count5, filter_height5, filter_width5, "Conv Layer 5");
+    conv_layer5.enable_fixed_random_back_prop(conv_fixed_rand);
+    conv_layer5.enable_bias(is_enable_bias_linear_layers);
+    network.add_layer(conv_layer5);
+    BatchNormalization3D batch_norm3d_5(enable_gamma_beta, "Batch Normalization 3d 5");
+    network.add_layer(batch_norm3d_5);
+    BoxActivationFunction box_activation_layer5(box_activation_type, "Box Activation Function 5");
+    network.add_layer(box_activation_layer5);
+    const vector<int> pooling_region_extents5 = {1, 1, 1};
+    const vector<int> pooling_region_step_sizes5 = {1, 1, 1};
+    PoolingLayer pooling_layer5(pooling_region_extents5, pooling_region_step_sizes5, "Pooling Layer 5");
+    //network.add_layer(pooling_layer5);
+    Dropout3D dropout3d_5(0.9f, "Dropout3D 5");
+    //network.add_layer(dropout3d_5);
+
+    const int filter_height6 = 3; //
+    const int filter_width6 = 3; //
+    const int filter_count6 = 256; //
+    ConvLayer3D conv_layer6(filter_count6, filter_height6, filter_width6, "Conv Layer 6");
+    conv_layer6.enable_fixed_random_back_prop(conv_fixed_rand);
+    conv_layer6.enable_bias(is_enable_bias_linear_layers);
+    network.add_layer(conv_layer6);
+    BatchNormalization3D batch_norm3d_6(enable_gamma_beta, "Batch Normalization 3d 6");
+    network.add_layer(batch_norm3d_6);
+    BoxActivationFunction box_activation_layer6(box_activation_type, "Box Activation Function 6");
+    network.add_layer(box_activation_layer6);
+    const vector<int> pooling_region_extents6 = {1, 1, 1};
+    const vector<int> pooling_region_step_sizes6 = {1, 1, 1};
+    PoolingLayer pooling_layer6(pooling_region_extents6, pooling_region_step_sizes6, "Pooling Layer 6");
+    //network.add_layer(pooling_layer6);
+    Dropout3D dropout3d_6(0.9f, "Dropout3D 6");
+    //network.add_layer(dropout3d_6);
+
+    const int filter_height7 = 3; //
+    const int filter_width7 = 3; //
+    const int filter_count7 = 256; //
+    ConvLayer3D conv_layer7(filter_count7, filter_height7, filter_width7, "Conv Layer 7");
+    conv_layer7.enable_fixed_random_back_prop(conv_fixed_rand);
+    conv_layer7.enable_bias(is_enable_bias_linear_layers);
+    network.add_layer(conv_layer7);
+    BatchNormalization3D batch_norm3d_7(enable_gamma_beta, "Batch Normalization 3d 7");
+    network.add_layer(batch_norm3d_7);
+    BoxActivationFunction box_activation_layer7(box_activation_type, "Box Activation Function 7");
+    network.add_layer(box_activation_layer7);
+    const vector<int> pooling_region_extents7 = {1, 3, 3};
+    const vector<int> pooling_region_step_sizes7 = {1, 2, 2};
+    PoolingLayer pooling_layer7(pooling_region_extents7, pooling_region_step_sizes7, "Pooling Layer 7");
+    network.add_layer(pooling_layer7);
+    Dropout3D dropout3d_7(0.8f, "Dropout3D 7");
+    network.add_layer(dropout3d_7);
+
+    ImageToColumnLayer image_to_col_layer("Image To Column Layer 1");
+    network.add_layer(image_to_col_layer);
+
+    const float prob_keep1d_1 = 0.5f;
+    Dropout1D dropout1d_1(prob_keep1d_1, "Dropout1D 1");
+    network.add_layer(dropout1d_1);
+
+    LinearLayer linear_laye1(dim_fully_connected_hidden, "Linear Layer 1");
+    linear_laye1.enable_fixed_random_back_prop(linear_fixed_rand);
+    linear_laye1.enable_bias(is_enable_bias_linear_layers);
+    network.add_layer(linear_laye1);
+
+    BatchNormalization1D batch_norm1d_1(enable_gamma_beta, "Batch Normalization 1d 1");
+    network.add_layer(batch_norm1d_1);
+    ColumnActivationFunction column_activation_layer1(col_activation_type, "Column Activation Function 1");
+    network.add_layer(column_activation_layer1);
+
+    const float prob_keep1d_2 = 0.7f;
+    Dropout1D dropout1d_2(prob_keep1d_2, "Dropout1D 2");
+    //network.add_layer(dropout1d_2);
+
+    LinearLayer linear_laye2(class_label_count, "Linear Layer 2");
+    linear_laye2.enable_fixed_random_back_prop(linear_fixed_rand);
+    network.add_layer(linear_laye2);
+
+    CrossEntropyCostFunction cost_func("Cross Entropy Cost Function");
+
+    // Set up learning rates.
+    float learning_rate_weights = 1e-3f; // 1e-3
+    float learning_rate_bias = 1e-3f; //
+    float weight_decay = 5e-4f; // doesn't do much
+    const bool enable_weight_decay = true;
+
+    /////////////////////////////////////////////////////////////////////////////////////////
+    // Train the network
+    //
+    MinibatchTrainer<float, int> trainer(full_train_images, 0, target_training_labels, 0, minibatch_size);
+    trainer.enable_shuffling(true);
+
+    const MatrixF& train_input_mini = trainer.get_input_batch();
+    const Matrix<int>& train_output_mini = trainer.get_output_batch();
+    MatrixF input_deltas = train_input_mini;
+    // Initialize the network:
+    network.forward(train_input_mini);
+
+    // Optionally load saved parameters:
+    if (false) {
+      network.load_parameters("mnist_model_1");
+    }
+    MatrixF& W = network.get_weights();
+    Updater weights_updater(W.get_extents(), "Weights Updater");
+    //weights_updater.set_mode_rmsprop_momentum(rms_prop_rate_weights, 0.9f, 0.9f);
+    //weights_updater.set_mode_rmsprop(rms_prop_rate_weights, 0.9f);
+    weights_updater.set_mode_constant_learning_rate(learning_rate_weights); //
+    weights_updater.set_flag_weight_decay(weight_decay, enable_weight_decay);
+    MatrixF& bias = network.get_bias();
+    Updater bias_updater(bias.get_extents(), "Bias Updater");
+    //bias_updater.set_mode_rmsprop_momentum(rms_prop_rate_bias, 0.9f, 0.9f);
+    //bias_updater.set_mode_rmsprop(rms_prop_rate_bias, 0.9f);
+    bias_updater.set_mode_constant_learning_rate(learning_rate_bias); //
+    bias_updater.set_flag_weight_decay(weight_decay, enable_weight_decay);
+
+    MatrixF& W_grad = network.get_weight_gradient();
+    MatrixF& bias_grad = network.get_bias_gradient();
+
+    // For testing:
+    MinibatchTrainer<float, int> tester(full_test_images, 0, target_testing_labels, 0, minibatch_size);
+    tester.enable_shuffling(true); // Not necessary to shuffle the test set but does not hurt.
+    const MatrixF& test_input_mini = tester.get_input_batch();
+    const Matrix<int>& test_output_mini = tester.get_output_batch();
+    int train_epochs = 0;
+    network.set_train_mode(true);
+
+    Accumulator train_accumulator(minibatch_size);
+    Accumulator test_accumulator(minibatch_size);
+    Accumulator train_loss_accumulator(minibatch_size);
+    Accumulator test_loss_accumulator(minibatch_size);
+    // Vectors for plotting:
+    vector<float> training_errors;
+    vector<float> test_errors;
+    Gnuplot plot_errors;
+    Gnuplot plot_activations;
+    while (train_epochs < 125) { // 100-150 epochs is good
+      cerr << ".";
+      bool end_epoch = trainer.next(); // Get next training mini-batch
+
+      network.forward(train_input_mini);
+      train_loss_accumulator.accumulate(cost_func.forward(network.get_output(), train_output_mini));
+      train_accumulator.accumulate(error_count(network.get_output(), train_output_mini));
+      cost_func.back_propagate(network.get_output_deltas(), network.get_output(), train_output_mini);
+      network.back_propagate(input_deltas, train_input_mini);
+      weights_updater.update(W, W_grad);
+      bias_updater.update(bias, bias_grad);
+      if (end_epoch) {
+        cout << endl << "---------------" << endl;
+        //network.print_paramater_stats(); // enable for debugging info
+        cout << "Training epochs: " << train_epochs << endl;
+        cout << "Train error rate: " << train_accumulator.get_mean() << endl;
+        cout << "Train loss/example: " << train_loss_accumulator.get_mean() << endl;
+        cout << "Train examples: " << train_accumulator.get_counter() << endl;
+        training_errors.push_back(train_accumulator.get_mean());
+        train_accumulator.reset();
+        train_loss_accumulator.reset();
+        test_accumulator.reset();
+        test_loss_accumulator.reset();
+        network.set_train_mode(false);
+        bool done = false;
+        while (!done) {
+          done = tester.next(); // Get next test mini-batch
+
+          network.forward(test_input_mini);
+          test_loss_accumulator.accumulate(cost_func.forward(network.get_output(), test_output_mini));
+          test_accumulator.accumulate(error_count(network.get_output(), test_output_mini));
+        }
+        cout << "Test error rate: " << test_accumulator.get_mean() << endl;
+        cout << "Test loss/example: " << test_loss_accumulator.get_mean() << endl;
+        cout << "Test examples: " << test_accumulator.get_counter() << endl;
+        test_errors.push_back(test_accumulator.get_mean());
+
+
+        if (true) {
+
+          // Update plot:
+          plot_errors << "set multiplot layout 2,1 title 'Train/Test errors'" << endl;
+          plot(plot_errors, training_errors, "Training error");
+          plot(plot_errors, test_errors, "Test error");
+          plot_errors << "unset multiplot" << endl;
+
+          // Plot some activations:
+          plot_activations << "set multiplot layout 2,5 title 'Network activations'" << endl;
+
+          // Plot an input image to network:
+          const int image_index = 0; // arbitrary choice
+          MatrixF one_image = select(test_input_mini, 0, image_index);
+          scale(one_image, one_image, 255.0f);
+          plot_images_greyscale_3dim(plot_activations, one_image, "Input test image");
+
+
+
+          // Plot conv layer 1 output:
+          MatrixF images_conv_layer_1_out = select(conv_layer1.get_output(), 0, image_index);
+          plot_images_greyscale_3dim(plot_activations, images_conv_layer_1_out, conv_layer1.get_name());
+
+          // Plot conv layer 2 output:
+          MatrixF images_conv_layer_2_out = select(conv_layer2.get_output(), 0, image_index);
+          plot_images_greyscale_3dim(plot_activations, images_conv_layer_2_out, conv_layer2.get_name());
+
+          // Plot conv layer 3 output:
+          MatrixF images_conv_layer_3_out = select(conv_layer3.get_output(), 0, image_index);
+          plot_images_greyscale_3dim(plot_activations, images_conv_layer_3_out, conv_layer3.get_name());
+
+          // Plot conv layer 4 output:
+          MatrixF images_conv_layer_4_out = select(conv_layer4.get_output(), 0, image_index);
+          plot_images_greyscale_3dim(plot_activations, images_conv_layer_4_out, conv_layer4.get_name());
+
+          // Plot conv layer 5 output:
+          MatrixF images_conv_layer_5_out = select(conv_layer5.get_output(), 0, image_index);
+          plot_images_greyscale_3dim(plot_activations, images_conv_layer_5_out, conv_layer5.get_name());
+
+          // Plot conv layer 6 output:
+          MatrixF images_conv_layer_6_out = select(conv_layer6.get_output(), 0, image_index);
+          plot_images_greyscale_3dim(plot_activations, images_conv_layer_6_out, conv_layer6.get_name());
+
+          // Plot conv layer 7 output:
+          MatrixF images_conv_layer_7_out = select(conv_layer7.get_output(), 0, image_index);
+          plot_images_greyscale_3dim(plot_activations, images_conv_layer_7_out, conv_layer7.get_name());
+
+
+          // Plot linear layer 1:
+          MatrixF linear_laye1_out = select(linear_laye1.get_output(), 1, image_index);
+          plot_image_greyscale(plot_activations, linear_laye1_out, linear_laye1.get_name());
+
+          // Plot linear layer 2:
+          MatrixF linear_laye2_out = select(linear_laye2.get_output(), 1, image_index);
+          plot_image_greyscale(plot_activations, linear_laye2_out, linear_laye2.get_name());
+
+          plot_activations << "unset multiplot" << endl;
+        }
+
+        network.set_train_mode(true);
+      }
+
+
+      if (end_epoch) {
+        train_epochs++;
+
+        //rms_prop_rate_weights *= 0.9f;
+        //rms_prop_rate_bias *=0.9f;
+        //weight_decay *= 0.9f;
+        //weights_updater.set_mode_rmsprop_momentum(rms_prop_rate_weights, 0.9f, 0.9f);
+        //bias_updater.set_mode_rmsprop_momentum(rms_prop_rate_bias, 0.9f, 0.9f);
+        //
+        learning_rate_weights *= 0.97f;
+        cout << "New learning rate weights: " << learning_rate_weights << endl;
+        weights_updater.set_mode_constant_learning_rate(learning_rate_weights);
+        learning_rate_bias *= 0.97f;
+        cout << "New learning rate bias: " << learning_rate_bias << endl;
+        bias_updater.set_mode_constant_learning_rate(learning_rate_bias); //
+        weight_decay *= 0.97f;
+        cout << "New weight decay: " << weight_decay << endl;
+        weights_updater.set_flag_weight_decay(weight_decay, enable_weight_decay);
+        bias_updater.set_flag_weight_decay(weight_decay, enable_weight_decay);
+
+      }
+    }
+
+
+    /////////////////////////////////////////////////////////////////////////////////////////
+    // Save parameters and stats.
+    network.save_parameters("mnist_model_1");
+
+  }
+
+
+
+  // Uses the VGG-like network from:
+  // http://torch.ch/blog/2015/07/30/cifar.html
+  // which is based on the network architecture from the paper:
+  // http://arxiv.org/pdf/1409.1556v6.pdf
+  //
+  // The network uses 13 convolutional layers + 2 fully-connected layers with softmax output and NLL cost function.
+  // Leaky ReLU activations are used. No weight decay is used.
+  // No data augmentation is used.
+  //
+  // Using BN + dropout results in 11.1% test error after about 100-125 iterations. Takes about 18 hours on 5960x.
+  void cifar10_example_1() {
+    cout << "CIFAR10 Example 1" << endl << endl;
+    /////////////////////////////////////////////////////////////////////////////////////////
+    // Load training and test data
+    //
+    MatrixF full_train_images = load_matrix("training_images.dat");
+    MatrixF full_test_images = load_matrix("testing_images.dat");
+    MatrixF target_training_labels_float = load_matrix("array_training_labels.dat"); // fixme: float -> int
+    MatrixF target_testing_labels_float = load_matrix("array_testing_labels.dat"); //
+
+    // Hack to put training labels in integer-valued matrix:
+    Matrix<int> target_training_labels(target_training_labels_float.get_extents());
+    for (int i = 0; i < target_training_labels.size(); i++) {
+      target_training_labels[i] = static_cast<int>(target_training_labels_float[i]);
+    }
+    Matrix<int> target_testing_labels(target_testing_labels_float.get_extents());
+    for (int i = 0; i < target_testing_labels.size(); i++) {
+      target_testing_labels[i] = static_cast<int>(target_testing_labels_float[i]);
+    }
+    cout << "Test examples = " << target_testing_labels.extent(0) << endl;
+
+    /////////////////////////////////////////////////////////////////////////////////////////
+    // Set parameters for each layer of the network.
+    //
+
+    const int minibatch_size = 50; // try 10-200
+
+
+    const int dim_fully_connected_hidden = 512; // 512
+
+    const int class_label_count = 1 + static_cast<int>(max_value(target_testing_labels));
+    cout << "Class label count = " << class_label_count << endl;
+
+    // False is default. If set to true, fixed random weights are used in the convolutional layers.
+    const bool conv_fixed_rand = false; //
+    // False is default. If set to true, fixed random weights are used in the fully-connected linear layers.
+    const bool linear_fixed_rand = false; //
+
+    // Enable/disable the learned gamma and beta parameters in the batch normalization layers. True is default (enabled).
+    const bool enable_gamma_beta = true; // ok, this does seem to help if set true.
+
+    // Enable/disable bias parameters in the convolutional and fully-connected layers. Bias should be disabled when
+    // batch normalization is used since batch normalization has its own bias.
+    const bool is_enable_bias_linear_layers = false;
+
+    SequentialNetwork network("sequential network 1");
+
+    BoxActivationFunction::ACTIVATION_TYPE box_activation_type = BoxActivationFunction::ACTIVATION_TYPE::leakyReLU;
+    //BoxActivationFunction::ACTIVATION_TYPE box_activation_type = BoxActivationFunction::ACTIVATION_TYPE::ReLU;
+    ColumnActivationFunction::ACTIVATION_TYPE col_activation_type = ColumnActivationFunction::ACTIVATION_TYPE::leakyReLU;
+    //ColumnActivationFunction::ACTIVATION_TYPE col_activation_type = ColumnActivationFunction::ACTIVATION_TYPE::ReLU;
+
+    // Notes:
+    // Pooling region extents are (depth, height, width) where depth is the number of convolution filter channels. Therefore,
+    // pooling is often performed along the height and width only, but you can try "3D max pooling" to include the depth also.
+
+    const int filter_height1 = 3; //
+    const int filter_width1 = 3; //
+    const int filter_count1 = 64; // Number of convolutional filters.
+    const vector<int> pooling_region_extents1 = {1, 1, 1};
+    const vector<int> pooling_region_step_sizes1 = {1, 1, 1};
+    ConvLayer3D conv_layer1(filter_count1, filter_height1, filter_width1, "Conv Layer 1");
+    conv_layer1.enable_fixed_random_back_prop(conv_fixed_rand);
+    conv_layer1.enable_bias(is_enable_bias_linear_layers);
+    network.add_layer(conv_layer1);
+    BatchNormalization3D batch_norm3d_1(enable_gamma_beta, "Batch Normalization 3d 1");
+    network.add_layer(batch_norm3d_1);
+    BoxActivationFunction box_activation_layer1(box_activation_type, "Box Activation Function 1");
+    network.add_layer(box_activation_layer1);
+    PoolingLayer pooling_layer1(pooling_region_extents1, pooling_region_step_sizes1, "Pooling Layer 1");
+    //network.add_layer(pooling_layer1);
+    Dropout3D dropout3d_1(0.8f, "Dropout3D 1");
+    network.add_layer(dropout3d_1);
+
+    const int filter_height2 = 3; // 5
+    const int filter_width2 = 3; // 5
+    const int filter_count2 = 64; //
+    ConvLayer3D conv_layer2(filter_count2, filter_height2, filter_width2, "Conv Layer 2");
+    conv_layer2.enable_fixed_random_back_prop(conv_fixed_rand);
+    conv_layer2.enable_bias(is_enable_bias_linear_layers);
+    network.add_layer(conv_layer2);
+    BatchNormalization3D batch_norm3d_2(enable_gamma_beta, "Batch Normalization 3d 2");
+    network.add_layer(batch_norm3d_2);
+    BoxActivationFunction box_activation_layer2(box_activation_type, "Box Activation Function 2");
+    network.add_layer(box_activation_layer2);
+    const vector<int> pooling_region_extents2 = {1, 3, 3};
+    const vector<int> pooling_region_step_sizes2 = {1, 2, 2};
+    PoolingLayer pooling_layer2(pooling_region_extents2, pooling_region_step_sizes2, "Pooling Layer 2");
+    network.add_layer(pooling_layer2);
+    Dropout3D dropout3d_2(0.8f, "Dropout3D 2");
+    network.add_layer(dropout3d_2);
+
+    const int filter_height3 = 3; // 5
+    const int filter_width3 = 3; // 5
+    const int filter_count3 = 128; // 128
+    ConvLayer3D conv_layer3(filter_count3, filter_height3, filter_width3, "Conv Layer 3");
+    conv_layer3.enable_fixed_random_back_prop(conv_fixed_rand);
+    conv_layer3.enable_bias(is_enable_bias_linear_layers);
+    network.add_layer(conv_layer3);
+    BatchNormalization3D batch_norm3d_3(enable_gamma_beta, "Batch Normalization 3d 3");
+    network.add_layer(batch_norm3d_3);
+    BoxActivationFunction box_activation_layer3(box_activation_type, "Box Activation Function 3");
+    network.add_layer(box_activation_layer3);
+    const vector<int> pooling_region_extents3 = {1, 1, 1};
+    const vector<int> pooling_region_step_sizes3 = {1, 1, 1};
+    PoolingLayer pooling_layer3(pooling_region_extents3, pooling_region_step_sizes3, "Pooling Layer 3");
+    //network.add_layer(pooling_layer3);
+    Dropout3D dropout3d_3(0.8f, "Dropout3D 3");
+    //network.add_layer(dropout3d_3);
+
+    const int filter_height4 = 3; // 5
+    const int filter_width4 = 3; // 5
+    const int filter_count4 = 128; // 128
+    ConvLayer3D conv_layer4(filter_count4, filter_height4, filter_width4, "Conv Layer 4");
+    conv_layer4.enable_fixed_random_back_prop(conv_fixed_rand);
+    conv_layer4.enable_bias(is_enable_bias_linear_layers);
+    network.add_layer(conv_layer4);
+    BatchNormalization3D batch_norm3d_4(enable_gamma_beta, "Batch Normalization 3d 4");
+    network.add_layer(batch_norm3d_4);
+    BoxActivationFunction box_activation_layer4(box_activation_type, "Box Activation Function 4");
+    network.add_layer(box_activation_layer4);
+    const vector<int> pooling_region_extents4 = {1, 3, 3};
+    const vector<int> pooling_region_step_sizes4 = {1, 2, 2};
+    PoolingLayer pooling_layer4(pooling_region_extents4, pooling_region_step_sizes4, "Pooling Layer 4");
+    network.add_layer(pooling_layer4);
+    Dropout3D dropout3d_4(0.8f, "Dropout3D 4");
+    network.add_layer(dropout3d_4);
+
+    const int filter_height5 = 3; // 5
+    const int filter_width5 = 3; // 5
+    const int filter_count5 = 256; // 128
+    ConvLayer3D conv_layer5(filter_count5, filter_height5, filter_width5, "Conv Layer 5");
+    conv_layer5.enable_fixed_random_back_prop(conv_fixed_rand);
+    conv_layer5.enable_bias(is_enable_bias_linear_layers);
+    network.add_layer(conv_layer5);
+    BatchNormalization3D batch_norm3d_5(enable_gamma_beta, "Batch Normalization 3d 5");
+    network.add_layer(batch_norm3d_5);
+    BoxActivationFunction box_activation_layer5(box_activation_type, "Box Activation Function 5");
+    network.add_layer(box_activation_layer5);
+    const vector<int> pooling_region_extents5 = {1, 1, 1};
+    const vector<int> pooling_region_step_sizes5 = {1, 1, 1};
+    PoolingLayer pooling_layer5(pooling_region_extents5, pooling_region_step_sizes5, "Pooling Layer 5");
+    //network.add_layer(pooling_layer5);
+    Dropout3D dropout3d_5(0.9f, "Dropout3D 5");
+    //network.add_layer(dropout3d_5);
+
+    const int filter_height6 = 3; //
+    const int filter_width6 = 3; //
+    const int filter_count6 = 256; //
+    ConvLayer3D conv_layer6(filter_count6, filter_height6, filter_width6, "Conv Layer 6");
+    conv_layer6.enable_fixed_random_back_prop(conv_fixed_rand);
+    conv_layer6.enable_bias(is_enable_bias_linear_layers);
+    network.add_layer(conv_layer6);
+    BatchNormalization3D batch_norm3d_6(enable_gamma_beta, "Batch Normalization 3d 6");
+    network.add_layer(batch_norm3d_6);
+    BoxActivationFunction box_activation_layer6(box_activation_type, "Box Activation Function 6");
+    network.add_layer(box_activation_layer6);
+    const vector<int> pooling_region_extents6 = {1, 1, 1};
+    const vector<int> pooling_region_step_sizes6 = {1, 1, 1};
+    PoolingLayer pooling_layer6(pooling_region_extents6, pooling_region_step_sizes6, "Pooling Layer 6");
+    //network.add_layer(pooling_layer6);
+    Dropout3D dropout3d_6(0.9f, "Dropout3D 6");
+    //network.add_layer(dropout3d_6);
+
+    const int filter_height7 = 3; //
+    const int filter_width7 = 3; //
+    const int filter_count7 = 256; //
+    ConvLayer3D conv_layer7(filter_count7, filter_height7, filter_width7, "Conv Layer 7");
+    conv_layer7.enable_fixed_random_back_prop(conv_fixed_rand);
+    conv_layer7.enable_bias(is_enable_bias_linear_layers);
+    network.add_layer(conv_layer7);
+    BatchNormalization3D batch_norm3d_7(enable_gamma_beta, "Batch Normalization 3d 7");
+    network.add_layer(batch_norm3d_7);
+    BoxActivationFunction box_activation_layer7(box_activation_type, "Box Activation Function 7");
+    network.add_layer(box_activation_layer7);
+    const vector<int> pooling_region_extents7 = {1, 3, 3};
+    const vector<int> pooling_region_step_sizes7 = {1, 2, 2};
+    PoolingLayer pooling_layer7(pooling_region_extents7, pooling_region_step_sizes7, "Pooling Layer 7");
+    network.add_layer(pooling_layer7);
+    Dropout3D dropout3d_7(0.8f, "Dropout3D 7");
+    network.add_layer(dropout3d_7);
+
+
+    const int filter_height8 = 3;
+    const int filter_width8 = 3;
+    const int filter_count8 = 512;
+    ConvLayer3D conv_layer8(filter_count8, filter_height8, filter_width8, "Conv Layer 8");
+    conv_layer8.enable_fixed_random_back_prop(conv_fixed_rand);
+    conv_layer8.enable_bias(is_enable_bias_linear_layers);
+    network.add_layer(conv_layer8);
+    BatchNormalization3D batch_norm3d_8(enable_gamma_beta, "Batch Normalization 3d 8");
+    network.add_layer(batch_norm3d_8);
+    BoxActivationFunction box_activation_layer8(box_activation_type, "Box Activation Function 8");
+    network.add_layer(box_activation_layer8);
+    const vector<int> pooling_region_extents8 = {1, 1, 1};
+    const vector<int> pooling_region_step_sizes8 = {1, 1, 1};
+    PoolingLayer pooling_layer8(pooling_region_extents8, pooling_region_step_sizes8, "Pooling Layer 8");
+    //network.add_layer(pooling_layer8);
+    Dropout3D dropout3d_8(0.9f, "Dropout3D 8");
+    //network.add_layer(dropout3d_8);
+
+    const int filter_height9 = 3;
+    const int filter_width9 = 3;
+    const int filter_count9 = 512;
+    ConvLayer3D conv_layer9(filter_count9, filter_height9, filter_width9, "Conv Layer 9");
+    conv_layer9.enable_fixed_random_back_prop(conv_fixed_rand);
+    conv_layer9.enable_bias(is_enable_bias_linear_layers);
+    network.add_layer(conv_layer9);
+    BatchNormalization3D batch_norm3d_9(enable_gamma_beta, "Batch Normalization 3d 9");
+    network.add_layer(batch_norm3d_9);
+    BoxActivationFunction box_activation_layer9(box_activation_type, "Box Activation Function 9");
+    network.add_layer(box_activation_layer9);
+    const vector<int> pooling_region_extents9 = {1, 1, 1};
+    const vector<int> pooling_region_step_sizes9 = {1, 1, 1};
+    PoolingLayer pooling_layer9(pooling_region_extents9, pooling_region_step_sizes9, "Pooling Layer 9");
+    //network.add_layer(pooling_layer9);
+    Dropout3D dropout3d_9(0.9f, "Dropout3D 9");
+    //network.add_layer(dropout3d_9);
+
+    const int filter_height10 = 3;
+    const int filter_width10 = 3;
+    const int filter_count10 = 512;
+    ConvLayer3D conv_layer10(filter_count10, filter_height10, filter_width10, "Conv Layer 10");
+    conv_layer10.enable_fixed_random_back_prop(conv_fixed_rand);
+    conv_layer10.enable_bias(is_enable_bias_linear_layers);
+    network.add_layer(conv_layer10);
+    BatchNormalization3D batch_norm3d_10(enable_gamma_beta, "Batch Normalization 3d 10");
+    network.add_layer(batch_norm3d_10);
+    BoxActivationFunction box_activation_layer10(box_activation_type, "Box Activation Function 10");
+    network.add_layer(box_activation_layer10);
+    const vector<int> pooling_region_extents10 = {1, 3, 3};
+    const vector<int> pooling_region_step_sizes10 = {1, 2, 2};
+    PoolingLayer pooling_layer10(pooling_region_extents10, pooling_region_step_sizes10, "Pooling Layer 10");
+    network.add_layer(pooling_layer10);
+    Dropout3D dropout3d_10(0.8f, "Dropout3D 10");
+    network.add_layer(dropout3d_10);
+
+    const int filter_height11 = 3;
+    const int filter_width11 = 3;
+    const int filter_count11 = 512;
+    ConvLayer3D conv_layer11(filter_count11, filter_height11, filter_width11, "Conv Layer 11");
+    conv_layer11.enable_fixed_random_back_prop(conv_fixed_rand);
+    conv_layer11.enable_bias(is_enable_bias_linear_layers);
+    network.add_layer(conv_layer11);
+    BatchNormalization3D batch_norm3d_11(enable_gamma_beta, "Batch Normalization 3d 11");
+    network.add_layer(batch_norm3d_11);
+    BoxActivationFunction box_activation_layer11(box_activation_type, "Box Activation Function 11");
+    network.add_layer(box_activation_layer11);
+    const vector<int> pooling_region_extents11 = {1, 1, 1};
+    const vector<int> pooling_region_step_sizes11 = {1, 1, 1};
+    PoolingLayer pooling_layer11(pooling_region_extents11, pooling_region_step_sizes11, "Pooling Layer 11");
+    //network.add_layer(pooling_layer11);
+    Dropout3D dropout3d_11(0.9f, "Dropout3D 11");
+    //network.add_layer(dropout3d_11);
+
+    const int filter_height12 = 3;
+    const int filter_width12 = 3;
+    const int filter_count12 = 512;
+    ConvLayer3D conv_layer12(filter_count12, filter_height12, filter_width12, "Conv Layer 12");
+    conv_layer12.enable_fixed_random_back_prop(conv_fixed_rand);
+    conv_layer12.enable_bias(is_enable_bias_linear_layers);
+    network.add_layer(conv_layer12);
+    BatchNormalization3D batch_norm3d_12(enable_gamma_beta, "Batch Normalization 3d 12");
+    network.add_layer(batch_norm3d_12);
+    BoxActivationFunction box_activation_layer12(box_activation_type, "Box Activation Function 12");
+    network.add_layer(box_activation_layer12);
+    const vector<int> pooling_region_extents12 = {1, 1, 1};
+    const vector<int> pooling_region_step_sizes12 = {1, 1, 1};
+    PoolingLayer pooling_layer12(pooling_region_extents12, pooling_region_step_sizes12, "Pooling Layer 12");
+    //network.add_layer(pooling_layer12);
+    Dropout3D dropout3d_12(0.9f, "Dropout3D 12");
+    //network.add_layer(dropout3d_12);
+
+    const int filter_height13 = 3;
+    const int filter_width13 = 3;
+    const int filter_count13 = 512;
+    ConvLayer3D conv_layer13(filter_count13, filter_height13, filter_width13, "Conv Layer 13");
+    conv_layer13.enable_fixed_random_back_prop(conv_fixed_rand);
+    conv_layer13.enable_bias(is_enable_bias_linear_layers);
+    network.add_layer(conv_layer13);
+    BatchNormalization3D batch_norm3d_13(enable_gamma_beta, "Batch Normalization 3d 13");
+    network.add_layer(batch_norm3d_13);
+    BoxActivationFunction box_activation_layer13(box_activation_type, "Box Activation Function 13");
+    network.add_layer(box_activation_layer13);
+    const vector<int> pooling_region_extents13 = {1, 2, 2};
+    const vector<int> pooling_region_step_sizes13 = {1, 2, 2};
+    PoolingLayer pooling_layer13(pooling_region_extents13, pooling_region_step_sizes13, "Pooling Layer 13");
+    network.add_layer(pooling_layer13);
+    Dropout3D dropout3d_13(0.8f, "Dropout3D 13");
+    network.add_layer(dropout3d_13);
+
+
+    ImageToColumnLayer image_to_col_layer("Image To Column Layer 1");
+    network.add_layer(image_to_col_layer);
+
+    const float prob_keep1d_1 = 0.5f;
+    Dropout1D dropout1d_1(prob_keep1d_1, "Dropout1D 1");
+    network.add_layer(dropout1d_1);
+
+    LinearLayer linear_laye1(dim_fully_connected_hidden, "Linear Layer 1");
+    linear_laye1.enable_fixed_random_back_prop(linear_fixed_rand);
+    linear_laye1.enable_bias(is_enable_bias_linear_layers);
+    network.add_layer(linear_laye1);
+
+    BatchNormalization1D batch_norm1d_1(enable_gamma_beta, "Batch Normalization 1d 1");
+    network.add_layer(batch_norm1d_1);
+    ColumnActivationFunction column_activation_layer1(col_activation_type, "Column Activation Function 1");
+    network.add_layer(column_activation_layer1);
+
+
+    const float prob_keep1d_2 = 0.7f;
+    Dropout1D dropout1d_2(prob_keep1d_2, "Dropout1D 2");
+    //network.add_layer(dropout1d_2);
+
+    LinearLayer linear_laye2(class_label_count, "Linear Layer 2");
+    linear_laye2.enable_fixed_random_back_prop(linear_fixed_rand);
+    network.add_layer(linear_laye2);
+
+    CrossEntropyCostFunction cost_func("Cross Entropy Cost Function");
+
+    // Set up learning rates.
+    float learning_rate_weights = 1e-3f; // 1e-3
+    float learning_rate_bias = 1e-3f; //
+    float weight_decay = 5e-4f; // doesn't do much
+    const bool enable_weight_decay = true;
+
+
+
+
+    /////////////////////////////////////////////////////////////////////////////////////////
+    // Train the network
+    //
+    MinibatchTrainer<float, int> trainer(full_train_images, 0, target_training_labels, 0, minibatch_size);
+    trainer.enable_shuffling(true);
+
+    const MatrixF& train_input_mini = trainer.get_input_batch();
+    const Matrix<int>& train_output_mini = trainer.get_output_batch();
+    MatrixF input_deltas = train_input_mini;
+    // Initialize the network:
+    network.forward(train_input_mini);
+    // Optionally load saved parameters:
+    if (false) {
+      network.load_parameters("cifar_model_1");
+    }
+    MatrixF& W = network.get_weights();
+    Updater weights_updater(W.get_extents(), "Weights Updater");
+    //weights_updater.set_mode_rmsprop_momentum(rms_prop_rate_weights, 0.9f, 0.9f);
+    //weights_updater.set_mode_rmsprop(rms_prop_rate_weights, 0.9f);
+    weights_updater.set_mode_constant_learning_rate(learning_rate_weights); //
+    weights_updater.set_flag_weight_decay(weight_decay, enable_weight_decay);
+    MatrixF& bias = network.get_bias();
+    Updater bias_updater(bias.get_extents(), "Bias Updater");
+    //bias_updater.set_mode_rmsprop_momentum(rms_prop_rate_bias, 0.9f, 0.9f);
+    //bias_updater.set_mode_rmsprop(rms_prop_rate_bias, 0.9f);
+    bias_updater.set_mode_constant_learning_rate(learning_rate_bias); //
+    bias_updater.set_flag_weight_decay(weight_decay, enable_weight_decay);
+
+    MatrixF& W_grad = network.get_weight_gradient();
+    MatrixF& bias_grad = network.get_bias_gradient();
+
+    // For testing:
+    MinibatchTrainer<float, int> tester(full_test_images, 0, target_testing_labels, 0, minibatch_size);
+    tester.enable_shuffling(true); // Not necessary to shuffle the test set but does not hurt.
+    const MatrixF& test_input_mini = tester.get_input_batch();
+    const Matrix<int>& test_output_mini = tester.get_output_batch();
+    int train_epochs = 0;
+    network.set_train_mode(true);
+
+    Accumulator train_accumulator(minibatch_size);
+    Accumulator test_accumulator(minibatch_size);
+    Accumulator train_loss_accumulator(minibatch_size);
+    Accumulator test_loss_accumulator(minibatch_size);
+    // Vectors for plotting:
+    vector<float> training_errors;
+    vector<float> test_errors;
+    Gnuplot plot_errors;
+    Gnuplot plot_activations;
+    while (train_epochs < 125) { // 100-150 epochs is good
+      cerr << ".";
+      bool end_epoch = trainer.next(); // Get next training mini-batch
+
+      network.forward(train_input_mini);
+      train_loss_accumulator.accumulate(cost_func.forward(network.get_output(), train_output_mini));
+      train_accumulator.accumulate(error_count(network.get_output(), train_output_mini));
+      cost_func.back_propagate(network.get_output_deltas(), network.get_output(), train_output_mini);
+      network.back_propagate(input_deltas, train_input_mini);
+      weights_updater.update(W, W_grad);
+      bias_updater.update(bias, bias_grad);
+      if (end_epoch) {
+        cout << endl << "---------------" << endl;
+        //network.print_paramater_stats(); // enable for debugging info
+        cout << "Training epochs: " << train_epochs << endl;
+        cout << "Train error rate: " << train_accumulator.get_mean() << endl;
+        cout << "Train loss/example: " << train_loss_accumulator.get_mean() << endl;
+        cout << "Train examples: " << train_accumulator.get_counter() << endl;
+        training_errors.push_back(train_accumulator.get_mean());
+        train_accumulator.reset();
+        train_loss_accumulator.reset();
+        test_accumulator.reset();
+        test_loss_accumulator.reset();
+        network.set_train_mode(false);
+        bool done = false;
+        while (!done) {
+          done = tester.next(); // Get next test mini-batch
+
+          network.forward(test_input_mini);
+          test_loss_accumulator.accumulate(cost_func.forward(network.get_output(), test_output_mini));
+          test_accumulator.accumulate(error_count(network.get_output(), test_output_mini));
+        }
+        cout << "Test error rate: " << test_accumulator.get_mean() << endl;
+        cout << "Test loss/example: " << test_loss_accumulator.get_mean() << endl;
+        cout << "Test examples: " << test_accumulator.get_counter() << endl;
+        test_errors.push_back(test_accumulator.get_mean());
+
+
+        if (true) {
+
+          // Update plot:
+          plot_errors << "set multiplot layout 2,1 title 'Train/Test errors'" << endl;
+          plot(plot_errors, training_errors, "Training error");
+          plot(plot_errors, test_errors, "Test error");
+          plot_errors << "unset multiplot" << endl;
+
+          // Plot some activations:
+          plot_activations << "set multiplot layout 4,4 title 'Network activations'" << endl;
+
+          // Plot an input image to network:
+          const int image_index = 0; // arbitrary choice
+          MatrixF one_image = select(test_input_mini, 0, image_index);
+          scale(one_image, one_image, 255.0f);
+          plot_image_rgb(plot_activations, one_image, "Input test image");
+
+          //
+          //for (int n = 1; n <= 13; ++n) {
+          //MatrixF images = select(network.get_layer(n).get_output(), 0, image_index);
+          //plot_images_greyscale_3dim(plot_activations, images, network.get_layer(n).get_name());
+          //}
+
+          // Plot conv layer 1 output:
+          MatrixF images_conv_layer_1_out = select(conv_layer1.get_output(), 0, image_index);
+          plot_images_greyscale_3dim(plot_activations, images_conv_layer_1_out, conv_layer1.get_name());
+
+          // Plot conv layer 2 output:
+          MatrixF images_conv_layer_2_out = select(conv_layer2.get_output(), 0, image_index);
+          plot_images_greyscale_3dim(plot_activations, images_conv_layer_2_out, conv_layer2.get_name());
+
+          // Plot conv layer 3 output:
+          MatrixF images_conv_layer_3_out = select(conv_layer3.get_output(), 0, image_index);
+          plot_images_greyscale_3dim(plot_activations, images_conv_layer_3_out, conv_layer3.get_name());
+
+          // Plot conv layer 4 output:
+          MatrixF images_conv_layer_4_out = select(conv_layer4.get_output(), 0, image_index);
+          plot_images_greyscale_3dim(plot_activations, images_conv_layer_4_out, conv_layer4.get_name());
+
+          // Plot conv layer 5 output:
+          MatrixF images_conv_layer_5_out = select(conv_layer5.get_output(), 0, image_index);
+          plot_images_greyscale_3dim(plot_activations, images_conv_layer_5_out, conv_layer5.get_name());
+
+          // Plot conv layer 6 output:
+          MatrixF images_conv_layer_6_out = select(conv_layer6.get_output(), 0, image_index);
+          plot_images_greyscale_3dim(plot_activations, images_conv_layer_6_out, conv_layer6.get_name());
+
+          // Plot conv layer 7 output:
+          MatrixF images_conv_layer_7_out = select(conv_layer7.get_output(), 0, image_index);
+          plot_images_greyscale_3dim(plot_activations, images_conv_layer_7_out, conv_layer7.get_name());
+
+          // Plot conv layer 8 output:
+          MatrixF images_conv_layer_8_out = select(conv_layer8.get_output(), 0, image_index);
+          plot_images_greyscale_3dim(plot_activations, images_conv_layer_8_out, conv_layer8.get_name());
+
+          // Plot conv layer 9 output:
+          MatrixF images_conv_layer_9_out = select(conv_layer9.get_output(), 0, image_index);
+          plot_images_greyscale_3dim(plot_activations, images_conv_layer_9_out, conv_layer9.get_name());
+
+          // Plot conv layer 10 output:
+          MatrixF images_conv_layer_10_out = select(conv_layer10.get_output(), 0, image_index);
+          plot_images_greyscale_3dim(plot_activations, images_conv_layer_10_out, conv_layer10.get_name());
+
+          // Plot conv layer 11 output:
+          MatrixF images_conv_layer_11_out = select(conv_layer11.get_output(), 0, image_index);
+          plot_images_greyscale_3dim(plot_activations, images_conv_layer_11_out, conv_layer11.get_name());
+
+          // Plot conv layer 12 output:
+          MatrixF images_conv_layer_12_out = select(conv_layer12.get_output(), 0, image_index);
+          plot_images_greyscale_3dim(plot_activations, images_conv_layer_12_out, conv_layer12.get_name());
+
+          // Plot conv layer 13 output:
+          MatrixF images_conv_layer_13_out = select(conv_layer13.get_output(), 0, image_index);
+          plot_images_greyscale_3dim(plot_activations, images_conv_layer_13_out, conv_layer13.get_name());
+
+
+          // Plot linear layer 1:
+          MatrixF linear_laye1_out = select(linear_laye1.get_output(), 1, image_index);
+          plot_image_greyscale(plot_activations, linear_laye1_out, linear_laye1.get_name());
+
+          // Plot linear layer 2:
+          MatrixF linear_laye2_out = select(linear_laye2.get_output(), 1, image_index);
+          plot_image_greyscale(plot_activations, linear_laye2_out, linear_laye2.get_name());
+
+          //
+
+          plot_activations << "unset multiplot" << endl;
+        }
+
+        network.set_train_mode(true);
+      }
+
+
+      if (end_epoch) {
+        train_epochs++;
+        
+        learning_rate_weights *= 0.97f;
+        cout << "New learning rate weights: " << learning_rate_weights << endl;
+        weights_updater.set_mode_constant_learning_rate(learning_rate_weights);
+        learning_rate_bias *= 0.97f;
+        cout << "New learning rate bias: " << learning_rate_bias << endl;
+        bias_updater.set_mode_constant_learning_rate(learning_rate_bias); //
+        weight_decay *= 0.97f;
+        cout << "New weight decay: " << weight_decay << endl;
+        weights_updater.set_flag_weight_decay(weight_decay, enable_weight_decay);
+        bias_updater.set_flag_weight_decay(weight_decay, enable_weight_decay);
+
+      }
+    }
+
+
+    /////////////////////////////////////////////////////////////////////////////////////////
+    // Save parameters and stats.
+    network.save_parameters("cifar_model_1");
+
+  }
 
 
 

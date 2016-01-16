@@ -6,7 +6,7 @@
  * modification, are permitted provided that the following conditions are met:
  *
  * 1. Redistributions of source code must retain the above copyright notice, this
- *    list of conditions and the following disclaimer. 
+ *    list of conditions and the following disclaimer.
  * 2. Redistributions in binary form must reproduce the above copyright notice,
  *    this list of conditions and the following disclaimer in the documentation
  *    and/or other materials provided with the distribution.
@@ -23,7 +23,7 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  * The views and conclusions contained in the software and documentation are those
- * of the authors and should not be interpreted as representing official policies, 
+ * of the authors and should not be interpreted as representing official policies,
  * either expressed or implied, of the FreeBSD Project.
  *
  */
@@ -32,7 +32,7 @@
 
 #include "UnitTests.h"
 #include "Utilities.h"
-#include "MatrixT.h"
+#include "Matrix.h"
 
 #include "Constants.h"
 #include <string>
@@ -44,16 +44,20 @@
 #include "MatrixIO.h"
 #include <chrono>
 #include <ctime>
-#include "ConvLayer.h" // fixme: remove
-#include "ConvLayer2D.h"
+
+#include "SequentialNetwork.h"
 #include "ConvLayer3D.h"
 #include "LinearLayer.h"
-
-#include "Network2DConv3F1.h" 
-#include "Network3DConv3F1.h" 
+#include "ImageToColumnLayer.h"
+#include "BoxActivationFunction.h"
+#include "ColumnActivationFunction.h"
+#include "PoolingLayer.h"
+#include "MSECostFunction.h"
+#include "CrossEntropyCostFunction.h"
 #include "Dropout1D.h"
 #include "Dropout3D.h"
-
+#include "BatchNormalization1D.h"
+#include "BatchNormalization3D.h"
 
 // Uncomment following line to disable assertion checking.
 // #define NDEBUG
@@ -62,241 +66,196 @@ using namespace std;
 
 namespace kumozu {
 
-	void test_mat_mult() {
-		std::cout << "test_mat_mult()..." << std::endl;
-		const int rows_A = 5;
-		const int cols_A = 4;
-		const int cols_B = 3;
-		// Compute A = B * C
-		Matrix A(rows_A, cols_A);
-		
-		Matrix B(rows_A, cols_B);
-		B.randomize_uniform(-1.0f, 1.0f);
-		Matrix C(cols_B, cols_A);
-		C.randomize_uniform(-1.0f, 1.0f);
+  void test_mat_mult() {
+    std::cout << "test_mat_mult()..." << std::endl;
+    const int rows_A = 5;
+    const int cols_A = 4;
+    const int cols_B = 3;
+    // Compute A = B * C
+    MatrixF A(rows_A, cols_A);
 
-		// Make copies:
-		Matrix Ac = A;
-		Matrix Bc = B;
-		Matrix Cc = C;
+    MatrixF B(rows_A, cols_B);
+    randomize_uniform(B,-1.0f, 1.0f);
+    MatrixF C(cols_B, cols_A);
+    randomize_uniform(C,-1.0f, 1.0f);
 
-		// Compute using BLAS:
-		mat_multiply_blas(A, B, C);
-		std::cout << "A = " << std::endl << A << std::endl;
-		//cout << "B = " << endl << B << endl;
+    // Make copies:
+    MatrixF Ac = A;
+    MatrixF Bc = B;
+    MatrixF Cc = C;
 
-		// Compute using simple but likely correct version:
-		mat_multiply_naive(Ac, Bc, Cc);
-		std::cout << "Ac = " << std::endl << Ac << std::endl;
-		//cout << "Bc = " << endl << Bc << endl;
-		float tolerance = 1.0e-6;
-		assert_almost_equal(A, Ac, tolerance);
+    // Compute using BLAS:
+    mat_multiply_blas(A, B, C);
+    std::cout << "A = " << std::endl << A << std::endl;
+    //cout << "B = " << endl << B << endl;
 
-		std::cout << "done" << std::endl;
-	}
-  /*
-	void test_mat_mult_amp_2() {
-		std::cout << "test_mat_mult_amp_2()..." << std::endl;
-		const int rows_A = 5;
-		const int cols_A = 4;
-		const int cols_B = 3;
-		// Compute A = B * C
-		Matrix_AMP A(rows_A, cols_A);
+    // Compute using simple but likely correct version:
+    mat_multiply_naive(Ac, Bc, Cc);
+    std::cout << "Ac = " << std::endl << Ac << std::endl;
+    //cout << "Bc = " << endl << Bc << endl;
+    float tolerance = 1.0e-6;
+    assert_almost_equal(A, Ac, tolerance);
 
-		Matrix_AMP B(rows_A, cols_B);
-		B.randomize_uniform(-1.0f, 1.0f);
-		Matrix_AMP C(cols_B, cols_A);
-		C.randomize_uniform(-1.0f, 1.0f);
+    std::cout << "done" << std::endl;
+  }
 
-		// Make copies:
-		Matrix_AMP Ac = A;
-		Matrix_AMP Bc = B;
-		Matrix_AMP Cc = C;
+  void benchmark_mat_mult()  {
+    std::cout << "benchmark_mat_mult()..." << std::endl;
 
-		// Compute A = B * C using GPU:
-		// Copy data in B from CPU to GPU:
-		B.copy_cpu_to_gpu();
-		// Copy data in C from CPU to GPU:
-		C.copy_cpu_to_gpu();
-		mat_multiply_amp(A, B, C);
-		// Copy result in A from GPU to CPU:
-		A.copy_gpu_to_cpu();
-		std::cout << "A = " << std::endl << A << std::endl;
-		//cout << "B = " << endl << B << endl;
+    const int rows_A = 1024; // 511
+    const int cols_A = 1024; // 1024
+    const int cols_B = 1024; // 2048
+    // Compute A = B * C
+    MatrixF A(rows_A, cols_A);
 
-		// Compute using CPU:
-		matMultiply(Ac, Bc, Cc);
-		std::cout << "Ac = " << std::endl << Ac << std::endl;
-		//cout << "Bc = " << endl << Bc << endl;
+    MatrixF B(rows_A, cols_B);
+    randomize_uniform(B,-1.0f, 1.0f);
+    MatrixF C(cols_B, cols_A);
+    randomize_uniform(C,-1.0f, 1.0f);
 
-		float tolerance = 1.0e-6;
-		assert_almost_equal(A, Ac, tolerance);
-		std::cout << "done" << std::endl;
-	}
-  */
+    // Make copies:
+    MatrixF Ac = A;
+    MatrixF Bc = B;
+    MatrixF Cc = C;
 
-  
-	void benchmark_mat_mult()  {
-		std::cout << "benchmark_mat_mult_amp_2()..." << std::endl;
+    // Start timer here.
+    using namespace std::chrono;
+    auto t0 = high_resolution_clock::now();
+    int loop_count = 1000; // 1000
+    for (int n = 0; n != loop_count; ++n) {
+      mat_multiply_blas(A, B, C); //
+      if ((n % 500) == 0) {
+        //std::cout << "n = " << n << std::endl;
+      }
+    }
+    // Stop timer here.
+    auto t1 = high_resolution_clock::now();
 
-		const int rows_A = 1024; // 511
-		const int cols_A = 1024; // 1024
-		const int cols_B = 1024; // 2048
-		// Compute A = B * C
-		Matrix A(rows_A, cols_A);
-
-		Matrix B(rows_A, cols_B);
-		B.randomize_uniform(-1.0f, 1.0f);
-		Matrix C(cols_B, cols_A);
-		C.randomize_uniform(-1.0f, 1.0f);
-
-		// Make copies:
-		Matrix Ac = A;
-		Matrix Bc = B;
-		Matrix Cc = C;
-
-		// Start timer here. 
-		using namespace std::chrono;
-		auto t0 = high_resolution_clock::now();
-		int loop_count = 400; // 1000
-		for (int n = 0; n != loop_count; ++n) {
-			mat_multiply_blas(A, B, C); // 
-			if ((n % 500) == 0) {
-				std::cout << "n = " << n << std::endl;
-			}
-		}
-		// Stop timer here. 
-		auto t1 = high_resolution_clock::now();
-
-		auto time_in_msec = duration_cast<milliseconds>(t1 - t0).count();
-		double flops = 1e-6*static_cast<double>(loop_count)*(double)2 * (double)rows_A*(double)cols_A*(double)cols_B / (double)time_in_msec;
-		std::cout << time_in_msec << " milliseconds" << std::endl;
-		std::cout << flops << " GFLOPS" << std::endl;
+    auto time_in_msec = duration_cast<milliseconds>(t1 - t0).count();
+    double flops = 1e-6*static_cast<double>(loop_count)*(double)2 * (double)rows_A*(double)cols_A*(double)cols_B / (double)time_in_msec;
+    std::cout << time_in_msec << " milliseconds" << std::endl;
+    std::cout << flops << " GFLOPS" << std::endl;
 
 
-		
-		//cout << "A = " << endl << A << endl;
-		
+    // Check result with slow version:
+    mat_multiply_naive(Ac, Bc, Cc);
 
-		// Check result with slow version:
-		mat_multiply_naive(Ac, Bc, Cc);
-		
-		//cout << "Ac = " << endl << Ac << endl;
-		
-
-		float tolerance = 1.0e-4;
-		assert_almost_equal(A, Ac, tolerance);
-		std::cout << "done" << std::endl;
-	}
-  
-
-	void stress_test_forward_prop()   {
-		std::cout << "benchmark_mat_mult_amp_2()..." << std::endl;
-
-		const int rows_A = 1*1024; // 511
-		const int cols_A = 1*1024; // 1024
-		const int cols_B = 1024; // 2048
-		// Compute A = B * C
-		Matrix A(rows_A, cols_A);
-
-		Matrix B(rows_A, cols_B);
-		B.randomize_uniform(-1.0f, 1.0f);
-		Matrix C(cols_B, cols_A);
-		C.randomize_uniform(-1.0f, 1.0f);
-
-		// Make copies:
-		Matrix Ac = A;
-		Matrix Bc = B;
-		Matrix Cc = C;
-		MatrixT<int> out_indices(A.extent(0), A.extent(1));
-		Matrix out_values(A.extent(0), A.extent(1));
-
-		// Start timer here. 
-		using namespace std::chrono;
-		auto t0 = high_resolution_clock::now();
-		int loop_count = 400; // 1000
-		for (int n = 0; n != loop_count; ++n) {
-			mat_multiply_blas(A, B, C); // 
-			//scale(A, A, 0.98765f);
-			compute_forward_relu(A, out_values, out_indices);
-			//compute_reverse_relu(Ac, out_values, out_indices);
-			if ((n % 500) == 0) {
-				std::cout << "n = " << n << std::endl;
-			}
-		}
-		// Stop timer here. 
-		auto t1 = high_resolution_clock::now();
-
-		auto time_in_msec = duration_cast<milliseconds>(t1 - t0).count();
-		double flops = 1e-6*static_cast<double>(loop_count)*(double)2 * (double)rows_A*(double)cols_A*(double)cols_B / (double)time_in_msec;
-		std::cout << time_in_msec << " milliseconds" << std::endl;
-		std::cout << flops << " GFLOPS not including activation function." << std::endl;
+    //cout << "Ac = " << endl << Ac << endl;
 
 
-		std::cout << "done" << std::endl;
-	}
+    float tolerance = 1.0e-4;
+    assert_almost_equal(A, Ac, tolerance);
+    std::cout << "done" << std::endl;
+  }
+
+
+  void stress_test_forward_prop()   {
+    std::cout << "stress_test_forward_prop()..." << std::endl;
+
+    const int rows_A = 1*1024; // 511
+    const int cols_A = 1*1024; // 1024
+    const int cols_B = 1*1024; // 2048
+    // Compute A = B * C
+    MatrixF A(rows_A, cols_A);
+
+    MatrixF B(rows_A, cols_B);
+    randomize_uniform(B,-1.0f, 1.0f);
+    MatrixF C(cols_B, cols_A);
+    randomize_uniform(C,-1.0f, 1.0f);
+
+    // Make copies:
+    MatrixF Ac = A;
+    MatrixF Bc = B;
+    MatrixF Cc = C;
+    Matrix<int> out_indices(A.extent(0), A.extent(1));
+    MatrixF out_values(A.extent(0), A.extent(1));
+
+    // Start timer here.
+    using namespace std::chrono;
+    auto t0 = high_resolution_clock::now();
+    int loop_count = 1000; // 1000
+    for (int n = 0; n != loop_count; ++n) {
+      mat_multiply_blas(A, B, C); //
+      //scale(A, A, 0.98765f);
+      compute_forward_relu(A, out_values, out_indices);
+      //compute_reverse_relu(Ac, out_values, out_indices);
+      if ((n % 500) == 0) {
+        std::cout << "n = " << n << std::endl;
+      }
+    }
+    // Stop timer here.
+    auto t1 = high_resolution_clock::now();
+
+    auto time_in_msec = duration_cast<milliseconds>(t1 - t0).count();
+    double flops = 1e-6*static_cast<double>(loop_count)*(double)2 * (double)rows_A*(double)cols_A*(double)cols_B / (double)time_in_msec;
+    std::cout << time_in_msec << " milliseconds" << std::endl;
+    std::cout << flops << " GFLOPS not including activation function." << std::endl;
+
+
+    std::cout << "done" << std::endl;
+  }
 
 
   void test_mat_multiply_left_transpose() {
     std::cout << "test_mat_multiply_left_transpose()..." << std::endl;
-		const int rows_A = 16;
-		const int cols_A = 16 * 2;
-		const int cols_B = 16 * 3;
-		// Compute A = B^T * C
-		Matrix A(rows_A, cols_A);
+    const int rows_A = 16;
+    const int cols_A = 16 * 2;
+    const int cols_B = 16 * 3;
+    // Compute A = B^T * C
+    MatrixF A(rows_A, cols_A);
 
-		Matrix B(cols_B, rows_A);
-		B.randomize_uniform(-1.0f, 1.0f);
-		Matrix C(cols_B, cols_A);
-		C.randomize_uniform(-1.0f, 1.0f);
+    MatrixF B(cols_B, rows_A);
+    randomize_uniform(B,-1.0f, 1.0f);
+    MatrixF C(cols_B, cols_A);
+    randomize_uniform(C,-1.0f, 1.0f);
 
-		// Make copies:
-		Matrix Ac = A;
-		Matrix Bc = B;
-		Matrix Cc = C;
+    // Make copies:
+    MatrixF Ac = A;
+    MatrixF Bc = B;
+    MatrixF Cc = C;
 
-		mat_multiply_left_transpose(A, B, C);
-		std::cout << "A = " << std::endl << A << std::endl;
-		//cout << "B = " << endl << B << endl;
+    mat_multiply_left_transpose(A, B, C);
+    std::cout << "A = " << std::endl << A << std::endl;
+    //cout << "B = " << endl << B << endl;
 
-		mat_multiply_left_transpose_naive(Ac, Bc, Cc);
-		std::cout << "Ac = " << std::endl << Ac << std::endl;
-		//cout << "Bc = " << endl << Bc << endl;
-		float tolerance = 1.0e-4;
-		assert_almost_equal(A, Ac, tolerance);
+    mat_multiply_left_transpose_naive(Ac, Bc, Cc);
+    std::cout << "Ac = " << std::endl << Ac << std::endl;
+    //cout << "Bc = " << endl << Bc << endl;
+    float tolerance = 1.0e-4;
+    assert_almost_equal(A, Ac, tolerance);
 
-		std::cout << "done" << std::endl;
+    std::cout << "done" << std::endl;
   }
 
-void test_mat_multiply_right_transpose() {
+  void test_mat_multiply_right_transpose() {
     std::cout << "test_mat_multiply_right_transpose()..." << std::endl;
-		const int rows_A = 16;
-		const int cols_A = 16 * 2;
-		const int cols_B = 16 * 3;
-		// Compute A = B * C^T
-		Matrix A(rows_A, cols_A);
+    const int rows_A = 16;
+    const int cols_A = 16 * 2;
+    const int cols_B = 16 * 3;
+    // Compute A = B * C^T
+    MatrixF A(rows_A, cols_A);
 
-		Matrix B(rows_A, cols_B);
-		B.randomize_uniform(-1.0f, 1.0f);
-		Matrix C(cols_A, cols_B);
-		C.randomize_uniform(-1.0f, 1.0f);
+    MatrixF B(rows_A, cols_B);
+    randomize_uniform(B,-1.0f, 1.0f);
+    MatrixF C(cols_A, cols_B);
+    randomize_uniform(C,-1.0f, 1.0f);
 
-		// Make copies:
-		Matrix Ac = A;
-		Matrix Bc = B;
-		Matrix Cc = C;
+    // Make copies:
+    MatrixF Ac = A;
+    MatrixF Bc = B;
+    MatrixF Cc = C;
 
-		mat_multiply_right_transpose(A, B, C);
-		std::cout << "A = " << std::endl << A << std::endl;
-		//cout << "B = " << endl << B << endl;
+    mat_multiply_right_transpose(A, B, C);
+    std::cout << "A = " << std::endl << A << std::endl;
+    //cout << "B = " << endl << B << endl;
 
-		mat_multiply_right_transpose_naive(Ac, Bc, Cc);
-		std::cout << "Ac = " << std::endl << Ac << std::endl;
-		//cout << "Bc = " << endl << Bc << endl;
-		float tolerance = 1.0e-4;
-		assert_almost_equal(A, Ac, tolerance);
+    mat_multiply_right_transpose_naive(Ac, Bc, Cc);
+    std::cout << "Ac = " << std::endl << Ac << std::endl;
+    //cout << "Bc = " << endl << Bc << endl;
+    float tolerance = 1.0e-4;
+    assert_almost_equal(A, Ac, tolerance);
 
-		std::cout << "done" << std::endl;
+    std::cout << "done" << std::endl;
   }
 
 
@@ -309,1966 +268,1348 @@ void test_mat_multiply_right_transpose() {
     const int cols_A = 1*100;
     const int cols_B = 1*50;
     // Compute A = B * C^T
-    Matrix A(rows_A, cols_A);
-    
-    Matrix B(rows_A, cols_B);
-    B.randomize_uniform(-1.0f, 1.0f);
-    Matrix C(cols_A, cols_B);
-    C.randomize_uniform(-1.0f, 1.0f);
+    MatrixF A(rows_A, cols_A);
 
-		// Make copies:
-		Matrix Ac = A;
-		Matrix Bc = B;
-		Matrix Cc = C;
+    MatrixF B(rows_A, cols_B);
+    randomize_uniform(B,-1.0f, 1.0f);
+    MatrixF C(cols_A, cols_B);
+    randomize_uniform(C,-1.0f, 1.0f);
 
-		// Start timer here. 
-		using namespace std::chrono;
-		auto t0 = high_resolution_clock::now();
-		int loop_count = 10000; // 1000
-		for (int n = 0; n != loop_count; ++n) {
-		  //mat_multiply_blas(B, A, C); // 
-		  mat_multiply_right_transpose(A, B, C);
-		  //mat_multiply_right_transpose_naive(Ac, Bc, Cc);
-			if ((n % 500) == 0) {
-				std::cout << "n = " << n << std::endl;
-			}
-		}
-		// Stop timer here. 
-		auto t1 = high_resolution_clock::now();
+    // Make copies:
+    MatrixF Ac = A;
+    MatrixF Bc = B;
+    MatrixF Cc = C;
 
-		auto time_in_msec = duration_cast<milliseconds>(t1 - t0).count();
-		double flops = 1e-6*static_cast<double>(loop_count)*(double)2 * (double)rows_A*(double)cols_A*(double)cols_B / (double)time_in_msec;
-		std::cout << time_in_msec << " milliseconds" << std::endl;
-		std::cout << flops << " GFLOPS" << std::endl;
+    // Start timer here.
+    using namespace std::chrono;
+    auto t0 = high_resolution_clock::now();
+    int loop_count = 10000; // 1000
+    for (int n = 0; n != loop_count; ++n) {
+      //mat_multiply_blas(B, A, C); //
+      mat_multiply_right_transpose(A, B, C);
+      //mat_multiply_right_transpose_naive(Ac, Bc, Cc);
+      if ((n % 500) == 0) {
+        std::cout << "n = " << n << std::endl;
+      }
+    }
+    // Stop timer here.
+    auto t1 = high_resolution_clock::now();
 
-		
-		//std::cout << "A = " << std::endl << A << std::endl;
-		//cout << "B = " << endl << B << endl;
+    auto time_in_msec = duration_cast<milliseconds>(t1 - t0).count();
+    double flops = 1e-6*static_cast<double>(loop_count)*(double)2 * (double)rows_A*(double)cols_A*(double)cols_B / (double)time_in_msec;
+    std::cout << time_in_msec << " milliseconds" << std::endl;
+    std::cout << flops << " GFLOPS" << std::endl;
 
-		mat_multiply_right_transpose_naive(Ac, Bc, Cc);
-		//std::cout << "Ac = " << std::endl << Ac << std::endl;
-		//cout << "Bc = " << endl << Bc << endl;
-		float tolerance = 1.0e-3;
-		assert_almost_equal(A, Ac, tolerance);
 
-		std::cout << "done" << std::endl;
+    //std::cout << "A = " << std::endl << A << std::endl;
+    //cout << "B = " << endl << B << endl;
+
+    mat_multiply_right_transpose_naive(Ac, Bc, Cc);
+    //std::cout << "Ac = " << std::endl << Ac << std::endl;
+    //cout << "Bc = " << endl << Bc << endl;
+    float tolerance = 1.0e-3;
+    assert_almost_equal(A, Ac, tolerance);
+
+    std::cout << "done" << std::endl;
   }
 
-	void test_Matrix1D() {
-		cout << "Testing test_Matrix1D...";
-		const int dim0 = 5;
-		Matrix mat_1d(dim0);
-		// Fill with data:
-		for (int i=0; i < dim0; ++i) {
-			mat_1d(i) = i*i - 1234;
-		}
-		// Read and verify data:
-		for (int i=0; i < dim0; ++i) {
-			float read_val = mat_1d(i);
-			float true_val = i*i - 1234;
-			assert_almost_equal(read_val, true_val, 1e-4f);
-		}
-		cout << "PASSED" << endl;
-	}
-
-	void test_Matrix2D() {
-		cout << "Testing test_Matrix2D...";
-		const int dim0 = 3;
-		const int dim1 = 4;
-		Matrix mat_2d(dim0, dim1);
-		// Fill with data:
-		for (int i=0; i < dim0; ++i) {
-			for (int j = 0; j < dim1; ++j) {
-				mat_2d(i,j) = i*i + j*j - 1234;
-			}
-		}
-		// Read and verify data:
-		for (int i=0; i < dim0; ++i) {
-			for (int j = 0; j < dim1; ++j) {
-				float read_val = mat_2d(i,j);
-				float true_val = i*i + j*j - 1234;
-				assert_almost_equal(read_val, true_val, 1e-4f);
-			}
-		}
-		cout << "PASSED" << endl;
-	}
-
-	void test_Matrix3D() {
-		cout << "Testing test_Matrix3D...";
-		const int dim0 = 2;
-		const int dim1 = 3;
-		const int dim2 = 4;
-		Matrix mat_3d(dim0, dim1, dim2);
-		// Fill with data:
-		for (int i=0; i < dim0; ++i) {
-			for (int j = 0; j < dim1; ++j) {
-				for (int k = 0; k < dim2; ++k) {
-					mat_3d(i,j,k) = i*i + j*j + k*k - 1234;
-				}
-			}
-		}
-		// Read and verify data:
-		for (int i=0; i < dim0; ++i) {
-			for (int j = 0; j < dim1; ++j) {
-				for (int k = 0; k < dim2; ++k) {
-					float read_val = mat_3d(i,j,k);
-					float true_val = i*i + j*j + k*k - 1234;
-					assert_almost_equal(read_val, true_val, 1e-4f);
-				}
-			}
-		}
-
-		cout << "PASSED" << endl;
-
-	}
-
-	void test_Matrix4D() {
-		cout << "Testing test_Matrix4D...";
-		const int dim0 = 2;
-		const int dim1 = 3;
-		const int dim2 = 4;
-		const int dim3 = 5;
-		Matrix mat_4d(dim0, dim1, dim2, dim3);
-		// Fill with data:
-		for (int i=0; i < dim0; ++i) {
-			for (int j = 0; j < dim1; ++j) {
-				for (int k = 0; k < dim2; ++k) {
-					for (int l = 0; l < dim3; ++l) {
-						mat_4d(i,j,k,l) = i*i + j*j + k*k + l*l - 1234;
-					}
-				}
-			}
-		}
-		//cout << "matrix data = " << endl << mat_4d << endl;
-		// Read and verify data:
-		for (int i=0; i < dim0; ++i) {
-			for (int j = 0; j < dim1; ++j) {
-				for (int k = 0; k < dim2; ++k) {
-					for (int l = 0; l < dim3; ++l) {
-						float read_val = mat_4d(i,j,k,l);
-						float true_val = i*i + j*j + k*k + l*l - 1234;
-						assert_almost_equal(read_val, true_val, 1e-4f);
-					}
-				}
-			}
-		}
-
-		cout << "PASSED" << endl;
-
-	}
-
-	void test_Matrix5D() {
-		cout << "Testing test_Matrix5D...";
-		const int dim0 = 2;
-		const int dim1 = 3;
-		const int dim2 = 4;
-		const int dim3 = 5;
-		const int dim4 = 6;
-		Matrix mat_5d(dim0, dim1, dim2, dim3, dim4);
-		// Fill with data:
-		for (int i=0; i < dim0; ++i) {
-			for (int j = 0; j < dim1; ++j) {
-				for (int k = 0; k < dim2; ++k) {
-					for (int l = 0; l < dim3; ++l) {
-						for (int m = 0; m < dim4; ++m) {
-							mat_5d(i,j,k,l,m) = i*i + j*j + k*k + l*l + m*m - 1234;
-						}
-					}
-				}
-			}
-		}
-		//cout << "matrix data = " << endl << mat_4d << endl;
-		// Read and verify data:
-		for (int i=0; i < dim0; ++i) {
-			for (int j = 0; j < dim1; ++j) {
-				for (int k = 0; k < dim2; ++k) {
-					for (int l = 0; l < dim3; ++l) {
-						for (int m = 0; m < dim4; ++m) {
-							float read_val = mat_5d(i,j,k,l,m);
-							float true_val = i*i + j*j + k*k + l*l + m*m - 1234;
-							assert_almost_equal(read_val, true_val, 1e-4f);
-						}
-					}
-				}
-			}
-		}
-		cout << "PASSED" << endl;
-	}
-
-	void test_Matrix6D() {
-		cout << "Testing test_Matrix6D...";
-		const int dim0 = 2;
-		const int dim1 = 3;
-		const int dim2 = 4;
-		const int dim3 = 5;
-		const int dim4 = 6;
-		const int dim5 = 7;
-		Matrix mat_6d(dim0, dim1, dim2, dim3, dim4, dim5);
-		// Fill with data:
-		for (int i=0; i < dim0; ++i) {
-			for (int j = 0; j < dim1; ++j) {
-				for (int k = 0; k < dim2; ++k) {
-					for (int l = 0; l < dim3; ++l) {
-						for (int m = 0; m < dim4; ++m) {
-							for (int n = 0; n < dim5; ++n) {
-								mat_6d(i,j,k,l,m,n) = i*i + j*j + k*k + l*l + m*m + n*n - 1234;
-							}
-						}
-					}
-				}
-			}
-		}
-		//cout << "matrix data = " << endl << mat_4d << endl;
-		// Read and verify data:
-		for (int i=0; i < dim0; ++i) {
-			for (int j = 0; j < dim1; ++j) {
-				for (int k = 0; k < dim2; ++k) {
-					for (int l = 0; l < dim3; ++l) {
-						for (int m = 0; m < dim4; ++m) {
-							for (int n = 0; n < dim5; ++n) {
-								float read_val = mat_6d(i,j,k,l,m,n);
-								float true_val = i*i + j*j + k*k + l*l + m*m + n*n - 1234;
-								assert_almost_equal(read_val, true_val, 1e-4f);
-							}
-						}
-					}
-				}
-			}
-		}
-		cout << "PASSED" << endl;
-	}
-
-
-
-
-
-
-
-	void test_compute_kmax() {
-		cout << "test_compute_kmax()..." << endl;
-		const int M = 1024;
-		const int N = 256;
-		const int partition_count = 1;
-		const int k = 512; // 294
-		Matrix kmax_in(M, N);
-		randomize_uniform(kmax_in, -1.0f, 1.0f);
-		//cout << "kmax_in = " << endl << kmax_in << endl;
-		Matrix kmax_out_values(M, N);
-		MatrixT<int> kmax_out_indices(k*partition_count, N);
-		// Compute forward-direction kmax:
-		compute_forward_kmax(kmax_in, kmax_out_values, kmax_out_indices, partition_count, k);
-		//cout << "kmax_out_values = " << endl << kmax_out_values << endl;
-		//cout << "kmax_out_indices = " << endl << kmax_out_indices << endl;
-
-		Matrix other_kmax_in(M, N);
-		// Compute reverse-direction kmax:
-		compute_reverse_kmax(other_kmax_in, kmax_out_values, kmax_out_indices, partition_count, k);
-		//cout << "Updated kmax_in = " << endl << other_kmax_in << endl;
-		assert_almost_equal(kmax_out_values, other_kmax_in, 1e-3f);
-
-		cout << "PASSED" << endl;
-	}
-
-	void test_compute_kmax_v2() {
-		cout << "test_compute_kmax_v2()..." << endl;
-		const int M = 1024;
-		const int N = 256;
-		const int partition_count = 1;
-		const int k = 512; // 294
-		Matrix kmax_in(M, N);
-		randomize_uniform(kmax_in, -1.0f, 1.0f);
-		//cout << "kmax_in = " << endl << kmax_in << endl;
-		Matrix kmax_out_values(M, N);
-		MatrixT<int> kmax_out_indices(M, N);
-		// Compute forward-direction kmax:
-		compute_forward_kmax_v2(kmax_in, kmax_out_values, kmax_out_indices, partition_count, k);
-		//cout << "kmax_out_values = " << endl << kmax_out_values << endl;
-		//cout << "kmax_out_indices = " << endl << kmax_out_indices << endl;
-
-		Matrix other_kmax_in(M, N);
-		// Compute reverse-direction kmax:
-		compute_reverse_kmax_v2(other_kmax_in, kmax_out_values, kmax_out_indices, partition_count, k);
-		//cout << "Updated kmax_in = " << endl << other_kmax_in << endl;
-		assert_almost_equal(kmax_out_values, other_kmax_in, 1e-3f);
-
-		cout << "PASSED" << endl;
-	}
-
-	/*
-	void test_gradients_2() {
-		cout << "test_gradients_2()..." << endl;
-		// Check gradient for the model:
-		// This is convolutional layer for a conventional convolutional network.
-		// Z2 = W (convolve with) A1.
-		// where A1 is 2D image and W is stack of 2D filters.
-		
-		// Create X with random values.
-		const int rows_A1 = 8;
-		const int cols_A1 = 8;
-		Matrix A1(rows_A1, cols_A1);
-		A1.randomize_uniform(0.0f, 0.01f);
-		
-		Matrix deltas_A1(A1.extent(0), A1.extent(1));
-		
-		const int sub_rows = 4; // Convolution filter height
-		const int sub_cols = 4; // Convolution filter width
-		const int filter_count = 2; // 1 // Number of convolutional filters.
-		//const bool force_nonnegative = true;
-
-		// Create parameters matrix
-		Matrix W(sub_rows, sub_cols, filter_count);
-		W.randomize_uniform(0.0f, 0.01f);
-		Matrix W_grad(sub_rows, sub_cols, filter_count);
-
-		Matrix Z2(A1.extent(0), A1.extent(1), filter_count);
-		Z2.randomize_uniform(0.0f, 0.01f);
-		Matrix Z2_error(A1.extent(0), A1.extent(1), filter_count);
-		Matrix Z2_approx(A1.extent(0), A1.extent(1), filter_count);
-
-
-		// Compute Z2 = W (convolve with) A1:
-		convolve_2d_filter(Z2_approx, W, A1);
-		// Compute error matrix:
-		// Z2_error = -(Z2 - Z2_approx)
-		element_wise_difference(Z2_error, Z2_approx, Z2);
-		
-		// Compute gradient of W:
-		compute_weight_grad_convolutive(W_grad, Z2_error, A1);
-
-		// Update deltas_A1. (this is gradient of A1).
-		compute_convolutive_deltas(deltas_A1, W, Z2_error); 
-
-		/////////////////////////////////////////////////////////////////
-		// Now check the gradients in W_grad 
-		// the numerically-computed gradients:
-		const float epsilon = 1e-4f;
-		Matrix W_grad_numerical(sub_rows, sub_cols, filter_count);
-		for (int n = 0; n != W.size(); ++n) {
-			float orig = W[n]; // backup
-			W[n] += epsilon;
-			// Now compute J(theta_plus)
-			// Compute Z2_approx = W (convolve with) A1:
-			convolve_2d_filter(Z2_approx, W, A1);
-			// Compute error matrix:
-			// Z2_error = -(Z2 - Z2_approx)
-			element_wise_difference(Z2_error, Z2_approx, Z2);
-			float J_plus = 0.0f;
-			for (int i = 0; i != Z2_error.size(); ++i) {
-				J_plus += Z2_error[i]*Z2_error[i];
-			}
-			J_plus *= 0.5;
-			// Now compute J(theta_minus)
-			W[n] -= 2*epsilon;
-			// Compute Z2_approx = W (convolve with) A1:
-			convolve_2d_filter(Z2_approx, W, A1);
-			// Compute error matrix:
-			// Z2_error = -(Z2 - Z2_approx)
-			element_wise_difference(Z2_error, Z2_approx, Z2);
-			float J_minus = 0.0f;
-			for (int i = 0; i != Z2_error.size(); ++i) {
-				J_minus += Z2_error[i]*Z2_error[i];
-			}
-			J_minus *= 0.5;
-			// Put back original value.
-			W[n] = orig;
-			W_grad_numerical[n] = (J_plus - J_minus)/(2*epsilon);
-		}
-		//const float rmse_grad_W_score = compute_rmse(W_grad, W_grad_numerical);
-		const float relative_error_grad_W_score = relative_error(W_grad, W_grad_numerical);
-		//cout << "W gradient difference score RMSE = " << rmse_grad_W_score << endl;
-		cout << "W gradient difference score norm closeness = " << relative_error_grad_W_score << endl;
-		cout << "W_grad = " << endl << W_grad << endl;
-		cout << "-----------------------------" << endl;
-		cout << "W_grad_numerical = " << endl << W_grad_numerical << endl;
-		//assert_almost_equal(rmse_grad_W_score, 0.0f, 1e-3f);
-		assert_almost_equal(relative_error_grad_W_score, 0.0f, 1e-3f);
-
-
-
-		/////////////////////////////////////////////////////////////////
-		// Now check the gradients in deltas_A1 
-		// the numerically-computed gradients:
-		Matrix deltas_A1_numerical(A1.extent(0), A1.extent(1));
-		for (int n = 0; n != A1.size(); ++n) {
-			float orig = A1[n]; // backup
-			A1[n] += epsilon;
-			// Now compute J(theta_plus)
-			// Compute Z2_approx = W (convolve with) A1:
-			convolve_2d_filter(Z2_approx, W, A1);
-			// Compute error matrix:
-			// Z2_error = -(Z2 - Z2_approx)
-			element_wise_difference(Z2_error, Z2_approx, Z2);
-			float J_plus = 0.0f;
-			for (int i = 0; i != Z2_error.size(); ++i) {
-				J_plus += Z2_error[i]*Z2_error[i];
-			}
-			J_plus *= 0.5;
-			// Now compute J(theta_minus)
-			A1[n] -= 2*epsilon;
-			// Compute Z2_approx = W (convolve with) A1:
-			convolve_2d_filter(Z2_approx, W, A1);
-			// Compute error matrix:
-			// Z2_error = -(Z2 - Z2_approx)
-			element_wise_difference(Z2_error, Z2_approx, Z2);
-			float J_minus = 0.0f;
-			for (int i = 0; i != Z2_error.size(); ++i) {
-				J_minus += Z2_error[i]*Z2_error[i];
-			}
-			J_minus *= 0.5;
-			// Put back original value.
-			A1[n] = orig;
-			deltas_A1_numerical[n] = (J_plus - J_minus)/(2*epsilon);
-		}
-		//const float rmse_grad_A1_score = compute_rmse(deltas_A1, deltas_A1_numerical);
-		//cout << "A1 gradient difference score RMSE = " << rmse_grad_A1_score << endl;
-		const float grad_A1_score = relative_error(deltas_A1, deltas_A1_numerical);
-		cout << "A1 gradient score = " << grad_A1_score << endl;
-		cout << "deltas_A1 (A1 gradient) = " << endl << deltas_A1 << endl;
-		cout << "-----------------------------" << endl;
-		cout << "A1_grad_numerical = " << endl << deltas_A1_numerical << endl;
-		//assert_almost_equal(rmse_grad_A1_score, 0.0f, 1e-3f);
-		assert_almost_equal(grad_A1_score, 0.0f, 1e-2f);
-		cout << "PASSED" << endl;
-	}
-	*/
-
-	/*
-	void test_gradients_3() {
-		cout << "test_gradients_3()..." << endl;
-		// Check gradient for the model:
-		// This is convolutional layer for a conventional convolutional network.
-		// Z2 = W (convolve with) A1 + bias.
-		// where A1 is 2D image and W is stack of 2D filters.
-		
-		// Create X with random values.
-		const int rows_A1 = 8;
-		const int cols_A1 = 8;
-		Matrix A1(rows_A1, cols_A1);
-		A1.randomize_uniform(0.0f, 0.01f);
-		
-		Matrix deltas_A1(A1.extent(0), A1.extent(1));
-		
-		const int sub_rows = 4; // Convolution filter height
-		const int sub_cols = 4; // Convolution filter width
-		const int filter_count = 2; // 1 // Number of convolutional filters.
-		//const bool force_nonnegative = true;
-
-		// Create parameters matrix
-		Matrix W(sub_rows, sub_cols, filter_count);
-		W.randomize_uniform(0.0f, 0.01f);
-		Matrix W_grad(sub_rows, sub_cols, filter_count);
-
-		Matrix bias(filter_count);
-		randomize_uniform(bias, -0.01f, 0.01f);
-		Matrix grad_bias(filter_count);
-
-		Matrix Z2(A1.extent(0), A1.extent(1), filter_count);
-		Z2.randomize_uniform(0.0f, 0.01f);
-		Matrix Z2_error(A1.extent(0), A1.extent(1), filter_count);
-		Matrix Z2_approx(A1.extent(0), A1.extent(1), filter_count);
-
-
-		// Compute Z2 = W (convolve with) A1 + bias:
-		convolve_2d_filter_with_bias(Z2_approx, W, bias, A1);
-		// Compute error matrix:
-		// Z2_error = -(Z2 - Z2_approx)
-		element_wise_difference(Z2_error, Z2_approx, Z2);
-		
-		// Compute gradient of W:
-		compute_weight_grad_convolutive(W_grad, Z2_error, A1);
-
-		// Compute gradient of bias.
-		compute_bias_grad_convolutive(grad_bias, Z2_error);
-
-		// Update deltas_A1. (this is gradient of A1).
-		compute_convolutive_deltas(deltas_A1, W, Z2_error); 
-
-		/////////////////////////////////////////////////////////////////
-		// Now check the gradients in W_grad 
-		// the numerically-computed gradients:
-		const float epsilon = 1e-4f;
-		Matrix W_grad_numerical(sub_rows, sub_cols, filter_count);
-		for (int n = 0; n != W.size(); ++n) {
-			float orig = W[n]; // backup
-			W[n] += epsilon;
-			// Now compute J(theta_plus)
-			// Compute Z2_approx = W (convolve with) A1 + bias:
-			//convolve_2d_filter(Z2_approx, W, A1);
-			convolve_2d_filter_with_bias(Z2_approx, W, bias, A1);
-			// Compute error matrix:
-			// Z2_error = -(Z2 - Z2_approx)
-			element_wise_difference(Z2_error, Z2_approx, Z2);
-			float J_plus = 0.0f;
-			for (int i = 0; i != Z2_error.size(); ++i) {
-				J_plus += Z2_error[i]*Z2_error[i];
-			}
-			J_plus *= 0.5;
-			// Now compute J(theta_minus)
-			W[n] -= 2*epsilon;
-			// Compute Z2_approx = W (convolve with) A1 + bias:
-			//convolve_2d_filter(Z2_approx, W, A1);
-			convolve_2d_filter_with_bias(Z2_approx, W, bias, A1);
-			// Compute error matrix:
-			// Z2_error = -(Z2 - Z2_approx)
-			element_wise_difference(Z2_error, Z2_approx, Z2);
-			float J_minus = 0.0f;
-			for (int i = 0; i != Z2_error.size(); ++i) {
-				J_minus += Z2_error[i]*Z2_error[i];
-			}
-			J_minus *= 0.5;
-			// Put back original value.
-			W[n] = orig;
-			W_grad_numerical[n] = (J_plus - J_minus)/(2*epsilon);
-		}
-		//const float rmse_grad_W_score = compute_rmse(W_grad, W_grad_numerical);
-		//const float relative_error_grad_W_score = relative_error(W_grad.get_backing_vector(), W_grad_numerical.get_backing_vector());
-		const float relative_error_grad_W_score = relative_error(W_grad, W_grad_numerical);
-		//cout << "W gradient difference score RMSE = " << rmse_grad_W_score << endl;
-		cout << "W gradient difference score norm closeness = " << relative_error_grad_W_score << endl;
-		cout << "W_grad = " << endl << W_grad << endl;
-		cout << "-----------------------------" << endl;
-		cout << "W_grad_numerical = " << endl << W_grad_numerical << endl;
-		//assert_almost_equal(rmse_grad_W_score, 0.0f, 1e-3f);
-		assert_almost_equal(relative_error_grad_W_score, 0.0f, 1e-2f);
-
-
-
-		/////////////////////////////////////////////////////////////////
-		// Now check the gradients in deltas_A1 
-		// the numerically-computed gradients:
-		Matrix deltas_A1_numerical(A1.extent(0), A1.extent(1));
-		for (int n = 0; n != A1.size(); ++n) {
-			float orig = A1[n]; // backup
-			A1[n] += epsilon;
-			// Now compute J(theta_plus)
-			// Compute Z2_approx = W (convolve with) A1:
-			//convolve_2d_filter(Z2_approx, W, A1);
-			convolve_2d_filter_with_bias(Z2_approx, W, bias, A1);
-			// Compute error matrix:
-			// Z2_error = -(Z2 - Z2_approx)
-			element_wise_difference(Z2_error, Z2_approx, Z2);
-			float J_plus = 0.0f;
-			for (int i = 0; i != Z2_error.size(); ++i) {
-				J_plus += Z2_error[i]*Z2_error[i];
-			}
-			J_plus *= 0.5;
-			// Now compute J(theta_minus)
-			A1[n] -= 2*epsilon;
-			// Compute Z2_approx = W (convolve with) A1:
-			//convolve_2d_filter(Z2_approx, W, A1);
-			convolve_2d_filter_with_bias(Z2_approx, W, bias, A1);
-			// Compute error matrix:
-			// Z2_error = -(Z2 - Z2_approx)
-			element_wise_difference(Z2_error, Z2_approx, Z2);
-			float J_minus = 0.0f;
-			for (int i = 0; i != Z2_error.size(); ++i) {
-				J_minus += Z2_error[i]*Z2_error[i];
-			}
-			J_minus *= 0.5;
-			// Put back original value.
-			A1[n] = orig;
-			deltas_A1_numerical[n] = (J_plus - J_minus)/(2*epsilon);
-		}
-		//const float rmse_grad_A1_score = compute_rmse(deltas_A1, deltas_A1_numerical);
-		//cout << "A1 gradient difference score RMSE = " << rmse_grad_A1_score << endl;
-		//const float grad_A1_score = relative_error(deltas_A1.get_backing_vector(), deltas_A1_numerical.get_backing_vector());
-		const float grad_A1_score = relative_error(deltas_A1, deltas_A1_numerical);
-		cout << "A1 gradient score = " << grad_A1_score << endl;
-		cout << "deltas_A1 (A1 gradient) = " << endl << deltas_A1 << endl;
-		cout << "-----------------------------" << endl;
-		cout << "A1_grad_numerical = " << endl << deltas_A1_numerical << endl;
-		//assert_almost_equal(rmse_grad_A1_score, 0.0f, 1e-3f);
-		assert_almost_equal(grad_A1_score, 0.0f, 1e-2f);
-
-
-		/////////////////////////////////////////////////////////////////
-		// Now check the gradients in grad_bias
-		// the numerically-computed gradients:
-		Matrix grad_bias_numerical(filter_count);
-		for (int n = 0; n != bias.size(); ++n) {
-			float orig = bias[n]; // backup
-			bias[n] += epsilon;
-			// Now compute J(theta_plus)
-			// Compute Z2_approx = W (convolve with) A1:
-			//convolve_2d_filter(Z2_approx, W, A1);
-			convolve_2d_filter_with_bias(Z2_approx, W, bias, A1);
-			// Compute error matrix:
-			// Z2_error = -(Z2 - Z2_approx)
-			element_wise_difference(Z2_error, Z2_approx, Z2);
-			float J_plus = 0.0f;
-			for (int i = 0; i != Z2_error.size(); ++i) {
-				J_plus += Z2_error[i]*Z2_error[i];
-			}
-			J_plus *= 0.5;
-			// Now compute J(theta_minus)
-			bias[n] -= 2*epsilon;
-			// Compute Z2_approx = W (convolve with) A1:
-			//convolve_2d_filter(Z2_approx, W, A1);
-			convolve_2d_filter_with_bias(Z2_approx, W, bias, A1);
-			// Compute error matrix:
-			// Z2_error = -(Z2 - Z2_approx)
-			element_wise_difference(Z2_error, Z2_approx, Z2);
-			float J_minus = 0.0f;
-			for (int i = 0; i != Z2_error.size(); ++i) {
-				J_minus += Z2_error[i]*Z2_error[i];
-			}
-			J_minus *= 0.5;
-			// Put back original value.
-			bias[n] = orig;
-			grad_bias_numerical[n] = (J_plus - J_minus)/(2*epsilon);
-		}
-		//const float rmse_grad_A1_score = compute_rmse(deltas_A1, deltas_A1_numerical);
-		//cout << "A1 gradient difference score RMSE = " << rmse_grad_A1_score << endl;
-		//const float grad_bias_score = relative_error(grad_bias.get_backing_vector(), grad_bias_numerical.get_backing_vector());
-		const float grad_bias_score = relative_error(grad_bias, grad_bias_numerical);
-		cout << "bias gradient score = " << grad_bias_score << endl;
-		cout << "grad_bias = " << endl << grad_bias << endl;
-		cout << "-----------------------------" << endl;
-		cout << "grad_bias_numerical = " << endl << grad_bias_numerical << endl;
-		//assert_almost_equal(rmse_grad_A1_score, 0.0f, 1e-3f);
-		assert_almost_equal(grad_bias_score, 0.0f, 1e-2f);
-
-		cout << "PASSED" << endl;
-	}
-	*/
-
-	void test_gradients_convolutional_minibatch()  {
-		cout << "test_gradients_convolutional_minibatch()..." << endl;
-		// Check gradient for the model:
-		// This is convolutional layer for a conventional convolutional network.
-		// Z2 = W (convolve with) A1 + bias.
-		// where A1 is 2D image and W is stack of 2D filters.
-		// This is the mini-batch version.
-
-		// Number of samples in a mini-batch.
-		const int minibatch_size = 8;
-
-		// Create X with random values.
-		const int rows_A1 = 8;
-		const int cols_A1 = 8;
-		Matrix A1(minibatch_size, rows_A1, cols_A1);
-		randomize_uniform(A1, 0.0f, 0.1f);
-		Matrix deltas_A1(minibatch_size, rows_A1, cols_A1);
-		
-		const int sub_rows = 4; // Convolution filter height
-		const int sub_cols = 4; // Convolution filter width
-		const int filter_count = 2; // 1 // Number of convolutional filters.
-		//const bool force_nonnegative = true;
-
-		// Create parameters matrix
-		//Matrix W(sub_rows, sub_cols, filter_count);
-		Matrix W(filter_count, sub_rows, sub_cols);
-		randomize_uniform(W, 0.0f, 0.1f);
-		//Matrix W_grad(sub_rows, sub_cols, filter_count);
-		Matrix W_grad(filter_count, sub_rows, sub_cols);
-
-		Matrix bias(filter_count);
-		randomize_uniform(bias, -0.1f, 0.1f);
-		Matrix grad_bias(filter_count);
-
-		//Matrix Z2(minibatch_size, rows_A1, cols_A1, filter_count);
-		Matrix Z2(minibatch_size, filter_count, rows_A1, cols_A1);
-		randomize_uniform(Z2, 0.0f, 0.1f);
-		//Matrix Z2_error(minibatch_size, rows_A1, cols_A1, filter_count);
-		Matrix Z2_error(minibatch_size, filter_count, rows_A1, cols_A1);
-		//Matrix Z2_approx(minibatch_size, rows_A1, cols_A1, filter_count);
-		Matrix Z2_approx(minibatch_size, filter_count, rows_A1, cols_A1);
-
-		// Compute Z2 = W (convolve with) A1 + bias:
-		convolve_2d_filter_with_bias_minibatch(Z2_approx, W, bias, A1);
-		// Compute error matrix:
-		// Z2_error = -(Z2 - Z2_approx)
-		element_wise_difference(Z2_error, Z2_approx, Z2);
-		
-		// Compute gradient of W:
-		compute_weight_grad_convolutive_minibatch(W_grad, Z2_error, A1);
-
-		// Compute gradient of bias.
-		compute_bias_grad_convolutive_minibatch(grad_bias, Z2_error);
-
-		// Update deltas_A1. (this is gradient of A1).
-		compute_convolutive_deltas_minibatch(deltas_A1, W, Z2_error); 
-
-		/////////////////////////////////////////////////////////////////
-		// Now check the gradients in W_grad 
-		// the numerically-computed gradients:
-		const float epsilon = 1e-3f;
-		Matrix W_grad_numerical(sub_rows, sub_cols, filter_count);
-		for (int n = 0; n != W.size(); ++n) {
-			float orig = W[n]; // backup
-			W[n] += epsilon;
-			// Now compute J(theta_plus)
-			// Compute Z2_approx = W (convolve with) A1 + bias:
-			//convolve_2d_filter(Z2_approx, W, A1);
-			convolve_2d_filter_with_bias_minibatch(Z2_approx, W, bias, A1);
-			// Compute error matrix:
-			// Z2_error = -(Z2 - Z2_approx)
-			element_wise_difference(Z2_error, Z2_approx, Z2);
-			float J_plus = 0.0f;
-			for (int i = 0; i != Z2_error.size(); ++i) {
-				J_plus += Z2_error[i]*Z2_error[i];
-			}
-			J_plus *= 0.5;
-			// Now compute J(theta_minus)
-			W[n] -= 2*epsilon;
-			// Compute Z2_approx = W (convolve with) A1 + bias:
-			//convolve_2d_filter(Z2_approx, W, A1);
-			convolve_2d_filter_with_bias_minibatch(Z2_approx, W, bias, A1);
-			// Compute error matrix:
-			// Z2_error = -(Z2 - Z2_approx)
-			element_wise_difference(Z2_error, Z2_approx, Z2);
-			float J_minus = 0.0f;
-			for (int i = 0; i != Z2_error.size(); ++i) {
-				J_minus += Z2_error[i]*Z2_error[i];
-			}
-			J_minus *= 0.5;
-			// Put back original value.
-			W[n] = orig;
-			W_grad_numerical[n] = (J_plus - J_minus)/(2*epsilon);
-		}
-		//const float rmse_grad_W_score = compute_rmse(W_grad, W_grad_numerical);
-		//const float relative_error_grad_W_score = relative_error(W_grad.get_backing_vector(), W_grad_numerical.get_backing_vector());
-		const float relative_error_grad_W_score = relative_error(W_grad, W_grad_numerical);
-		//cout << "W gradient difference score RMSE = " << rmse_grad_W_score << endl;
-		cout << "W gradient difference score norm closeness = " << relative_error_grad_W_score << endl;
-		cout << "W_grad = " << endl << W_grad << endl;
-		cout << "-----------------------------" << endl;
-		cout << "W_grad_numerical = " << endl << W_grad_numerical << endl;
-		//assert_almost_equal(rmse_grad_W_score, 0.0f, 1e-3f);
-		assert_almost_equal(relative_error_grad_W_score, 0.0f, 1e-2f);
-
-
-
-		/////////////////////////////////////////////////////////////////
-		// Now check the gradients in deltas_A1 
-		// the numerically-computed gradients:
-		Matrix deltas_A1_numerical(minibatch_size, rows_A1, cols_A1);
-		for (int n = 0; n != A1.size(); ++n) {
-			float orig = A1[n]; // backup
-			A1[n] += epsilon;
-			// Now compute J(theta_plus)
-			// Compute Z2_approx = W (convolve with) A1:
-			//convolve_2d_filter(Z2_approx, W, A1);
-			convolve_2d_filter_with_bias_minibatch(Z2_approx, W, bias, A1);
-			// Compute error matrix:
-			// Z2_error = -(Z2 - Z2_approx)
-			element_wise_difference(Z2_error, Z2_approx, Z2);
-			float J_plus = 0.0f;
-			for (int i = 0; i != Z2_error.size(); ++i) {
-				J_plus += Z2_error[i]*Z2_error[i];
-			}
-			J_plus *= 0.5;
-			// Now compute J(theta_minus)
-			A1[n] -= 2*epsilon;
-			// Compute Z2_approx = W (convolve with) A1:
-			//convolve_2d_filter(Z2_approx, W, A1);
-			convolve_2d_filter_with_bias_minibatch(Z2_approx, W, bias, A1);
-			// Compute error matrix:
-			// Z2_error = -(Z2 - Z2_approx)
-			element_wise_difference(Z2_error, Z2_approx, Z2);
-			float J_minus = 0.0f;
-			for (int i = 0; i != Z2_error.size(); ++i) {
-				J_minus += Z2_error[i]*Z2_error[i];
-			}
-			J_minus *= 0.5;
-			// Put back original value.
-			A1[n] = orig;
-			deltas_A1_numerical[n] = (J_plus - J_minus)/(2*epsilon);
-		}
-		//const float rmse_grad_A1_score = compute_rmse(deltas_A1, deltas_A1_numerical);
-		//cout << "A1 gradient difference score RMSE = " << rmse_grad_A1_score << endl;
-		//const float grad_A1_score = relative_error(deltas_A1.get_backing_vector(), deltas_A1_numerical.get_backing_vector());
-		const float grad_A1_score = relative_error(deltas_A1, deltas_A1_numerical);
-		cout << "A1 gradient score = " << grad_A1_score << endl;
-		cout << "deltas_A1 (A1 gradient) = " << endl << deltas_A1 << endl;
-		cout << "-----------------------------" << endl;
-		cout << "A1_grad_numerical = " << endl << deltas_A1_numerical << endl;
-		//assert_almost_equal(rmse_grad_A1_score, 0.0f, 1e-3f);
-		assert_almost_equal(grad_A1_score, 0.0f, 1e-2f);
-
-
-		/////////////////////////////////////////////////////////////////
-		// Now check the gradients in grad_bias
-		// the numerically-computed gradients:
-		Matrix grad_bias_numerical(filter_count);
-		for (int n = 0; n != bias.size(); ++n) {
-			float orig = bias[n]; // backup
-			bias[n] += epsilon;
-			// Now compute J(theta_plus)
-			// Compute Z2_approx = W (convolve with) A1:
-			//convolve_2d_filter(Z2_approx, W, A1);
-			convolve_2d_filter_with_bias_minibatch(Z2_approx, W, bias, A1);
-			// Compute error matrix:
-			// Z2_error = -(Z2 - Z2_approx)
-			element_wise_difference(Z2_error, Z2_approx, Z2);
-			float J_plus = 0.0f;
-			for (int i = 0; i != Z2_error.size(); ++i) {
-				J_plus += Z2_error[i]*Z2_error[i];
-			}
-			J_plus *= 0.5;
-			// Now compute J(theta_minus)
-			bias[n] -= 2*epsilon;
-			// Compute Z2_approx = W (convolve with) A1:
-			//convolve_2d_filter(Z2_approx, W, A1);
-			convolve_2d_filter_with_bias_minibatch(Z2_approx, W, bias, A1);
-			// Compute error matrix:
-			// Z2_error = -(Z2 - Z2_approx)
-			element_wise_difference(Z2_error, Z2_approx, Z2);
-			float J_minus = 0.0f;
-			for (int i = 0; i != Z2_error.size(); ++i) {
-				J_minus += Z2_error[i]*Z2_error[i];
-			}
-			J_minus *= 0.5;
-			// Put back original value.
-			bias[n] = orig;
-			grad_bias_numerical[n] = (J_plus - J_minus)/(2*epsilon);
-		}
-		//const float rmse_grad_A1_score = compute_rmse(deltas_A1, deltas_A1_numerical);
-		//cout << "A1 gradient difference score RMSE = " << rmse_grad_A1_score << endl;
-		//const float grad_bias_score = relative_error(grad_bias.get_backing_vector(), grad_bias_numerical.get_backing_vector());
-		const float grad_bias_score = relative_error(grad_bias, grad_bias_numerical);
-		cout << "bias gradient score = " << grad_bias_score << endl;
-		cout << "grad_bias = " << endl << grad_bias << endl;
-		cout << "-----------------------------" << endl;
-		cout << "grad_bias_numerical = " << endl << grad_bias_numerical << endl;
-		//assert_almost_equal(rmse_grad_A1_score, 0.0f, 1e-3f);
-		assert_almost_equal(grad_bias_score, 0.0f, 1e-2f);
-
-		cout << "PASSED" << endl;
-	}
-
-
-
-
-
-
-
-
-	void test_relu() {
-		cout << "test_relu()..." << endl;
-		const int M = 50;
-		const int N = 40;
-		Matrix in_vals(M, N);
-		randomize_uniform(in_vals, -1.0f, 1.0f);
-		//cout << "in_vals = " << endl << in_vals << endl;
-		Matrix out_values(M, N);
-		MatrixT<int> out_indices(M, N);
-		// Compute forward-direction ReLU:
-		compute_forward_relu(in_vals, out_values, out_indices);
-		//cout << "out_values = " << endl << out_values << endl;
-		//cout << "out_indices = " << endl << out_indices << endl;
-
-		Matrix other_in_vals(M, N);
-		// Compute reverse-direction ReLU:
-		compute_reverse_relu(other_in_vals, out_values, out_indices);
-		//cout << "Updated in_vals = " << endl << other_in_vals << endl;
-		assert_almost_equal(out_values, other_in_vals, 1e-3f);
-
-		cout << "PASSED" << endl;
-	}
-
-	// deprecated
-	void test_compute_maxout_3d() {
-		cout << "test_compute_maxout_3d()..." << endl;
-
-		const int image_height = 4;
-		const int image_width = 10;
-		const int filter_count = 12; // 4 // Number of convolutional filters.
-
-		Matrix Z(image_height, image_width, filter_count);
-		randomize_uniform(Z, -1.0f, 1.0f);
-		cout << "Z = " << endl << Z << endl;
-		//Matrix Z_error(image_height, image_width, filter_count);
-		Matrix Z_new(image_height, image_width, filter_count);
-
-		// Maxout parameters:
-		const int maxout_factor_dim0 = 2;
-		const int maxout_factor_dim1 = 5;
-		const int maxout_factor_dim2 = 3;
-
-		const int maxout_vals_dim0 = Z.extent(0) / maxout_factor_dim0;
-		const int maxout_vals_dim1 = Z.extent(1) / maxout_factor_dim1;
-		const int maxout_vals_dim2 = Z.extent(2) / maxout_factor_dim2;
-		Matrix maxout_vals(maxout_vals_dim0, maxout_vals_dim1, maxout_vals_dim2);
-		MatrixT<int> maxout_indices(maxout_vals_dim0, maxout_vals_dim1, maxout_vals_dim2, 3);
-
-		compute_maxout_3d(Z, maxout_vals, maxout_indices); // updates maxout_values and maxout_indices
-		cout << "maxout_vals = " << endl << maxout_vals << endl;
-		cout << "maxout_indices = " << endl << maxout_indices << endl;
-
-		compute_reverse_maxout_3d(Z_new, maxout_vals, maxout_indices); // updates _new
-		cout << "Z_new = " << endl << Z_new << endl;
-
-		for (int n = 0; n != Z.size(); ++n) {
-			if (Z_new[n] > 0) {
-				assert_almost_equal(Z[n], Z_new[n], 1e-3f);
-			}
-		}
-
-		//assert_almost_equal(Z, Z_error, 1e-3f);
-		cout << "PASSED" << endl;
-	}
-
-	void test_compute_maxout_3d_minibatch() {
-		cout << "test_compute_maxout_3d_minibatch()..." << endl;
-
-		const int minibatch_size = 2;
-		const int filter_count = 4; // 4 // Number of convolutional filters.
-		const int image_height = 6;
-		const int image_width = 8;
-
-
-		Matrix Z(minibatch_size, filter_count, image_height, image_width);
-		randomize_uniform(Z, -1.0f, 1.0f);
-		cout << "Z = " << endl << Z << endl;
-		//Matrix Z_error(image_height, image_width, filter_count);
-		Matrix Z_new(minibatch_size, filter_count, image_height, image_width);
-
-		// Maxout parameters:
-		const int pooling_size_depth = 3;
-		const int pooling_size_height = 3;
-		const int pooling_size_width = 3;
-
-		const int depth_out = 2;
-		const int height_out = 3;
-		const int width_out = 4;
-		Matrix maxout_vals(minibatch_size, depth_out, height_out, width_out);
-		MatrixT<int> maxout_indices(minibatch_size, depth_out, height_out, width_out, 3);
-		const vector<int> pooling_region_extents = {pooling_size_depth, pooling_size_height, pooling_size_width};
-
-		//compute_maxout_3d_minibatch(Z, maxout_vals, maxout_indices); // updates maxout_values and maxout_indices
-		forward_3d_max_pool(Z, maxout_vals, maxout_indices, pooling_region_extents); // updates maxout_values and maxout_indices
-		cout << "maxout_vals = " << endl << maxout_vals << endl;
-		cout << "maxout_indices = " << endl << maxout_indices << endl;
-
-		//compute_reverse_maxout_3d_minibatch(Z_new, maxout_vals, maxout_indices); // updates _new
-		reverse_3d_max_pool(Z_new, maxout_vals, maxout_indices); // updates _new
-		cout << "Z_new = " << endl << Z_new << endl;
-
-		for (int n = 0; n != Z.size(); ++n) {
-			if (Z_new[n] > 0) {
-				// fixme:
-				//assert_almost_equal(Z[n], Z_new[n], 1e-3f);
-			}
-		}
-
-		//assert_almost_equal(Z, Z_error, 1e-3f);
-		cout << "PASSED" << endl;
-	}
-
-	/*
-	void test_optimized_convolve_2d_minibatch_deprecated() {
-		cout << " test_optimized_convolve_2d_minibatch_deprecated()..." << endl;
-		const float pass_relative_error = 5e-3f; // Relative error must be below this to pass.
-
-		// Number of samples in a mini-batch.
-		const int minibatch_size = 128;
-
-		// Create X with random values.
-		const int image_height = 32;
-		const int image_width = 32;
-		const int conv_filter_height = 5; // Convolution filter height
-		const int conv_filter_width = 5; // Convolution filter width
-		const int filter_count = 64; // 1 // Number of convolutional filters.
-
-		// Compute Z2(i'th minibatch) = W (conv with) A1(i'th minibatch) + bias.
-		Matrix Z2_true(minibatch_size, filter_count, image_height, image_width);
-		Matrix W(filter_count, conv_filter_height, conv_filter_width);
-		randomize_uniform(W, -1.0f, 1.0f);
-		Matrix bias(filter_count);
-		randomize_uniform(bias, -1.0f, 1.0f);
-		Matrix A1(minibatch_size, image_height, image_width);
-		randomize_uniform(A1, -1.0f, 1.0f);
-
-		cout << "Running naive convolution..." << endl;
-		// Start timer here. 
-		using namespace std::chrono;
-		auto t0 = high_resolution_clock::now();
-		const int loop_count = 10; // 1000
-		for (int n = 0; n != loop_count; ++n) {
-			//cout << "naive: n = " << n << endl;
-			// Assume this version is correct.
-			// Compute Z2(i'th minibatch) = W (conv with) A1(i'th minibatch) + bias.
-			convolve_2d_filter_with_bias_minibatch(Z2_true, W, bias, A1); 
-		}
-		// Stop timer here. 
-		auto t1 = high_resolution_clock::now();
-
-		auto time_in_msec = duration_cast<milliseconds>(t1 - t0).count();
-		//double flops = 1e-6*static_cast<double>(loop_count)*(double)2 * (double)rows_A*(double)cols_A*(double)cols_B / (double)time_in_msec;
-		std::cout << time_in_msec << " milliseconds for naive version." << std::endl;
-		//std::cout << flops << " GFLOPS" << std::endl;
-
-
-		// This will be the result of the optimized version.
-		Matrix Z2_optimized(minibatch_size, filter_count, image_height, image_width);
-		
-		// Allocate temporary matrices that are needed by the optimized convolution function.
-		Matrix temp_Z2(image_height*image_width, filter_count);
-		Matrix temp_A1(image_height*image_width, conv_filter_height*conv_filter_width + 1);
-		Matrix temp_W(conv_filter_height*conv_filter_width + 1, filter_count);
-		cout << "Running optimized convolution..." << endl;
-		auto t0_opt = high_resolution_clock::now();
-		for (int n = 0; n != loop_count; ++n) {
-			//cout << "opt: n = " << n << endl;
-			//convolve_2d_filter_with_bias_minibatch(Z2_true, W, bias, A1); 
-			// Compute Z2_optimized
-			convolve_2d_filter_with_bias_minibatch_optimized_deprecated(Z2_optimized, W, bias, A1, temp_Z2, temp_A1, temp_W); 
-		}
-		auto t1_opt = high_resolution_clock::now();
-		auto time_in_msec_opt = duration_cast<milliseconds>(t1_opt - t0_opt).count();
-		std::cout << time_in_msec_opt << " milliseconds for optimized version." << std::endl;
-		
-
-		// Check Z2_optimized against the assumed correct value in Z2_true.
-		const float rel_error = relative_error(Z2_true, Z2_optimized);
-		cout << "relative error = " << rel_error << endl;
-		assert_almost_equal(rel_error, 0.0f, pass_relative_error);
-
-		cout << "PASSED" << endl;
-	}
-	*/
-
-	void test_optimized_convolve_2d_minibatch() {
-		cout << " test_optimized_convolve_2d_minibatch()..." << endl;
-		const float pass_relative_error = 5e-3f; // Relative error must be below this to pass.
-
-		/*
-		// Number of samples in a mini-batch.
-		const int minibatch_size = 128;
-		// Create X with random values.
-		const int image_height = 32;
-		const int image_width = 32;
-		const int conv_filter_height = 5; // Convolution filter height
-		const int conv_filter_width = 5; // Convolution filter width
-		const int filter_count = 64; // 1 // Number of convolutional filters.
-		*/
-
-		// Number of samples in a mini-batch.
-		const int minibatch_size = 32;
-		// Create X with random values.
-		const int image_height = 16;
-		const int image_width = 16;
-		const int conv_filter_height = 3; // Convolution filter height
-		const int conv_filter_width = 3; // Convolution filter width
-		const int filter_count = 2; // 1 // Number of convolutional filters.
-
-		// Compute Z2(i'th minibatch) = W (conv with) A1(i'th minibatch) + bias.
-		Matrix Z2_true(minibatch_size, filter_count, image_height, image_width);
-		Matrix W(filter_count, conv_filter_height, conv_filter_width);
-		randomize_uniform(W, -1.0f, 1.0f);
-		Matrix bias(filter_count);
-		randomize_uniform(bias, -1.0f, 1.0f);
-		Matrix A1(minibatch_size, image_height, image_width);
-		randomize_uniform(A1, -1.0f, 1.0f);
-
-		cout << "Running naive convolution..." << endl;
-		// Start timer here. 
-		using namespace std::chrono;
-		auto t0 = high_resolution_clock::now();
-		const int loop_count = 10; // 1000
-		for (int n = 0; n != loop_count; ++n) {
-			//cout << "naive: n = " << n << endl;
-			// Assume this version is correct.
-			// Compute Z2(i'th minibatch) = W (conv with) A1(i'th minibatch) + bias.
-			convolve_2d_filter_with_bias_minibatch(Z2_true, W, bias, A1); 
-		}
-		// Stop timer here. 
-		auto t1 = high_resolution_clock::now();
-
-		auto time_in_msec = duration_cast<milliseconds>(t1 - t0).count();
-		//double flops = 1e-6*static_cast<double>(loop_count)*(double)2 * (double)rows_A*(double)cols_A*(double)cols_B / (double)time_in_msec;
-		std::cout << time_in_msec << " milliseconds for naive version." << std::endl;
-		//std::cout << flops << " GFLOPS" << std::endl;
-
-
-		// This will be the result of the optimized version.
-		Matrix Z2_optimized(minibatch_size, filter_count, image_height, image_width);
-		
-		// Allocate temporary matrices that are needed by the optimized convolution function.
-		Matrix temp_Z2(image_height*image_width*minibatch_size, filter_count);
-		Matrix temp_A1(image_height*image_width*minibatch_size, conv_filter_height*conv_filter_width + 1);
-		Matrix temp_W(conv_filter_height*conv_filter_width + 1, filter_count);
-		cout << "Running optimized convolution..." << endl;
-		auto t0_opt = high_resolution_clock::now();
-		for (int n = 0; n != loop_count; ++n) {
-			//cout << "opt: n = " << n << endl;
-			//convolve_2d_filter_with_bias_minibatch(Z2_true, W, bias, A1); 
-			// Compute Z2_optimized
-			convolve_2d_filter_with_bias_minibatch_optimized(Z2_optimized, W, bias, A1, temp_Z2, temp_A1, temp_W); 
-		}
-		auto t1_opt = high_resolution_clock::now();
-		auto time_in_msec_opt = duration_cast<milliseconds>(t1_opt - t0_opt).count();
-		std::cout << time_in_msec_opt << " milliseconds for optimized version." << std::endl;
-		
-
-		// Check Z2_optimized against the assumed correct value in Z2_true.
-		const float rel_error = relative_error(Z2_true, Z2_optimized);
-		cout << "relative error = " << rel_error << endl;
-		assert_almost_equal(rel_error, 0.0f, pass_relative_error);
-
-		cout << "PASSED" << endl;
-	}
-
-	void test_optimized_convolutive_deltas() {
-				cout << "test_optimized_convolutive_deltas()..." << endl;
-		const float pass_relative_error = 5e-3f; // Relative error must be below this to pass.
-		/*
-		// Number of samples in a mini-batch.
-		const int minibatch_size = 128;
-		// Create X with random values.
-		const int image_height = 32;
-		const int image_width = 32;
-		const int conv_filter_height = 5; // Convolution filter height
-		const int conv_filter_width = 5; // Convolution filter width
-		const int filter_count = 64; // 1 // Number of convolutional filters.
-		*/
-		
-		// Number of samples in a mini-batch.
-		const int minibatch_size = 32;
-		// Create X with random values.
-		const int image_height = 16;
-		const int image_width = 16;
-		const int conv_filter_height = 3; // Convolution filter height
-		const int conv_filter_width = 3; // Convolution filter width
-		const int filter_count = 2; // 1 // Number of convolutional filters.
-		
-
-		Matrix deltas_Z2(minibatch_size, filter_count, image_height, image_width);
-		randomize_uniform(deltas_Z2, -1.0f, 1.0f);
-		Matrix W(filter_count, conv_filter_height, conv_filter_width);
-		randomize_uniform(W, -1.0f, 1.0f);
-		Matrix bias(filter_count);
-		randomize_uniform(bias, -1.0f, 1.0f);
-		Matrix deltas_A1_true(minibatch_size, image_height, image_width);
-
-
-		cout << "Running naive convolution..." << endl;
-		// Warm up:
-		compute_convolutive_deltas_minibatch(deltas_A1_true, W, deltas_Z2);
-		// Start timer here. 
-		using namespace std::chrono;
-		auto t0 = high_resolution_clock::now();
-		const int loop_count = 10; // 1000
-		for (int n = 0; n != loop_count; ++n) {
-			//cout << "naive: n = " << n << endl;
-			// Assume this version is correct.
-			compute_convolutive_deltas_minibatch(deltas_A1_true, W, deltas_Z2);
-		}
-		// Stop timer here. 
-		auto t1 = high_resolution_clock::now();
-
-		auto time_in_msec = duration_cast<milliseconds>(t1 - t0).count();
-		//double flops = 1e-6*static_cast<double>(loop_count)*(double)2 * (double)rows_A*(double)cols_A*(double)cols_B / (double)time_in_msec;
-		std::cout << time_in_msec << " milliseconds for naive version." << std::endl;
-		//std::cout << flops << " GFLOPS" << std::endl;
-
-
-		// This will be the result of the optimized version.
-		Matrix deltas_A1_optimized(minibatch_size, image_height, image_width);
-		
-		// Allocate temporary matrices that are needed by the optimized convolution function.
-		Matrix temp_deltas_Z2(image_height*image_width*minibatch_size, filter_count);
-		randomize_uniform(temp_deltas_Z2, -1.0f, 1.0f);
-		Matrix temp_deltas_A1(image_height*image_width*minibatch_size, conv_filter_height*conv_filter_width + 1);
-		randomize_uniform(temp_deltas_A1, -1.0f, 1.0f);
-		Matrix temp_W(conv_filter_height*conv_filter_width + 1, filter_count);
-		randomize_uniform(temp_W, -1.0f, 1.0f);
-		cout << "Running optimized convolutive back-progatation to compute deltas_A1..." << endl;
-		auto t0_opt = high_resolution_clock::now();
-		for (int n = 0; n != loop_count; ++n) {
-			// Compute deltas_A1_optimized. 
-			//compute_convolutive_deltas_minibatch(deltas_A1_optimized, W, deltas_Z2);
-			compute_convolutive_deltas_minibatch_optimized(deltas_A1_optimized, W, deltas_Z2, temp_deltas_Z2,
-														   temp_deltas_A1, temp_W);
-		}
-		auto t1_opt = high_resolution_clock::now();
-		auto time_in_msec_opt = duration_cast<milliseconds>(t1_opt - t0_opt).count();
-		std::cout << time_in_msec_opt << " milliseconds for optimized version." << std::endl;
-		
-
-		//cout << "deltas_A1_true = " << endl << deltas_A1_true << endl;
-		//cout << "deltas_A1_optimized = " << endl << deltas_A1_optimized << endl;
-		// Check deltas_A1_optimized against the assumed correct value in deltas_A1_true.
-		const float rel_error = relative_error(deltas_A1_true, deltas_A1_optimized);
-		cout << "relative error = " << rel_error << endl;
-		assert_almost_equal(rel_error, 0.0f, pass_relative_error);
-
-		cout << "PASSED" << endl;
-
-	}
-
-
-	void test_optimized_weight_grad_convolutive()  {
-				cout << "test_optimized_weight_grad_convolutive()..." << endl;
-		const float pass_relative_error = 5e-3f; // Relative error must be below this to pass.
-
-		/*
-		// Number of samples in a mini-batch.
-		const int minibatch_size = 128;
-		// Create X with random values.
-		const int image_height = 32;
-		const int image_width = 32;
-		const int conv_filter_height = 5; // Convolution filter height
-		const int conv_filter_width = 5; // Convolution filter width
-		const int filter_count = 64; // 1 // Number of convolutional filters.
-		*/
-
-		
-		// Number of samples in a mini-batch.
-		const int minibatch_size = 32;
-		// Create X with random values.
-		const int image_height = 16;
-		const int image_width = 16;
-		const int conv_filter_height = 3; // Convolution filter height
-		const int conv_filter_width = 3; // Convolution filter width
-		const int filter_count = 2; // 1 // Number of convolutional filters.
-		
-
-		Matrix deltas_Z2(minibatch_size, filter_count, image_height, image_width);
-		randomize_uniform(deltas_Z2, -1.0f, 1.0f);
-		Matrix grad_W_true(filter_count, conv_filter_height, conv_filter_width);
-		//Matrix bias(filter_count);
-		//randomize_uniform(bias, -1.0f, 1.0f); //
-		Matrix A1(minibatch_size, image_height, image_width);
-		randomize_uniform(A1, -1.0f, 1.0f);
-
-		cout << "Running naive weight gradient convolutive back-propagation..." << endl;
-		// Warm up:
-		compute_weight_grad_convolutive_minibatch(grad_W_true, deltas_Z2, A1);
-		// Start timer here. 
-		using namespace std::chrono;
-		auto t0 = high_resolution_clock::now();
-		const int loop_count = 10; // 1000
-		for (int n = 0; n != loop_count; ++n) {
-			//cout << "naive: n = " << n << endl;
-			// Assume this version is correct.
-			compute_weight_grad_convolutive_minibatch(grad_W_true, deltas_Z2, A1);
-		}
-		// Stop timer here. 
-		auto t1 = high_resolution_clock::now();
-
-		auto time_in_msec = duration_cast<milliseconds>(t1 - t0).count();
-		//double flops = 1e-6*static_cast<double>(loop_count)*(double)2 * (double)rows_A*(double)cols_A*(double)cols_B / (double)time_in_msec;
-		std::cout << time_in_msec << " milliseconds for naive version." << std::endl;
-		//std::cout << flops << " GFLOPS" << std::endl;
-
-
-		// This will be the result of the optimized version.
-		Matrix grad_W_optimized(filter_count, conv_filter_height, conv_filter_width);
-		
-		// Allocate temporary matrices that are needed by the optimized convolution function.
-		Matrix temp_deltas_Z2(image_height*image_width*minibatch_size, filter_count);
-		randomize_uniform(temp_deltas_Z2, -1.0f, 1.0f);
-		Matrix temp_A1(image_height*image_width*minibatch_size, conv_filter_height*conv_filter_width + 1);
-		randomize_uniform(temp_A1, -1.0f, 1.0f);
-		Matrix temp_grad_W(conv_filter_height*conv_filter_width + 1, filter_count);
-		randomize_uniform(temp_grad_W, -1.0f, 1.0f);
-		cout << "Running optimized convolutive back-progatation to compute deltas_A1..." << endl;
-		auto t0_opt = high_resolution_clock::now();
-		for (int n = 0; n != loop_count; ++n) {
-			compute_weight_grad_convolutive_minibatch_optimized(grad_W_optimized, deltas_Z2, A1,
-																temp_deltas_Z2, temp_A1, temp_grad_W);
-		}
-		auto t1_opt = high_resolution_clock::now();
-		auto time_in_msec_opt = duration_cast<milliseconds>(t1_opt - t0_opt).count();
-		std::cout << time_in_msec_opt << " milliseconds for optimized version." << std::endl;
-		
-		//cout << "grad_W_optimized = " << grad_W_optimized << endl;
-		//cout << "deltas_A1_true = " << endl << deltas_A1_true << endl;
-		//cout << "deltas_A1_optimized = " << endl << deltas_A1_optimized << endl;
-		// Check deltas_A1_optimized against the assumed correct value in deltas_A1_true.
-		const float rel_error = relative_error(grad_W_true, grad_W_optimized);
-		cout << "relative error = " << rel_error << endl;
-		assert_almost_equal(rel_error, 0.0f, pass_relative_error);
-
-		cout << "PASSED" << endl;
-
-	}
-
-	void test_optimized_convolve_3d_minibatch() {
-		cout << " test_optimized_convolve_3d_minibatch()..." << endl;
-		const float pass_relative_error = 5e-3f; // Relative error must be below this to pass.
-
-		// Benchmarking parameters:
-		/*
-		// Number of samples in a mini-batch.
-		const int minibatch_size = 128;
-		// Create X with random values.
-		const int image_height = 32;
-		const int image_width = 32;
-		const int image_depth = 8;
-		const int conv_filter_height = 5; // Convolution filter height
-		const int conv_filter_width = 5; // Convolution filter width
-		const int filter_count = 64; // 1 // Number of convolutional filters.
-		*/
-		
-		// Correctness testing parameters:
-		// Number of samples in a mini-batch.
-		const int minibatch_size = 2;
-		// Create X with random values.
-		const int image_height = 5;
-		const int image_width = 5;
-		const int image_depth = 2;
-		const int conv_filter_height = 3; // Convolution filter height
-		const int conv_filter_width = 3; // Convolution filter width
-		const int filter_count = 2; // 1 // Number of convolutional filters.
-		
-		// Compute Z2(i'th minibatch) = W (conv with) A1(i'th minibatch) + bias.
-		Matrix Z2_true(minibatch_size, filter_count, image_height, image_width);
-		Matrix W(filter_count, image_depth, conv_filter_height, conv_filter_width);
-		randomize_uniform(W, -1.0f, 1.0f);
-		Matrix bias(filter_count);
-		randomize_uniform(bias, -1.0f, 1.0f);
-		Matrix A1(minibatch_size, image_depth, image_height, image_width);
-		randomize_uniform(A1, -1.0f, 1.0f);
-
-		cout << "Running naive convolution..." << endl;
-		// Start timer here. 
-		using namespace std::chrono;
-		auto t0 = high_resolution_clock::now();
-		const int loop_count = 10; // 10
-		for (int n = 0; n != loop_count; ++n) {
-			//cout << "naive: n = " << n << endl;
-			// Assume this version is correct.
-			// Compute Z2(i'th minibatch) = W (conv with) A1(i'th minibatch) + bias.
-			convolve_3d_filter_with_bias_minibatch(Z2_true, W, bias, A1); 
-		}
-		// Stop timer here. 
-		auto t1 = high_resolution_clock::now();
-
-		auto time_in_msec = duration_cast<milliseconds>(t1 - t0).count();
-		//double flops = 1e-6*static_cast<double>(loop_count)*(double)2 * (double)rows_A*(double)cols_A*(double)cols_B / (double)time_in_msec;
-		std::cout << time_in_msec << " milliseconds for naive version." << std::endl;
-		//std::cout << flops << " GFLOPS" << std::endl;
-
-
-		// This will be the result of the optimized version.
-		Matrix Z2_optimized(minibatch_size, filter_count, image_height, image_width);
-		
-		// Allocate temporary matrices that are needed by the optimized convolution function.
-		Matrix temp_Z2(image_height*image_width*minibatch_size, filter_count);
-		Matrix temp_A1(image_height*image_width*minibatch_size, image_depth*conv_filter_height*conv_filter_width + 1);
-		Matrix temp_W(image_depth*conv_filter_height*conv_filter_width + 1, filter_count);
-		cout << "Running optimized convolution..." << endl;
-		auto t0_opt = high_resolution_clock::now();
-		for (int n = 0; n != loop_count; ++n) {
-			//cout << "opt: n = " << n << endl;
-			//convolve_2d_filter_with_bias_minibatch(Z2_true, W, bias, A1); 
-			// Compute Z2_optimized
-			convolve_3d_filter_with_bias_minibatch_optimized(Z2_optimized, W, bias, A1, temp_Z2, temp_A1, temp_W); 
-		}
-		auto t1_opt = high_resolution_clock::now();
-		auto time_in_msec_opt = duration_cast<milliseconds>(t1_opt - t0_opt).count();
-		std::cout << time_in_msec_opt << " milliseconds for optimized version." << std::endl;
-		
-
-		// Check Z2_optimized against the assumed correct value in Z2_true.
-		//cout << "Z2_true = " << endl << Z2_true << endl;
-		//cout << "Z2_optimized = " << endl << Z2_optimized << endl;
-		const float rel_error = relative_error(Z2_true, Z2_optimized);
-		cout << "relative error = " << rel_error << endl;
-		assert_almost_equal(rel_error, 0.0f, pass_relative_error);
-
-		cout << "PASSED" << endl;
-	}
-
-
-	void test_optimized_3d_convolutive_deltas()  {
-				cout << "test_optimized_3d_convolutive_deltas()..." << endl;
-		const float pass_relative_error = 5e-3f; // Relative error must be below this to pass.
-		
-		// Benchmarking parameters:
-		/*
-		// Number of samples in a mini-batch.
-		const int minibatch_size = 128;
-		// Create X with random values.
-		const int image_height = 32;
-		const int image_width = 32;
-		const int image_depth = 8;
-		const int conv_filter_height = 5; // Convolution filter height
-		const int conv_filter_width = 5; // Convolution filter width
-		const int filter_count = 64; // 1 // Number of convolutional filters.
-		*/
-		
-		
-		// Correctness testing parameters:
-		// Number of samples in a mini-batch.
-		const int minibatch_size = 2;
-		// Create X with random values.
-		const int image_height = 5;
-		const int image_width = 5;
-		const int image_depth = 2;
-		const int conv_filter_height = 3; // Convolution filter height
-		const int conv_filter_width = 3; // Convolution filter width
-		const int filter_count = 2; // 1 // Number of convolutional filters.
-		
-
-		Matrix deltas_Z2(minibatch_size, filter_count, image_height, image_width);
-		randomize_uniform(deltas_Z2, -1.0f, 1.0f);
-		Matrix W(filter_count, image_depth, conv_filter_height, conv_filter_width);
-		randomize_uniform(W, -1.0f, 1.0f);
-		Matrix bias(filter_count);
-		randomize_uniform(bias, -1.0f, 1.0f);
-		Matrix deltas_A1_true(minibatch_size, image_depth, image_height, image_width);
-
-
-		cout << "Running naive convolution..." << endl;
-		// Warm up:
-		compute_3d_convolutive_deltas_minibatch(deltas_A1_true, W, deltas_Z2);
-		// Start timer here. 
-		using namespace std::chrono;
-		auto t0 = high_resolution_clock::now();
-		const int loop_count = 10; // 1000
-		for (int n = 0; n != loop_count; ++n) {
-			//cout << "naive: n = " << n << endl;
-			// Assume this version is correct.
-			compute_3d_convolutive_deltas_minibatch(deltas_A1_true, W, deltas_Z2);
-		}
-		// Stop timer here. 
-		auto t1 = high_resolution_clock::now();
-
-		auto time_in_msec = duration_cast<milliseconds>(t1 - t0).count();
-		//double flops = 1e-6*static_cast<double>(loop_count)*(double)2 * (double)rows_A*(double)cols_A*(double)cols_B / (double)time_in_msec;
-		std::cout << time_in_msec << " milliseconds for naive version." << std::endl;
-		//std::cout << flops << " GFLOPS" << std::endl;
-
-
-		// This will be the result of the optimized version.
-		Matrix deltas_A1_optimized(minibatch_size, image_depth, image_height, image_width);
-		
-		// Allocate temporary matrices that are needed by the optimized convolution function.
-		Matrix temp_deltas_Z2(image_height*image_width*minibatch_size, filter_count);
-		randomize_uniform(temp_deltas_Z2, -1.0f, 1.0f);
-		Matrix temp_deltas_A1(image_height*image_width*minibatch_size, image_depth*conv_filter_height*conv_filter_width + 1);
-		randomize_uniform(temp_deltas_A1, -1.0f, 1.0f);
-		Matrix temp_W(image_depth*conv_filter_height*conv_filter_width + 1, filter_count);
-		randomize_uniform(temp_W, -1.0f, 1.0f);
-		cout << "Running optimized convolutive back-progatation to compute deltas_A1..." << endl;
-		auto t0_opt = high_resolution_clock::now();
-		for (int n = 0; n != loop_count; ++n) {
-			// Compute deltas_A1_optimized. 
-			compute_3d_convolutive_deltas_minibatch_optimized(deltas_A1_optimized, W, deltas_Z2, temp_deltas_Z2,
-														   temp_deltas_A1, temp_W);
-		}
-		auto t1_opt = high_resolution_clock::now();
-		auto time_in_msec_opt = duration_cast<milliseconds>(t1_opt - t0_opt).count();
-		std::cout << time_in_msec_opt << " milliseconds for optimized version." << std::endl;
-		
-
-		//cout << "deltas_A1_true = " << endl << deltas_A1_true << endl;
-		//cout << "deltas_A1_optimized = " << endl << deltas_A1_optimized << endl;
-		// Check deltas_A1_optimized against the assumed correct value in deltas_A1_true.
-		const float rel_error = relative_error(deltas_A1_true, deltas_A1_optimized);
-		cout << "relative error = " << rel_error << endl;
-		assert_almost_equal(rel_error, 0.0f, pass_relative_error);
-
-		cout << "PASSED" << endl;
-
-	}
-
-	void test_optimized_3d_weight_grad_convolutive()   {
-				cout << "test_optimized_3d_weight_grad_convolutive()..." << endl;
-		const float pass_relative_error = 5e-3f; // Relative error must be below this to pass.
-
-		// Benchmarking parameters
-		/*
-		// Number of samples in a mini-batch.
-		const int minibatch_size = 128;
-		// Create X with random values.
-		const int image_height = 32;
-		const int image_width = 32;
-		const int image_depth = 8;
-		const int conv_filter_height = 5; // Convolution filter height
-		const int conv_filter_width = 5; // Convolution filter width
-		const int filter_count = 64; // 1 // Number of convolutional filters.
-		*/
-
-		
-		// Correctness testing parameters:
-		
-		// Number of samples in a mini-batch.
-		const int minibatch_size = 32;
-		// Create X with random values.
-		const int image_height = 16;
-		const int image_width = 16;
-		const int image_depth = 8;
-		const int conv_filter_height = 3; // Convolution filter height
-		const int conv_filter_width = 3; // Convolution filter width
-		const int filter_count = 2; // 1 // Number of convolutional filters.
-		
-
-		Matrix deltas_Z2(minibatch_size, filter_count, image_height, image_width);
-		randomize_uniform(deltas_Z2, -1.0f, 1.0f);
-		Matrix grad_W_true(filter_count, image_depth, conv_filter_height, conv_filter_width);
-		//Matrix bias(filter_count);
-		//randomize_uniform(bias, -1.0f, 1.0f); //
-		Matrix A1(minibatch_size, image_depth, image_height, image_width);
-		randomize_uniform(A1, -1.0f, 1.0f);
-
-		cout << "Running naive weight gradient convolutive back-propagation..." << endl;
-		// Warm up:
-		compute_3d_weight_grad_convolutive_minibatch(grad_W_true, deltas_Z2, A1);
-		// Start timer here. 
-		using namespace std::chrono;
-		auto t0 = high_resolution_clock::now();
-		const int loop_count = 10; // 1000
-		for (int n = 0; n != loop_count; ++n) {
-			//cout << "naive: n = " << n << endl;
-			// Assume this version is correct.
-			compute_3d_weight_grad_convolutive_minibatch(grad_W_true, deltas_Z2, A1);
-		}
-		// Stop timer here. 
-		auto t1 = high_resolution_clock::now();
-
-		auto time_in_msec = duration_cast<milliseconds>(t1 - t0).count();
-		//double flops = 1e-6*static_cast<double>(loop_count)*(double)2 * (double)rows_A*(double)cols_A*(double)cols_B / (double)time_in_msec;
-		std::cout << time_in_msec << " milliseconds for naive version." << std::endl;
-		//std::cout << flops << " GFLOPS" << std::endl;
-
-
-		// This will be the result of the optimized version.
-		Matrix grad_W_optimized(filter_count, image_depth, conv_filter_height, conv_filter_width);
-		
-		// Allocate temporary matrices that are needed by the optimized convolution function.
-		Matrix temp_deltas_Z2(image_height*image_width*minibatch_size, filter_count);
-		randomize_uniform(temp_deltas_Z2, -1.0f, 1.0f);
-		Matrix temp_A1(image_height*image_width*minibatch_size, image_depth*conv_filter_height*conv_filter_width + 1);
-		randomize_uniform(temp_A1, -1.0f, 1.0f);
-		Matrix temp_grad_W(image_depth*conv_filter_height*conv_filter_width + 1, filter_count);
-		randomize_uniform(temp_grad_W, -1.0f, 1.0f);
-		cout << "Running optimized convolutive back-progatation to compute deltas_A1..." << endl;
-		auto t0_opt = high_resolution_clock::now();
-		for (int n = 0; n != loop_count; ++n) {
-			compute_3d_weight_grad_convolutive_minibatch_optimized(grad_W_optimized, deltas_Z2, A1,
-																temp_deltas_Z2, temp_A1, temp_grad_W);
-		}
-		auto t1_opt = high_resolution_clock::now();
-		auto time_in_msec_opt = duration_cast<milliseconds>(t1_opt - t0_opt).count();
-		std::cout << time_in_msec_opt << " milliseconds for optimized version." << std::endl;
-		
-		//cout << "grad_W_optimized = " << grad_W_optimized << endl;
-		//cout << "deltas_A1_true = " << endl << deltas_A1_true << endl;
-		//cout << "deltas_A1_optimized = " << endl << deltas_A1_optimized << endl;
-		// Check deltas_A1_optimized against the assumed correct value in deltas_A1_true.
-		const float rel_error = relative_error(grad_W_true, grad_W_optimized);
-		cout << "relative error = " << rel_error << endl;
-		assert_almost_equal(rel_error, 0.0f, pass_relative_error);
-
-		cout << "PASSED" << endl;
-
-	}
-
-	/*
-	void test_gradients_Network3DConvFull3L() {
-		cout << "test_gradients_Network3DConvFull3L()..." << endl;
-
-		const int minibatch_size = 2;
-		const int image_height = 16;
-		const int image_width = 16;
-		const int image_depth = 3;
-		const int dim_output = 5;
-		const int conv_filter_height1 = 3;
-		const int conv_filter_width1= 3;
-		const int filter_count1 = 2;
-
-		const int conv_filter_height2 = 3;
-		const int conv_filter_width2= 3;
-		const int filter_count2 = 2;
-		const int maxpool_factor_height = 2;  // 2
-		const int maxpool_factor_width = 2;  // 2
-		const int maxpool_factor_filter_channels = 2; // 1
-		const int dim_fully_connected_hidden = 7;
-
-		Matrix input_activations(minibatch_size, image_depth, image_height, image_width);
-		randomize_uniform(input_activations, 0.0f, 1.0f);
-		Matrix output_activations(dim_output, minibatch_size);
-		Matrix output_activations_train(dim_output, minibatch_size); // Training values
-		randomize_uniform(output_activations_train, 0.0f, 1.0f);
-		
-
-		Network3DConvFull3L network(minibatch_size, image_height, image_width, image_depth, dim_output,
-						  conv_filter_height1, conv_filter_width1, filter_count1,
-									maxpool_factor_height, maxpool_factor_width, maxpool_factor_filter_channels,
-									conv_filter_height2, conv_filter_width2, filter_count2,
-									dim_fully_connected_hidden);
-		
-		bool result = network.check_gradients(input_activations, output_activations_train);
-		if (result) {
-			cout << "PASSED" << endl;
-		} else {
-			cerr << "Failed numerical gradient checks." << endl;
-			exit(1);
-		}
-	}
-	*/
-
-	/*
-	void test_gradients_Network3DConvFull3LMaxout() {
-		cout << "test_gradients_Network3DConvFull3LMaxout()..." << endl;
-
-		const int minibatch_size = 2;
-		const int image_height = 16;
-		const int image_width = 16;
-		const int image_depth = 3;
-		const int dim_output = 5;
-		const int conv_filter_height1 = 3;
-		const int conv_filter_width1= 3;
-		const int filter_count1 = 4;
-
-		const int conv_filter_height2 = 3;
-		const int conv_filter_width2= 3;
-		const int filter_count2 = 4;
-		const int maxpool_factor_height = 2;  // 2
-		const int maxpool_factor_width = 2;  // 2
-		const int maxpool_factor_filter_channels = 2; // 1
-		const int dim_fully_connected_hidden = 7;
-		const int maxout_factor = 2;
-
-		Matrix input_activations(minibatch_size, image_depth, image_height, image_width);
-		randomize_uniform(input_activations, 0.0f, 1.0f);
-		Matrix output_activations(dim_output, minibatch_size);
-		Matrix output_activations_train(dim_output, minibatch_size); // Training values
-		randomize_uniform(output_activations_train, 0.0f, 1.0f);
-		
-
-		Network3DConvFull3LMaxout network(minibatch_size, image_height, image_width, image_depth, dim_output,
-						  conv_filter_height1, conv_filter_width1, filter_count1,
-									maxpool_factor_height, maxpool_factor_width, maxpool_factor_filter_channels,
-									conv_filter_height2, conv_filter_width2, filter_count2,
-										  dim_fully_connected_hidden, maxout_factor);
-		
-		bool result = network.check_gradients(input_activations, output_activations_train);
-		if (result) {
-			cout << "PASSED" << endl;
-		} else {
-			cerr << "Failed numerical gradient checks." << endl;
-			exit(1);
-		}
-	}
-	*/
-
-	/*
-	void test_gradients_Network3DConvFul4LMaxout() {
-		cout << "test_gradients_Network3DConvFull4LMaxout()..." << endl;
-
-		const int minibatch_size = 2;
-		const int image_height = 16;
-		const int image_width = 16;
-		const int image_depth = 3;
-		const int dim_output = 5;
-		const int conv_filter_height1 = 3;
-		const int conv_filter_width1= 3;
-		const int filter_count1 = 2;
-
-		const int conv_filter_height2 = 3;
-		const int conv_filter_width2= 3;
-		const int filter_count2 = 2;
-
-		const int conv_filter_height3 = 3;
-		const int conv_filter_width3= 3;
-		const int filter_count3 = 2;
-
-		const int maxpool_factor_height = 2;  // 2
-		const int maxpool_factor_width = 2;  // 2
-		const int maxpool_factor_filter_channels = 2; // 1
-		const int dim_fully_connected_hidden = 7;
-		const int maxout_factor = 2;
-
-		Matrix input_activations(minibatch_size, image_depth, image_height, image_width);
-		randomize_uniform(input_activations, 0.0f, 1.0f);
-		Matrix output_activations(dim_output, minibatch_size);
-		Matrix output_activations_train(dim_output, minibatch_size); // Training values
-		randomize_uniform(output_activations_train, 0.0f, 1.0f);
-		
-
-		Network3DConvFull4LMaxout network(minibatch_size, image_height, image_width, image_depth, dim_output,
-						  conv_filter_height1, conv_filter_width1, filter_count1,
-									maxpool_factor_height, maxpool_factor_width, maxpool_factor_filter_channels,
-									conv_filter_height2, conv_filter_width2, filter_count2,
-										  conv_filter_height3, conv_filter_width3, filter_count3,
-										  dim_fully_connected_hidden, maxout_factor);
-		
-		bool result = network.check_gradients(input_activations, output_activations_train);
-		if (result) {
-			cout << "PASSED" << endl;
-		} else {
-			cerr << "Failed numerical gradient checks." << endl;
-			exit(1);
-		}
-	}
-	*/
-
-
-	void test_compute_3d_kmax() {
-		cout << "test_compute_3d_kmax()..." << endl;
-		const int minibatch_size = 2;
-		const int depth = 4;
-		const int height = 4;
-		const int width = 4;
-		const int box_depth = 3;
-		const int box_height = 3;
-		const int box_width = 3;
-		const int k = 2; 
-
-		Matrix kmax_in(minibatch_size, depth, height, width);
-		Matrix kmax_out(minibatch_size, depth, height, width);
-		MatrixT<int> kmax_state(minibatch_size, depth, height, width);
-		
-		randomize_uniform(kmax_in, -1.0f, 1.0f);
-		cout << "kmax_in = " << endl << kmax_in << endl;
-
-		// Compute forward-direction kmax:
-		compute_forward_3d_kmax(kmax_in, kmax_out, kmax_state, box_depth, box_height, box_width, k);
-		cout << "kmax_out = " << endl << kmax_out << endl;
-		cout << "kmax_state = " << endl << kmax_state << endl;
-
-		Matrix other_kmax_in(minibatch_size, depth, height, width);
-		// Compute reverse-direction kmax:
-		//compute_reverse_kmax(other_kmax_in, kmax_out_values, kmax_out_indices, partition_count, k);
-		compute_reverse_3d_kmax(other_kmax_in, kmax_out, kmax_state);
-		cout << "Updated kmax_in = " << endl << other_kmax_in << endl;
-		assert_almost_equal(kmax_out, other_kmax_in, 1e-3f);
-
-		cout << "PASSED" << endl;
-	}
-
-
-
-
-	void test_Dropout1D() {
-		cout << "test_Dropout1D()..." << endl;
-
-		int unit_count = 10;
-		int minibatch_size = 4;
-		Matrix input_activations(unit_count, minibatch_size);
-		randomize_uniform(input_activations, 0.0f, 1.0f);
-		Matrix back_prop_input_activations(unit_count, minibatch_size);
-		Matrix output_activations(unit_count, minibatch_size);
-		float prob_keep = 0.7f;
-		Dropout1D dropouter(input_activations.get_extents(), prob_keep);
-		cout << "input_activations = " << input_activations << endl;
-		dropouter.forward_dropout(input_activations);
-		cout << "dropouter.m_output = " << dropouter.m_output << endl;
-		copy_matrix(dropouter.m_output_deltas, dropouter.m_output);
-		dropouter.reverse_dropout(back_prop_input_activations);
-		cout << "back_prop_input_activations = " << back_prop_input_activations << endl;
-
-	}
-
-	void test_Dropout3D() {
-		cout << "test_Dropout3D()..." << endl;
-
-		const int minibatch_size = 2;
-		const int depth = 2;
-		const int height = 2;
-		const int width = 2;
-		Matrix input_activations(minibatch_size, depth, height, width);
-		randomize_uniform(input_activations, 0.0f, 1.0f);
-		Matrix back_prop_input_activations(minibatch_size, depth, height, width);
-		Matrix output_activations(minibatch_size, depth, height, width);
-		float prob_keep = 0.7f;
-		Dropout3D dropouter(input_activations.get_extents(), prob_keep);
-		cout << "input_activations = " << input_activations << endl;
-		dropouter.forward_dropout(input_activations);
-		cout << "dropouter.m_output = " << dropouter.m_output << endl;
-
-		copy_matrix(dropouter.m_output_deltas, dropouter.m_output);
-		dropouter.reverse_dropout(back_prop_input_activations);
-		cout << "back_prop_input_activations = " << back_prop_input_activations << endl;
-
-	}
-
-
-	void test_gradients_Network2DConv3F1() {
-		cout << "test_gradients_Network2DConv3F1()..." << endl;
-
-		const int minibatch_size = 8;
-		const int image_height = 16;
-		const int image_width = 16;
-		const int dim_output = 5;
-
-		const int conv_filter_height1 = 3;
-		const int conv_filter_width1= 3;
-		const int filter_count1 = 2;
-		// For pooling layer 1
-		const vector<int> pooling_region_extents1 = {1, 2, 2};
-		// (depth, height, width)
-		const vector<int> pooling_output_extents1 = {filter_count1, 8, 8};
-
-		const int conv_filter_height2 = 3;
-		const int conv_filter_width2= 3;
-		const int filter_count2 = 4;
-		// For pooling layer 2
-		const vector<int> pooling_region_extents2 = {1, 2, 2};
-		// (depth, height, width)
-		const vector<int> pooling_output_extents2 = {filter_count2, 4, 4};
-
-		const int conv_filter_height3 = 3;
-		const int conv_filter_width3= 3;
-		const int filter_count3 = 8;
-		// For pooling layer 3
-		const vector<int> pooling_region_extents3 = {1, 2, 2};
-		// (depth, height, width)
-		const vector<int> pooling_output_extents3 = {filter_count3, 2, 2};
-
-		const int dim_fully_connected_hidden = 7;
-		const int maxout_factor = 1;
-
-		// Amount of dropout for each layer. Expresssed as probability of keeping an activation.
-		const vector<float> dropout_keep_probabilities = {1.0f, 1.0f, 1.0f, 1.0f};
-
-		BoxActivationFunction::ACTIVATION_TYPE box_activation_type = BoxActivationFunction::ACTIVATION_TYPE::leakyReLU;
-		ColumnActivationFunction::ACTIVATION_TYPE col_activation_type = ColumnActivationFunction::ACTIVATION_TYPE::leakyReLU;
-
-		Matrix input_activations(minibatch_size, image_height, image_width);
-		randomize_uniform(input_activations, 0.0f, 1.0f);
-		Matrix output_activations(dim_output, minibatch_size);
-		Matrix output_activations_train(dim_output, minibatch_size); // Training values
-		randomize_uniform(output_activations_train, 0.0f, 1.0f);
-
-		Network2DConv3F1 network(input_activations.get_extents(), 
-										filter_count1, conv_filter_height1, conv_filter_width1,
-										pooling_region_extents1, pooling_output_extents1,
-										filter_count2, conv_filter_height2, conv_filter_width2,
-										pooling_region_extents2, pooling_output_extents2,
-										filter_count3, conv_filter_height3, conv_filter_width3,
-										pooling_region_extents3, pooling_output_extents3,
-										dim_output,
-										dim_fully_connected_hidden, maxout_factor,
-										box_activation_type, col_activation_type,
-										dropout_keep_probabilities);
-
-		cout << "OK so far..." << endl;
-		
-		bool result = network.check_gradients(input_activations, output_activations_train);
-		if (result) {
-			cout << "PASSED" << endl;
-		} else {
-			cerr << "Failed numerical gradient checks." << endl;
-			exit(1);
-		}
-	}
-
-
-	void test_gradients_Network3DConv3F1() {
-		cout << "test_gradients_Network3DConv3F1()..." << endl;
-
-		const int minibatch_size = 8;
-		const int image_height = 16;
-		const int image_width = 16;
-		const int image_depth = 3;
-		const int dim_output = 5;
-
-		const int conv_filter_height1 = 3;
-		const int conv_filter_width1= 3;
-		const int filter_count1 = 2;
-		// For pooling layer 1
-		const vector<int> pooling_region_extents1 = {1, 2, 2};
-		// (depth, height, width)
-		const vector<int> pooling_output_extents1 = {filter_count1, 8, 8};
-
-		const int conv_filter_height2 = 3;
-		const int conv_filter_width2= 3;
-		const int filter_count2 = 4;
-		// For pooling layer 2
-		const vector<int> pooling_region_extents2 = {1, 2, 2};
-		// (depth, height, width)
-		const vector<int> pooling_output_extents2 = {filter_count2, 4, 4};
-
-		const int conv_filter_height3 = 3;
-		const int conv_filter_width3= 3;
-		const int filter_count3 = 8;
-		// For pooling layer 3
-		const vector<int> pooling_region_extents3 = {1, 2, 2};
-		// (depth, height, width)
-		const vector<int> pooling_output_extents3 = {filter_count3, 2, 2};
-
-		const int dim_fully_connected_hidden = 7;
-		const int maxout_factor = 1;
-
-		// Amount of dropout for each layer. Expresssed as probability of keeping an activation.
-		//const vector<float> dropout_keep_probabilities = {0.9f, 0.8f, 0.7f, 0.6f, 0.5f};
-		const vector<float> dropout_keep_probabilities = {1.0f, 1.0f, 1.0f, 1.0f, 1.0f};
-
-		BoxActivationFunction::ACTIVATION_TYPE box_activation_type = BoxActivationFunction::ACTIVATION_TYPE::leakyReLU;
-		ColumnActivationFunction::ACTIVATION_TYPE col_activation_type = ColumnActivationFunction::ACTIVATION_TYPE::leakyReLU;
-
-		Matrix input_activations(minibatch_size, image_depth, image_height, image_width);
-		randomize_uniform(input_activations, 0.0f, 1.0f);
-		Matrix output_activations(dim_output, minibatch_size);
-		Matrix output_activations_train(dim_output, minibatch_size); // Training values
-		randomize_uniform(output_activations_train, 0.0f, 1.0f);
-
-		Network3DConv3F1 network(input_activations.get_extents(), 
-										filter_count1, conv_filter_height1, conv_filter_width1,
-										pooling_region_extents1, pooling_output_extents1,
-										filter_count2, conv_filter_height2, conv_filter_width2,
-										pooling_region_extents2, pooling_output_extents2,
-										filter_count3, conv_filter_height3, conv_filter_width3,
-										pooling_region_extents3, pooling_output_extents3,
-										dim_output,
-										dim_fully_connected_hidden, maxout_factor,
-										box_activation_type, col_activation_type,
-										dropout_keep_probabilities);
-
-		
-		
-		bool result = network.check_gradients(input_activations, output_activations_train);
-		if (result) {
-			cout << "PASSED" << endl;
-		} else {
-			cerr << "Failed numerical gradient checks." << endl;
-			exit(1);
-		}
-	}
-
-
-	void run_all_tests() {
-		test_mat_mult();
-		test_mat_multiply_left_transpose();
-		test_mat_multiply_right_transpose();
-		test_Matrix1D();
-		test_Matrix2D();
-		test_Matrix3D();
-		test_Matrix4D();
-		test_Matrix5D();
-		test_Matrix6D();
-		//
-
-		
-		//test_gradients_2();
-		test_compute_kmax();
-		test_compute_kmax_v2();
-		test_relu();
-		//test_compute_maxout_3d();
-		test_compute_maxout_3d_minibatch();
-		//test_gradients_3();
-		test_gradients_convolutional_minibatch();
-
-		//test_gradients_Network2DConvFull();
-		//test_gradients_Network2DConvFull2L();
-		
-		test_optimized_convolve_2d_minibatch();
-		test_optimized_convolutive_deltas();
-		test_optimized_weight_grad_convolutive();
-
-		test_optimized_convolve_3d_minibatch();
-		test_optimized_3d_convolutive_deltas();
-		test_optimized_3d_weight_grad_convolutive();
-		//test_gradients_Network2DConvFull3L();
-		//test_gradients_Network3DConvFull3L();
-		//test_gradients_Network3DConvFull3LMaxout();
-		//test_gradients_Network3DConvFul4LMaxout();
-		//test_gradients_Network3DConvFul4LExp1();
-
-		test_compute_3d_kmax();
-
-
-		test_Dropout1D();
-		test_Dropout3D();
-		test_gradients_Network2DConv3F1();
-		test_gradients_Network3DConv3F1();
-	}
+  void test_MatrixF1D() {
+    cout << "Testing test_MatrixF1D...";
+    const int dim0 = 5;
+    MatrixF mat_1d(dim0);
+    // Fill with data:
+    for (int i=0; i < dim0; ++i) {
+      mat_1d(i) = i*i - 1234;
+    }
+    // Read and verify data:
+    for (int i=0; i < dim0; ++i) {
+      float read_val = mat_1d(i);
+      float true_val = i*i - 1234;
+      assert_almost_equal(read_val, true_val, 1e-4f);
+    }
+    cout << "PASSED" << endl;
+  }
+
+  void test_MatrixF2D() {
+    cout << "Testing test_MatrixF2D...";
+    const int dim0 = 3;
+    const int dim1 = 4;
+    MatrixF mat_2d(dim0, dim1);
+    // Fill with data:
+    for (int i=0; i < dim0; ++i) {
+      for (int j = 0; j < dim1; ++j) {
+        mat_2d(i,j) = i*i + j*j - 1234;
+      }
+    }
+    // Read and verify data:
+    for (int i=0; i < dim0; ++i) {
+      for (int j = 0; j < dim1; ++j) {
+        float read_val = mat_2d(i,j);
+        float true_val = i*i + j*j - 1234;
+        assert_almost_equal(read_val, true_val, 1e-4f);
+      }
+    }
+    cout << "PASSED" << endl;
+  }
+
+  void test_MatrixF3D() {
+    cout << "Testing test_MatrixF3D...";
+    const int dim0 = 2;
+    const int dim1 = 3;
+    const int dim2 = 4;
+    MatrixF mat_3d(dim0, dim1, dim2);
+    // Fill with data:
+    for (int i=0; i < dim0; ++i) {
+      for (int j = 0; j < dim1; ++j) {
+        for (int k = 0; k < dim2; ++k) {
+          mat_3d(i,j,k) = i*i + j*j + k*k - 1234;
+        }
+      }
+    }
+    // Read and verify data:
+    for (int i=0; i < dim0; ++i) {
+      for (int j = 0; j < dim1; ++j) {
+        for (int k = 0; k < dim2; ++k) {
+          float read_val = mat_3d(i,j,k);
+          float true_val = i*i + j*j + k*k - 1234;
+          assert_almost_equal(read_val, true_val, 1e-4f);
+        }
+      }
+    }
+
+    cout << "PASSED" << endl;
+
+  }
+
+  void test_MatrixF4D() {
+    cout << "Testing test_MatrixF4D...";
+    const int dim0 = 2;
+    const int dim1 = 3;
+    const int dim2 = 4;
+    const int dim3 = 5;
+    MatrixF mat_4d(dim0, dim1, dim2, dim3);
+    // Fill with data:
+    for (int i=0; i < dim0; ++i) {
+      for (int j = 0; j < dim1; ++j) {
+        for (int k = 0; k < dim2; ++k) {
+          for (int l = 0; l < dim3; ++l) {
+            mat_4d(i,j,k,l) = i*i + j*j + k*k + l*l - 1234;
+          }
+        }
+      }
+    }
+    //cout << "matrix data = " << endl << mat_4d << endl;
+    // Read and verify data:
+    for (int i=0; i < dim0; ++i) {
+      for (int j = 0; j < dim1; ++j) {
+        for (int k = 0; k < dim2; ++k) {
+          for (int l = 0; l < dim3; ++l) {
+            float read_val = mat_4d(i,j,k,l);
+            float true_val = i*i + j*j + k*k + l*l - 1234;
+            assert_almost_equal(read_val, true_val, 1e-4f);
+          }
+        }
+      }
+    }
+
+    cout << "PASSED" << endl;
+
+  }
+
+  void test_MatrixF5D() {
+    cout << "Testing test_MatrixF5D...";
+    const int dim0 = 2;
+    const int dim1 = 3;
+    const int dim2 = 4;
+    const int dim3 = 5;
+    const int dim4 = 6;
+    MatrixF mat_5d(dim0, dim1, dim2, dim3, dim4);
+    // Fill with data:
+    for (int i=0; i < dim0; ++i) {
+      for (int j = 0; j < dim1; ++j) {
+        for (int k = 0; k < dim2; ++k) {
+          for (int l = 0; l < dim3; ++l) {
+            for (int m = 0; m < dim4; ++m) {
+              mat_5d(i,j,k,l,m) = i*i + j*j + k*k + l*l + m*m - 1234;
+            }
+          }
+        }
+      }
+    }
+    //cout << "matrix data = " << endl << mat_4d << endl;
+    // Read and verify data:
+    for (int i=0; i < dim0; ++i) {
+      for (int j = 0; j < dim1; ++j) {
+        for (int k = 0; k < dim2; ++k) {
+          for (int l = 0; l < dim3; ++l) {
+            for (int m = 0; m < dim4; ++m) {
+              float read_val = mat_5d(i,j,k,l,m);
+              float true_val = i*i + j*j + k*k + l*l + m*m - 1234;
+              assert_almost_equal(read_val, true_val, 1e-4f);
+            }
+          }
+        }
+      }
+    }
+    cout << "PASSED" << endl;
+  }
+
+  void test_MatrixF6D() {
+    cout << "Testing test_MatrixF6D...";
+    const int dim0 = 2;
+    const int dim1 = 3;
+    const int dim2 = 4;
+    const int dim3 = 5;
+    const int dim4 = 6;
+    const int dim5 = 7;
+    MatrixF mat_6d(dim0, dim1, dim2, dim3, dim4, dim5);
+    // Fill with data:
+    for (int i=0; i < dim0; ++i) {
+      for (int j = 0; j < dim1; ++j) {
+        for (int k = 0; k < dim2; ++k) {
+          for (int l = 0; l < dim3; ++l) {
+            for (int m = 0; m < dim4; ++m) {
+              for (int n = 0; n < dim5; ++n) {
+                mat_6d(i,j,k,l,m,n) = i*i + j*j + k*k + l*l + m*m + n*n - 1234;
+              }
+            }
+          }
+        }
+      }
+    }
+    //cout << "matrix data = " << endl << mat_4d << endl;
+    // Read and verify data:
+    for (int i=0; i < dim0; ++i) {
+      for (int j = 0; j < dim1; ++j) {
+        for (int k = 0; k < dim2; ++k) {
+          for (int l = 0; l < dim3; ++l) {
+            for (int m = 0; m < dim4; ++m) {
+              for (int n = 0; n < dim5; ++n) {
+                float read_val = mat_6d(i,j,k,l,m,n);
+                float true_val = i*i + j*j + k*k + l*l + m*m + n*n - 1234;
+                assert_almost_equal(read_val, true_val, 1e-4f);
+              }
+            }
+          }
+        }
+      }
+    }
+    cout << "PASSED" << endl;
+  }
+
+
+
+
+
+
+
+  void test_compute_kmax() {
+    cout << "test_compute_kmax()..." << endl;
+    const int M = 1024;
+    const int N = 256;
+    const int partition_count = 1;
+    const int k = 512; // 294
+    MatrixF kmax_in(M, N);
+    randomize_uniform(kmax_in, -1.0f, 1.0f);
+    //cout << "kmax_in = " << endl << kmax_in << endl;
+    MatrixF kmax_out_values(M, N);
+    Matrix<int> kmax_out_indices(k*partition_count, N);
+    // Compute forward-direction kmax:
+    compute_forward_kmax(kmax_in, kmax_out_values, kmax_out_indices, partition_count, k);
+    //cout << "kmax_out_values = " << endl << kmax_out_values << endl;
+    //cout << "kmax_out_indices = " << endl << kmax_out_indices << endl;
+
+    MatrixF other_kmax_in(M, N);
+    // Compute reverse-direction kmax:
+    compute_reverse_kmax(other_kmax_in, kmax_out_values, kmax_out_indices, partition_count, k);
+    //cout << "Updated kmax_in = " << endl << other_kmax_in << endl;
+    assert_almost_equal(kmax_out_values, other_kmax_in, 1e-3f);
+
+    cout << "PASSED" << endl;
+  }
+
+  void test_compute_kmax_v2() {
+    cout << "test_compute_kmax_v2()..." << endl;
+    const int M = 1024;
+    const int N = 256;
+    const int partition_count = 1;
+    const int k = 512; // 294
+    MatrixF kmax_in(M, N);
+    randomize_uniform(kmax_in, -1.0f, 1.0f);
+    //cout << "kmax_in = " << endl << kmax_in << endl;
+    MatrixF kmax_out_values(M, N);
+    Matrix<int> kmax_out_indices(M, N);
+    // Compute forward-direction kmax:
+    compute_forward_kmax_v2(kmax_in, kmax_out_values, kmax_out_indices, partition_count, k);
+    //cout << "kmax_out_values = " << endl << kmax_out_values << endl;
+    //cout << "kmax_out_indices = " << endl << kmax_out_indices << endl;
+
+    MatrixF other_kmax_in(M, N);
+    // Compute reverse-direction kmax:
+    compute_reverse_kmax_v2(other_kmax_in, kmax_out_values, kmax_out_indices, partition_count, k);
+    //cout << "Updated kmax_in = " << endl << other_kmax_in << endl;
+    assert_almost_equal(kmax_out_values, other_kmax_in, 1e-3f);
+
+    cout << "PASSED" << endl;
+  }
+
+
+
+  void test_relu() {
+    cout << "test_relu()..." << endl;
+    const int M = 50;
+    const int N = 40;
+    MatrixF in_vals(M, N);
+    randomize_uniform(in_vals, -1.0f, 1.0f);
+    //cout << "in_vals = " << endl << in_vals << endl;
+    MatrixF out_values(M, N);
+    Matrix<int> out_indices(M, N);
+    // Compute forward-direction ReLU:
+    compute_forward_relu(in_vals, out_values, out_indices);
+    //cout << "out_values = " << endl << out_values << endl;
+    //cout << "out_indices = " << endl << out_indices << endl;
+
+    MatrixF other_in_vals(M, N);
+    // Compute reverse-direction ReLU:
+    compute_reverse_relu(other_in_vals, out_values, out_indices);
+    //cout << "Updated in_vals = " << endl << other_in_vals << endl;
+    assert_almost_equal(out_values, other_in_vals, 1e-3f);
+
+    cout << "PASSED" << endl;
+  }
+
+
+  void test_PoolingLayer() {
+    cout << "test_PoolingLayer..." << endl;
+
+
+
+    cout << "PASSED" << endl;
+  }
+
+
+
+
+  void test_optimized_convolutive_deltas() {
+    cout << "test_optimized_convolutive_deltas()..." << endl;
+    const float pass_relative_error = 5e-3f; // Relative error must be below this to pass.
+    /*
+    // Number of samples in a mini-batch.
+    const int minibatch_size = 128;
+    // Create X with random values.
+    const int image_height = 32;
+    const int image_width = 32;
+    const int conv_filter_height = 5; // Convolution filter height
+    const int conv_filter_width = 5; // Convolution filter width
+    const int filter_count = 64; // 1 // Number of convolutional filters.
+    */
+
+    // Number of samples in a mini-batch.
+    const int minibatch_size = 32;
+    // Create X with random values.
+    const int image_height = 16;
+    const int image_width = 16;
+    const int conv_filter_height = 3; // Convolution filter height
+    const int conv_filter_width = 3; // Convolution filter width
+    const int filter_count = 2; // 1 // Number of convolutional filters.
+
+
+    MatrixF deltas_Z2(minibatch_size, filter_count, image_height, image_width);
+    randomize_uniform(deltas_Z2, -1.0f, 1.0f);
+    MatrixF W(filter_count, conv_filter_height, conv_filter_width);
+    randomize_uniform(W, -1.0f, 1.0f);
+    MatrixF bias(filter_count);
+    randomize_uniform(bias, -1.0f, 1.0f);
+    MatrixF deltas_A1_true(minibatch_size, image_height, image_width);
+
+
+    cout << "Running naive convolution..." << endl;
+    // Warm up:
+    compute_convolutive_deltas_minibatch(deltas_A1_true, W, deltas_Z2);
+    // Start timer here.
+    using namespace std::chrono;
+    auto t0 = high_resolution_clock::now();
+    const int loop_count = 10; // 1000
+    for (int n = 0; n != loop_count; ++n) {
+      //cout << "naive: n = " << n << endl;
+      // Assume this version is correct.
+      compute_convolutive_deltas_minibatch(deltas_A1_true, W, deltas_Z2);
+    }
+    // Stop timer here.
+    auto t1 = high_resolution_clock::now();
+
+    auto time_in_msec = duration_cast<milliseconds>(t1 - t0).count();
+    //double flops = 1e-6*static_cast<double>(loop_count)*(double)2 * (double)rows_A*(double)cols_A*(double)cols_B / (double)time_in_msec;
+    std::cout << time_in_msec << " milliseconds for naive version." << std::endl;
+    //std::cout << flops << " GFLOPS" << std::endl;
+
+
+    // This will be the result of the optimized version.
+    MatrixF deltas_A1_optimized(minibatch_size, image_height, image_width);
+
+    // Allocate temporary matrices that are needed by the optimized convolution function.
+    MatrixF temp_deltas_Z2(image_height*image_width*minibatch_size, filter_count);
+    randomize_uniform(temp_deltas_Z2, -1.0f, 1.0f);
+    MatrixF temp_deltas_A1(image_height*image_width*minibatch_size, conv_filter_height*conv_filter_width + 1);
+    randomize_uniform(temp_deltas_A1, -1.0f, 1.0f);
+    MatrixF temp_W(conv_filter_height*conv_filter_width + 1, filter_count);
+    randomize_uniform(temp_W, -1.0f, 1.0f);
+    cout << "Running optimized convolutive back-progatation to compute deltas_A1..." << endl;
+    auto t0_opt = high_resolution_clock::now();
+    for (int n = 0; n != loop_count; ++n) {
+      // Compute deltas_A1_optimized.
+      //compute_convolutive_deltas_minibatch(deltas_A1_optimized, W, deltas_Z2);
+      compute_convolutive_deltas_minibatch_optimized(deltas_A1_optimized, W, deltas_Z2, temp_deltas_Z2,
+                                                     temp_deltas_A1, temp_W);
+    }
+    auto t1_opt = high_resolution_clock::now();
+    auto time_in_msec_opt = duration_cast<milliseconds>(t1_opt - t0_opt).count();
+    std::cout << time_in_msec_opt << " milliseconds for optimized version." << std::endl;
+
+
+    //cout << "deltas_A1_true = " << endl << deltas_A1_true << endl;
+    //cout << "deltas_A1_optimized = " << endl << deltas_A1_optimized << endl;
+    // Check deltas_A1_optimized against the assumed correct value in deltas_A1_true.
+    const float rel_error = relative_error(deltas_A1_true, deltas_A1_optimized);
+    cout << "relative error = " << rel_error << endl;
+    assert_almost_equal(rel_error, 0.0f, pass_relative_error);
+
+    cout << "PASSED" << endl;
+
+  }
+
+
+  void test_optimized_weight_grad_convolutive()  {
+    cout << "test_optimized_weight_grad_convolutive()..." << endl;
+    const float pass_relative_error = 5e-3f; // Relative error must be below this to pass.
+
+    /*
+    // Number of samples in a mini-batch.
+    const int minibatch_size = 128;
+    // Create X with random values.
+    const int image_height = 32;
+    const int image_width = 32;
+    const int conv_filter_height = 5; // Convolution filter height
+    const int conv_filter_width = 5; // Convolution filter width
+    const int filter_count = 64; // 1 // Number of convolutional filters.
+    */
+
+
+    // Number of samples in a mini-batch.
+    const int minibatch_size = 32;
+    // Create X with random values.
+    const int image_height = 16;
+    const int image_width = 16;
+    const int conv_filter_height = 3; // Convolution filter height
+    const int conv_filter_width = 3; // Convolution filter width
+    const int filter_count = 2; // 1 // Number of convolutional filters.
+
+
+    MatrixF deltas_Z2(minibatch_size, filter_count, image_height, image_width);
+    randomize_uniform(deltas_Z2, -1.0f, 1.0f);
+    MatrixF grad_W_true(filter_count, conv_filter_height, conv_filter_width);
+    //MatrixF bias(filter_count);
+    //randomize_uniform(bias, -1.0f, 1.0f); //
+    MatrixF A1(minibatch_size, image_height, image_width);
+    randomize_uniform(A1, -1.0f, 1.0f);
+
+    cout << "Running naive weight gradient convolutive back-propagation..." << endl;
+    // Warm up:
+    compute_weight_grad_convolutive_minibatch(grad_W_true, deltas_Z2, A1);
+    // Start timer here.
+    using namespace std::chrono;
+    auto t0 = high_resolution_clock::now();
+    const int loop_count = 10; // 1000
+    for (int n = 0; n != loop_count; ++n) {
+      //cout << "naive: n = " << n << endl;
+      // Assume this version is correct.
+      compute_weight_grad_convolutive_minibatch(grad_W_true, deltas_Z2, A1);
+    }
+    // Stop timer here.
+    auto t1 = high_resolution_clock::now();
+
+    auto time_in_msec = duration_cast<milliseconds>(t1 - t0).count();
+    //double flops = 1e-6*static_cast<double>(loop_count)*(double)2 * (double)rows_A*(double)cols_A*(double)cols_B / (double)time_in_msec;
+    std::cout << time_in_msec << " milliseconds for naive version." << std::endl;
+    //std::cout << flops << " GFLOPS" << std::endl;
+
+
+    // This will be the result of the optimized version.
+    MatrixF grad_W_optimized(filter_count, conv_filter_height, conv_filter_width);
+
+    // Allocate temporary matrices that are needed by the optimized convolution function.
+    MatrixF temp_deltas_Z2(image_height*image_width*minibatch_size, filter_count);
+    randomize_uniform(temp_deltas_Z2, -1.0f, 1.0f);
+    MatrixF temp_A1(image_height*image_width*minibatch_size, conv_filter_height*conv_filter_width + 1);
+    randomize_uniform(temp_A1, -1.0f, 1.0f);
+    MatrixF temp_grad_W(conv_filter_height*conv_filter_width + 1, filter_count);
+    randomize_uniform(temp_grad_W, -1.0f, 1.0f);
+    cout << "Running optimized convolutive back-progatation to compute deltas_A1..." << endl;
+    auto t0_opt = high_resolution_clock::now();
+    for (int n = 0; n != loop_count; ++n) {
+      compute_weight_grad_convolutive_minibatch_optimized(grad_W_optimized, deltas_Z2, A1,
+                                                          temp_deltas_Z2, temp_A1, temp_grad_W);
+    }
+    auto t1_opt = high_resolution_clock::now();
+    auto time_in_msec_opt = duration_cast<milliseconds>(t1_opt - t0_opt).count();
+    std::cout << time_in_msec_opt << " milliseconds for optimized version." << std::endl;
+
+    //cout << "grad_W_optimized = " << grad_W_optimized << endl;
+    //cout << "deltas_A1_true = " << endl << deltas_A1_true << endl;
+    //cout << "deltas_A1_optimized = " << endl << deltas_A1_optimized << endl;
+    // Check deltas_A1_optimized against the assumed correct value in deltas_A1_true.
+    const float rel_error = relative_error(grad_W_true, grad_W_optimized);
+    cout << "relative error = " << rel_error << endl;
+    assert_almost_equal(rel_error, 0.0f, pass_relative_error);
+
+    cout << "PASSED" << endl;
+
+  }
+
+  void test_optimized_convolve_3d_minibatch() {
+    cout << " test_optimized_convolve_3d_minibatch()..." << endl;
+    const float pass_relative_error = 5e-3f; // Relative error must be below this to pass.
+
+    // Benchmarking parameters:
+    /*
+    // Number of samples in a mini-batch.
+    const int minibatch_size = 128;
+    // Create X with random values.
+    const int image_height = 32;
+    const int image_width = 32;
+    const int image_depth = 8;
+    const int conv_filter_height = 5; // Convolution filter height
+    const int conv_filter_width = 5; // Convolution filter width
+    const int filter_count = 64; // 1 // Number of convolutional filters.
+    */
+
+    // Correctness testing parameters:
+    // Number of samples in a mini-batch.
+    const int minibatch_size = 2;
+    // Create X with random values.
+    const int image_height = 5;
+    const int image_width = 5;
+    const int image_depth = 2;
+    const int conv_filter_height = 3; // Convolution filter height
+    const int conv_filter_width = 3; // Convolution filter width
+    const int filter_count = 2; // 1 // Number of convolutional filters.
+
+    // Compute Z2(i'th minibatch) = W (conv with) A1(i'th minibatch) + bias.
+    MatrixF Z2_true(minibatch_size, filter_count, image_height, image_width);
+    MatrixF W(filter_count, image_depth, conv_filter_height, conv_filter_width);
+    randomize_uniform(W, -1.0f, 1.0f);
+    MatrixF bias(filter_count);
+    randomize_uniform(bias, -1.0f, 1.0f);
+    MatrixF A1(minibatch_size, image_depth, image_height, image_width);
+    randomize_uniform(A1, -1.0f, 1.0f);
+
+    cout << "Running naive convolution..." << endl;
+    // Start timer here.
+    using namespace std::chrono;
+    auto t0 = high_resolution_clock::now();
+    const int loop_count = 10; // 10
+    for (int n = 0; n != loop_count; ++n) {
+      //cout << "naive: n = " << n << endl;
+      // Assume this version is correct.
+      // Compute Z2(i'th minibatch) = W (conv with) A1(i'th minibatch) + bias.
+      convolve_3d_filter_with_bias_minibatch(Z2_true, W, bias, A1);
+    }
+    // Stop timer here.
+    auto t1 = high_resolution_clock::now();
+
+    auto time_in_msec = duration_cast<milliseconds>(t1 - t0).count();
+    //double flops = 1e-6*static_cast<double>(loop_count)*(double)2 * (double)rows_A*(double)cols_A*(double)cols_B / (double)time_in_msec;
+    std::cout << time_in_msec << " milliseconds for naive version." << std::endl;
+    //std::cout << flops << " GFLOPS" << std::endl;
+
+
+    // This will be the result of the optimized version.
+    MatrixF Z2_optimized(minibatch_size, filter_count, image_height, image_width);
+
+    // Allocate temporary matrices that are needed by the optimized convolution function.
+    MatrixF temp_Z2(image_height*image_width*minibatch_size, filter_count);
+    MatrixF temp_A1(image_height*image_width*minibatch_size, image_depth*conv_filter_height*conv_filter_width + 1);
+    MatrixF temp_W(image_depth*conv_filter_height*conv_filter_width + 1, filter_count);
+    cout << "Running optimized convolution..." << endl;
+    auto t0_opt = high_resolution_clock::now();
+    for (int n = 0; n != loop_count; ++n) {
+      //cout << "opt: n = " << n << endl;
+      //convolve_2d_filter_with_bias_minibatch(Z2_true, W, bias, A1);
+      // Compute Z2_optimized
+      convolve_3d_filter_with_bias_minibatch_optimized(Z2_optimized, W, bias, A1, temp_Z2, temp_A1, temp_W);
+    }
+    auto t1_opt = high_resolution_clock::now();
+    auto time_in_msec_opt = duration_cast<milliseconds>(t1_opt - t0_opt).count();
+    std::cout << time_in_msec_opt << " milliseconds for optimized version." << std::endl;
+
+
+    // Check Z2_optimized against the assumed correct value in Z2_true.
+    //cout << "Z2_true = " << endl << Z2_true << endl;
+    //cout << "Z2_optimized = " << endl << Z2_optimized << endl;
+    const float rel_error = relative_error(Z2_true, Z2_optimized);
+    cout << "relative error = " << rel_error << endl;
+    assert_almost_equal(rel_error, 0.0f, pass_relative_error);
+
+    cout << "PASSED" << endl;
+  }
+
+
+  void test_optimized_3d_convolutive_deltas()  {
+    cout << "test_optimized_3d_convolutive_deltas()..." << endl;
+    const float pass_relative_error = 5e-3f; // Relative error must be below this to pass.
+
+    // Benchmarking parameters:
+    /*
+    // Number of samples in a mini-batch.
+    const int minibatch_size = 128;
+    // Create X with random values.
+    const int image_height = 32;
+    const int image_width = 32;
+    const int image_depth = 8;
+    const int conv_filter_height = 5; // Convolution filter height
+    const int conv_filter_width = 5; // Convolution filter width
+    const int filter_count = 64; // 1 // Number of convolutional filters.
+    */
+
+
+    // Correctness testing parameters:
+    // Number of samples in a mini-batch.
+    const int minibatch_size = 2;
+    // Create X with random values.
+    const int image_height = 5;
+    const int image_width = 5;
+    const int image_depth = 2;
+    const int conv_filter_height = 3; // Convolution filter height
+    const int conv_filter_width = 3; // Convolution filter width
+    const int filter_count = 2; // 1 // Number of convolutional filters.
+
+
+    MatrixF deltas_Z2(minibatch_size, filter_count, image_height, image_width);
+    randomize_uniform(deltas_Z2, -1.0f, 1.0f);
+    MatrixF W(filter_count, image_depth, conv_filter_height, conv_filter_width);
+    randomize_uniform(W, -1.0f, 1.0f);
+    MatrixF bias(filter_count);
+    randomize_uniform(bias, -1.0f, 1.0f);
+    MatrixF deltas_A1_true(minibatch_size, image_depth, image_height, image_width);
+
+
+    cout << "Running naive convolution..." << endl;
+    // Warm up:
+    compute_3d_convolutive_deltas_minibatch(deltas_A1_true, W, deltas_Z2);
+    // Start timer here.
+    using namespace std::chrono;
+    auto t0 = high_resolution_clock::now();
+    const int loop_count = 10; // 1000
+    for (int n = 0; n != loop_count; ++n) {
+      //cout << "naive: n = " << n << endl;
+      // Assume this version is correct.
+      compute_3d_convolutive_deltas_minibatch(deltas_A1_true, W, deltas_Z2);
+    }
+    // Stop timer here.
+    auto t1 = high_resolution_clock::now();
+
+    auto time_in_msec = duration_cast<milliseconds>(t1 - t0).count();
+    //double flops = 1e-6*static_cast<double>(loop_count)*(double)2 * (double)rows_A*(double)cols_A*(double)cols_B / (double)time_in_msec;
+    std::cout << time_in_msec << " milliseconds for naive version." << std::endl;
+    //std::cout << flops << " GFLOPS" << std::endl;
+
+
+    // This will be the result of the optimized version.
+    MatrixF deltas_A1_optimized(minibatch_size, image_depth, image_height, image_width);
+
+    // Allocate temporary matrices that are needed by the optimized convolution function.
+    MatrixF temp_deltas_Z2(image_height*image_width*minibatch_size, filter_count);
+    randomize_uniform(temp_deltas_Z2, -1.0f, 1.0f);
+    MatrixF temp_deltas_A1(image_height*image_width*minibatch_size, image_depth*conv_filter_height*conv_filter_width + 1);
+    randomize_uniform(temp_deltas_A1, -1.0f, 1.0f);
+    MatrixF temp_W(image_depth*conv_filter_height*conv_filter_width + 1, filter_count);
+    randomize_uniform(temp_W, -1.0f, 1.0f);
+    cout << "Running optimized convolutive back-progatation to compute deltas_A1..." << endl;
+    auto t0_opt = high_resolution_clock::now();
+    for (int n = 0; n != loop_count; ++n) {
+      // Compute deltas_A1_optimized.
+      compute_3d_convolutive_deltas_minibatch_optimized(deltas_A1_optimized, W, deltas_Z2, temp_deltas_Z2,
+                                                        temp_deltas_A1, temp_W);
+    }
+    auto t1_opt = high_resolution_clock::now();
+    auto time_in_msec_opt = duration_cast<milliseconds>(t1_opt - t0_opt).count();
+    std::cout << time_in_msec_opt << " milliseconds for optimized version." << std::endl;
+
+
+    //cout << "deltas_A1_true = " << endl << deltas_A1_true << endl;
+    //cout << "deltas_A1_optimized = " << endl << deltas_A1_optimized << endl;
+    // Check deltas_A1_optimized against the assumed correct value in deltas_A1_true.
+    const float rel_error = relative_error(deltas_A1_true, deltas_A1_optimized);
+    cout << "relative error = " << rel_error << endl;
+    assert_almost_equal(rel_error, 0.0f, pass_relative_error);
+
+    cout << "PASSED" << endl;
+
+  }
+
+  void test_optimized_3d_weight_grad_convolutive()   {
+    cout << "test_optimized_3d_weight_grad_convolutive()..." << endl;
+    const float pass_relative_error = 5e-3f; // Relative error must be below this to pass.
+
+    // Benchmarking parameters
+    /*
+    // Number of samples in a mini-batch.
+    const int minibatch_size = 128;
+    // Create X with random values.
+    const int image_height = 32;
+    const int image_width = 32;
+    const int image_depth = 8;
+    const int conv_filter_height = 5; // Convolution filter height
+    const int conv_filter_width = 5; // Convolution filter width
+    const int filter_count = 64; // 1 // Number of convolutional filters.
+    */
+
+
+    // Correctness testing parameters:
+
+    // Number of samples in a mini-batch.
+    const int minibatch_size = 32;
+    // Create X with random values.
+    const int image_height = 16;
+    const int image_width = 16;
+    const int image_depth = 8;
+    const int conv_filter_height = 3; // Convolution filter height
+    const int conv_filter_width = 3; // Convolution filter width
+    const int filter_count = 2; // 1 // Number of convolutional filters.
+
+
+    MatrixF deltas_Z2(minibatch_size, filter_count, image_height, image_width);
+    randomize_uniform(deltas_Z2, -1.0f, 1.0f);
+    MatrixF grad_W_true(filter_count, image_depth, conv_filter_height, conv_filter_width);
+    //MatrixF bias(filter_count);
+    //randomize_uniform(bias, -1.0f, 1.0f); //
+    MatrixF A1(minibatch_size, image_depth, image_height, image_width);
+    randomize_uniform(A1, -1.0f, 1.0f);
+
+    cout << "Running naive weight gradient convolutive back-propagation..." << endl;
+    // Warm up:
+    compute_3d_weight_grad_convolutive_minibatch(grad_W_true, deltas_Z2, A1);
+    // Start timer here.
+    using namespace std::chrono;
+    auto t0 = high_resolution_clock::now();
+    const int loop_count = 10; // 1000
+    for (int n = 0; n != loop_count; ++n) {
+      //cout << "naive: n = " << n << endl;
+      // Assume this version is correct.
+      compute_3d_weight_grad_convolutive_minibatch(grad_W_true, deltas_Z2, A1);
+    }
+    // Stop timer here.
+    auto t1 = high_resolution_clock::now();
+
+    auto time_in_msec = duration_cast<milliseconds>(t1 - t0).count();
+    //double flops = 1e-6*static_cast<double>(loop_count)*(double)2 * (double)rows_A*(double)cols_A*(double)cols_B / (double)time_in_msec;
+    std::cout << time_in_msec << " milliseconds for naive version." << std::endl;
+    //std::cout << flops << " GFLOPS" << std::endl;
+
+
+    // This will be the result of the optimized version.
+    MatrixF grad_W_optimized(filter_count, image_depth, conv_filter_height, conv_filter_width);
+
+    // Allocate temporary matrices that are needed by the optimized convolution function.
+    MatrixF temp_deltas_Z2(image_height*image_width*minibatch_size, filter_count);
+    randomize_uniform(temp_deltas_Z2, -1.0f, 1.0f);
+    MatrixF temp_A1(image_height*image_width*minibatch_size, image_depth*conv_filter_height*conv_filter_width + 1);
+    randomize_uniform(temp_A1, -1.0f, 1.0f);
+    MatrixF temp_grad_W(image_depth*conv_filter_height*conv_filter_width + 1, filter_count);
+    randomize_uniform(temp_grad_W, -1.0f, 1.0f);
+    cout << "Running optimized convolutive back-progatation to compute deltas_A1..." << endl;
+    auto t0_opt = high_resolution_clock::now();
+    for (int n = 0; n != loop_count; ++n) {
+      compute_3d_weight_grad_convolutive_minibatch_optimized(grad_W_optimized, deltas_Z2, A1,
+                                                             temp_deltas_Z2, temp_A1, temp_grad_W);
+    }
+    auto t1_opt = high_resolution_clock::now();
+    auto time_in_msec_opt = duration_cast<milliseconds>(t1_opt - t0_opt).count();
+    std::cout << time_in_msec_opt << " milliseconds for optimized version." << std::endl;
+
+    //cout << "grad_W_optimized = " << grad_W_optimized << endl;
+    //cout << "deltas_A1_true = " << endl << deltas_A1_true << endl;
+    //cout << "deltas_A1_optimized = " << endl << deltas_A1_optimized << endl;
+    // Check deltas_A1_optimized against the assumed correct value in deltas_A1_true.
+    const float rel_error = relative_error(grad_W_true, grad_W_optimized);
+    cout << "relative error = " << rel_error << endl;
+    assert_almost_equal(rel_error, 0.0f, pass_relative_error);
+
+    cout << "PASSED" << endl;
+  }
+
+
+
+
+  void test_compute_3d_kmax() {
+    cout << "test_compute_3d_kmax()..." << endl;
+    const int minibatch_size = 2;
+    const int depth = 4;
+    const int height = 4;
+    const int width = 4;
+    const int box_depth = 3;
+    const int box_height = 3;
+    const int box_width = 3;
+    const int k = 2;
+
+    MatrixF kmax_in(minibatch_size, depth, height, width);
+    MatrixF kmax_out(minibatch_size, depth, height, width);
+    Matrix<int> kmax_state(minibatch_size, depth, height, width);
+
+    randomize_uniform(kmax_in, -1.0f, 1.0f);
+    cout << "kmax_in = " << endl << kmax_in << endl;
+
+    // Compute forward-direction kmax:
+    forward_3d_kmax(kmax_in, kmax_out, kmax_state, box_depth, box_height, box_width, k);
+    cout << "kmax_out = " << endl << kmax_out << endl;
+    cout << "kmax_state = " << endl << kmax_state << endl;
+
+    MatrixF other_kmax_in(minibatch_size, depth, height, width);
+    // Compute reverse-direction kmax:
+    //compute_reverse_kmax(other_kmax_in, kmax_out_values, kmax_out_indices, partition_count, k);
+    reverse_3d_kmax(other_kmax_in, kmax_out, kmax_state);
+    cout << "Updated kmax_in = " << endl << other_kmax_in << endl;
+    assert_almost_equal(kmax_out, other_kmax_in, 1e-3f);
+
+    cout << "PASSED" << endl;
+  }
+
+  void test_select() {
+    cout << "test_select()..." << endl;
+
+    MatrixF X(4,5);
+    randomize_uniform(X, 0.0f, 0.01f);
+    cout << "X = " << endl << X << endl;
+    MatrixF Y = select(X, 1, 2);
+    cout << "Y = " << endl << Y << endl;
+  }
+
+  void test_jacobian_ConvLayer3D() {
+    cout << "test_jacobian_ConvLayer3D()..." << endl;
+    const int minibatch_size = 4;
+    const int image_depth = 3;
+    const int image_height = 13;
+    const int image_width = 15;
+    const int filter_count = 5;
+    const int filter_height = 3;
+    const int filter_width = 4;
+
+    const vector<int> input_extents = {minibatch_size, image_depth, image_height, image_width};
+    ConvLayer3D layer(filter_count, filter_height, filter_width, "Conv Layer");
+
+    // Check weights gradients.
+    layer.check_jacobian_weights(input_extents);
+    // Now check bias gradients
+    layer.check_jacobian_bias(input_extents);
+    // Now check input error gradients
+    layer.check_jacobian_input_error(input_extents);
+
+  }
+
+
+  void test_SequentialNetwork() {
+    cout << "test_SequentialNetwork()..." << endl;
+    const int minibatch_size = 4;
+    const int image_depth = 3;
+    const int image_height = 13;
+    const int image_width = 15;
+    const int filter_count = 5;
+    const int filter_height = 3;
+    const int filter_width = 4;
+
+    SequentialNetwork seq_net("sequential network 1");
+    ConvLayer3D conv_layer1(filter_count, filter_height, filter_width, "Conv Layer 1");
+    seq_net.add_layer(conv_layer1);
+
+    const vector<int> input_extents = {minibatch_size, image_depth, image_height, image_width};
+    // Check weights gradients.
+    seq_net.check_jacobian_weights(input_extents);
+    // Now check bias gradients
+    seq_net.check_jacobian_bias(input_extents);
+    // Now check input error gradients
+    seq_net.check_jacobian_input_error(input_extents);
+
+    //MatrixF input_activations(minibatch_size, image_depth, image_height, image_width);
+    //seq_net.forward(input_activations);
+    //seq_net.forward(input_activations);
+
+    //cout << "PASSED" << endl;
+  }
+
+  void test_SequentialNetwork2() {
+    cout << "test_SequentialNetwork2()..." << endl;
+    const int minibatch_size = 4;
+    const int image_depth = 3;
+    const int image_height = 13;
+    const int image_width = 15;
+    const int filter_count = 5;
+    const int filter_height = 3;
+    const int filter_width = 4;
+
+    const int dim_output = 7;
+
+    SequentialNetwork net("sequential network 1");
+    ConvLayer3D conv_layer1(filter_count, filter_height, filter_width, "Conv Layer 1");
+    net.add_layer(conv_layer1);
+    BoxActivationFunction box_activation_layer1(BoxActivationFunction::ACTIVATION_TYPE::leakyReLU, "Box Activation Function 1");
+    net.add_layer(box_activation_layer1);
+    const vector<int> pooling_region_extents = {1, 3, 3};
+    const vector<int> pooling_region_step_sizes = {1, 2, 2};
+    PoolingLayer pooling_layer1(pooling_region_extents, pooling_region_step_sizes, "Pooling Layer 1");
+    net.add_layer(pooling_layer1);
+    ImageToColumnLayer layer2("Image To Column Layer 1");
+    net.add_layer(layer2);
+    LinearLayer linear_laye1(dim_output, "Linear Layer 1");
+    net.add_layer(linear_laye1);
+    ColumnActivationFunction column_activation_layer1(ColumnActivationFunction::ACTIVATION_TYPE::leakyReLU, "Column Activation Function 1");
+    net.add_layer(column_activation_layer1);
+
+    const vector<int> input_extents = {minibatch_size, image_depth, image_height, image_width};
+    // Check weights gradients.
+    net.check_jacobian_weights(input_extents);
+    // Now check bias gradients
+    net.check_jacobian_bias(input_extents);
+    // Now check input error gradients
+    net.check_jacobian_input_error(input_extents);
+
+  }
+
+  void test_jacobian_LinearLayer() {
+    cout << "test_jacobian_LinearLayer()..." << endl;
+    const int minibatch_size = 4;
+    const int dim_input = 5;
+    const int dim_output = 7;
+
+    const vector<int> input_extents = {dim_input, minibatch_size};
+    LinearLayer layer(dim_output, "Linear Layer 1");
+
+    // Check weights gradients.
+    layer.check_jacobian_weights(input_extents);
+    // Now check bias gradients
+    layer.check_jacobian_bias(input_extents);
+    // Now check input error gradients
+    layer.check_jacobian_input_error(input_extents);
+
+  }
+
+  void test_jacobian_ImageToColumnLayer() {
+    cout << "test_jacobian_ImageToColumnLayer()..." << endl;
+    const int minibatch_size = 4;
+    const int dim1 = 3;
+    const int dim2 = 7;
+    const int dim3 = 4;
+
+    const vector<int> input_extents = {minibatch_size, dim1, dim2, dim3};
+    ImageToColumnLayer layer("Image To Column Layer 1");
+
+    // Check weights gradients.
+    layer.check_jacobian_weights(input_extents);
+    // Now check bias gradients
+    layer.check_jacobian_bias(input_extents);
+    // Now check input error gradients
+    layer.check_jacobian_input_error(input_extents);
+
+  }
+
+  void test_jacobian_BoxActivationFunction() {
+    cout << "test_jacobian_BoxActivationFunction()..." << endl;
+    const int minibatch_size = 4;
+    const int depth = 3;
+    const int height = 4;
+    const int width = 5;
+
+    const vector<int> input_extents = {minibatch_size, depth, height, width};
+    //BoxActivationFunction::ACTIVATION_TYPE box_activation_type = BoxActivationFunction::ACTIVATION_TYPE::leakyReLU;
+    BoxActivationFunction layer(BoxActivationFunction::ACTIVATION_TYPE::leakyReLU, "Box Activation Function 1");
+
+    // Check weights gradients.
+    layer.check_jacobian_weights(input_extents);
+    // Now check bias gradients
+    layer.check_jacobian_bias(input_extents);
+    // Now check input error gradients
+    layer.check_jacobian_input_error(input_extents);
+
+  }
+
+  void test_jacobian_ColumnActivationFunction() {
+    cout << "test_jacobian_ColumnActivationFunction()..." << endl;
+    const int minibatch_size = 4;
+    const int dim_input = 5;
+
+    const vector<int> input_extents = {dim_input, minibatch_size};
+    ColumnActivationFunction layer(ColumnActivationFunction::ACTIVATION_TYPE::leakyReLU, "Column Activation Function 1");
+
+    // Check weights gradients.
+    layer.check_jacobian_weights(input_extents);
+    // Now check bias gradients
+    layer.check_jacobian_bias(input_extents);
+    // Now check input error gradients
+    layer.check_jacobian_input_error(input_extents);
+
+  }
+
+  void test_jacobian_PoolingLayer() {
+    cout << "test_jacobian_PoolingLayer()..." << endl;
+    //const int minibatch_size = 4;
+    //const int depth = 8;
+    //const int height = 10;
+    //const int width = 12;
+
+    const int minibatch_size = 4;
+    const int depth = 8;
+    const int height = 6; // 4 works
+    const int width = 4;
+
+    const vector<int> input_extents = {minibatch_size, depth, height, width};
+    //const vector<int> pooling_region_extents = {2, 2, 2};
+    const vector<int> pooling_region_extents = {1, 3, 3};
+    const vector<int> pooling_region_step_sizes = {1, 2, 2};
+    PoolingLayer layer(pooling_region_extents, pooling_region_step_sizes, "Pooling Layer 1");
+
+    // Check weights gradients.
+    layer.check_jacobian_weights(input_extents);
+    // Now check bias gradients
+    layer.check_jacobian_bias(input_extents);
+    // Now check input error gradients
+    layer.check_jacobian_input_error(input_extents);
+
+  }
+
+  void debug_PoolingLayer() {
+    cout << "debug_PoolingLayer()" << endl;
+    //const int minibatch_size = 1;
+    //const int depth = 2;
+    //const int height = 4;
+    //const int width = 4;
+
+    const int minibatch_size = 2;
+    const int depth = 3;
+    const int height = 4; // 4 works
+    const int width = 4;
+    const vector<int> pooling_region_extents = {1, 3, 3};
+    const vector<int> pooling_region_step_sizes = {1, 3, 2};
+
+    const vector<int> input_extents = {minibatch_size, depth, height, width};
+    //const vector<int> pooling_region_extents = {2, 2, 2};
+    //const vector<int> pooling_region_step_sizes = {2, 2, 2};
+    PoolingLayer layer(pooling_region_extents, pooling_region_step_sizes, "Pooling Layer 1");
+
+
+    MatrixF input_activations(input_extents);
+    //randomize_uniform(input_activations, -1.0f, 1.0f);
+    set_value(input_activations, 0.12f);
+    cout << "input_activations: " << endl << input_activations << endl;
+    layer.forward(input_activations);
+
+    MatrixF& output_activations = layer.get_output();
+    cout << "output_activations: " << endl << output_activations << endl;
+
+    MatrixF& output_deltas = layer.get_output_deltas();
+    randomize_uniform(output_deltas, -1.0f, 1.0f);
+    cout << "output_deltas: " << endl << output_deltas << endl;
+    MatrixF input_error(input_extents);
+    layer.back_propagate(input_error, input_activations);
+    cout << "input_error: " << endl << input_error << endl;
+
+  }
+
+  void test_MSECostFunction() {
+    cout << "test_MSECostFunction()" << endl;
+    MSECostFunction cost_func("MSE Cost Function");
+    const int unit_count = 8;
+    const int minibatch_size = 2;
+    const vector<int> input_extents = {unit_count, minibatch_size};
+    //MatrixF input_activations(input_extents);
+    //randomize_uniform(input_activations, 0.0f, 1.0f);
+    //MatrixF target_activations(input_extents);
+    //randomize_uniform(target_activations, 0.0f, 1.0f);
+    cost_func.check_gradients(input_extents);
+  }
+
+  void test_CrossEntropyCostFunction() {
+    cout << "test_CrossEntropyCostFunction()" << endl;
+    CrossEntropyCostFunction cost_func("Cross Entropy Cost Function");
+    const int unit_count = 8;
+    const int minibatch_size = 2;
+    const vector<int> input_extents = {unit_count, minibatch_size};
+    cost_func.check_gradients(input_extents);
+  }
+
+
+  void test_Dropout1D() {
+    cout << "test_Dropout1D()" << endl;
+
+    const float prob_keep = 0.3f;
+    Dropout1D drop1d(prob_keep, "Dropout1D");
+    drop1d.set_train_mode(true);
+
+    int unit_count = 5;
+    int minibatch_size = 4;
+    MatrixF input_activations(unit_count, minibatch_size);
+    randomize_uniform(input_activations, 0.0f, 1.0f);
+    cout << "input_activations:" << endl << input_activations << endl;
+    MatrixF input_errors(unit_count, minibatch_size);
+    randomize_uniform(input_errors, 0.0f, 1.0f);
+
+
+
+    cout << "dropout forward:" << endl;
+    drop1d.forward(input_activations);
+    MatrixF& output_activations = drop1d.get_output();
+    cout << "output_activations:" << endl << output_activations << endl;
+
+    MatrixF& output_errors = drop1d.get_output_deltas();
+    randomize_uniform(output_errors, 0.0f, 1.0f);
+    cout << "Random output_errors:" << endl << output_errors << endl;
+
+    cout << "dropout forward:" << endl;
+    drop1d.forward(input_activations);
+    cout << "output_activations:" << endl << output_activations << endl;
+
+    cout << "dropout forward:" << endl;
+    drop1d.forward(input_activations);
+    cout << "output_activations:" << endl << output_activations << endl;
+
+    cout << "Random output_errors:" << endl << output_errors << endl;
+
+    cout << "dropout backward:" << endl;
+    drop1d.back_propagate(input_errors, input_activations);
+    cout << "input_errors:" << endl << input_errors << endl;
+
+
+  }
+
+  void test_Dropout3D() {
+    cout << "test_Dropout3D()" << endl;
+
+    const float prob_keep = 0.3f;
+    Dropout3D dropout(prob_keep, "Dropout3D");
+    dropout.set_train_mode(true);
+
+    const int minibatch_size = 2;
+    const int depth = 2;
+    const int height = 2;
+    const int width = 2;
+    MatrixF input_activations(minibatch_size, depth, height, width);
+    randomize_uniform(input_activations, 0.0f, 1.0f);
+    cout << "input_activations:" << endl << input_activations << endl;
+    MatrixF input_errors(input_activations.get_extents());
+    randomize_uniform(input_errors, 0.0f, 1.0f);
+
+    cout << "dropout forward:" << endl;
+    dropout.forward(input_activations);
+    MatrixF& output_activations = dropout.get_output();
+    cout << "output_activations:" << endl << output_activations << endl;
+
+    MatrixF& output_errors = dropout.get_output_deltas();
+    randomize_uniform(output_errors, 0.0f, 1.0f);
+    cout << "Random output_errors:" << endl << output_errors << endl;
+
+    cout << "dropout forward:" << endl;
+    dropout.forward(input_activations);
+    cout << "output_activations:" << endl << output_activations << endl;
+
+    cout << "dropout forward:" << endl;
+    dropout.forward(input_activations);
+    cout << "output_activations:" << endl << output_activations << endl;
+
+    cout << "Random output_errors:" << endl << output_errors << endl;
+
+    cout << "dropout backward:" << endl;
+    dropout.back_propagate(input_errors, input_activations);
+    cout << "input_errors:" << endl << input_errors << endl;
+
+
+  }
+
+  void test_BatchNormalization1D() {
+    cout << "test_BatchNormalization1D()" << endl;
+    const int minibatch_size = 4;
+    const int dim_input = 10;
+
+    const vector<int> input_extents = {dim_input, minibatch_size};
+    // If set to false, mean/var checks will work.
+    const bool enable_gamma_beta = false;
+    const float momentum = 0.1f;
+    BatchNormalization1D normalizer(enable_gamma_beta, momentum, "Batch Normalization 1D");
+    normalizer.set_train_mode(true);
+    MatrixF input_activations(input_extents);
+    randomize_uniform(input_activations, 0.0f, 1.0f);
+    cout << "input_activations:" << endl << input_activations << endl;
+    MatrixF input_errors(input_extents);
+
+    //for (int i = 0; i < 200; ++i) {
+    normalizer.forward(input_activations);
+    //}
+    MatrixF& output_activations = normalizer.get_output();
+    MatrixF& output_errors = normalizer.get_output_deltas();
+    randomize_uniform(output_errors, 0.0f, 1.0f);
+    cout << "Random output errors:" << endl << output_errors << endl;
+    cout << "output_activations:" << endl << output_activations << endl;
+
+    // Compute mean of output:
+    //float mean = sum(output_activations)/output_activations.size();
+    MatrixF actual_means(dim_input);
+    for (int i = 0; i < dim_input; ++i) {
+      for (int j = 0; j < minibatch_size; ++j) {
+        actual_means(i) += output_activations(i, j);
+      }
+      actual_means(i) /= static_cast<float>(minibatch_size);
+    }
+    cout << "Mean of output activations (should be close to 0): " << endl << actual_means << endl;
+    assert_almost_equal(compute_rmse(actual_means), 0, 1e-2f);
+
+
+    MatrixF actual_std_dev(dim_input);
+    for (int i = 0; i < dim_input; ++i) {
+      for (int j = 0; j < minibatch_size; ++j) {
+        actual_std_dev(i) += (output_activations(i,j) - actual_means(i))*(output_activations(i,j) - actual_means(i));
+      }
+      actual_std_dev(i) /= static_cast<float>(minibatch_size);
+      actual_std_dev(i) = std::sqrt(actual_std_dev(i));
+    }
+
+    cout << "Standard deviation of output activations (should be close to 1): " << endl << actual_std_dev << endl;
+    MatrixF ones(actual_means.get_extents());
+    set_value(ones, 1.0f);
+    assert_almost_equal(actual_std_dev, ones, 1e-2f);
+
+    cout << "Back prop:" << endl;
+    normalizer.back_propagate(input_errors, input_activations);
+    cout << "input_errors:" << endl << input_errors << endl;
+
+    // enable gamma/beta for jacobian checking.
+    BatchNormalization1D normalizer2(true, 0.1f, "Batch Normalization 1D");
+    normalizer2.set_train_mode(true);
+
+    // Check weights gradients.
+    normalizer2.check_jacobian_weights(input_extents); // Will pass if momentum set to 1.0
+    // Now check bias gradients
+    normalizer2.check_jacobian_bias(input_extents); // Will pass if momentum set to 1.0
+    // Now check input error gradients
+    normalizer2.check_jacobian_input_error(input_extents);
+  }
+
+  void test_BatchNormalization3D() {
+    cout << "test_BatchNormalization3D()" << endl;
+    const int minibatch_size = 4;
+    const int image_depth = 5;
+    const int image_height = 3;
+    const int image_width = 4;
+
+    const vector<int> input_extents = {minibatch_size, image_depth, image_height, image_width};
+
+    // If set to false, mean/var checks will work.
+    const bool enable_gamma_beta = false;
+    const float momentum = 0.1f; // 0.1
+    BatchNormalization3D normalizer(enable_gamma_beta, momentum, "Batch Normalization 3D");
+    normalizer.set_train_mode(true);
+    MatrixF input_activations(input_extents);
+    randomize_uniform(input_activations, 0.0f, 1.0f);
+    cout << "input_activations:" << endl << input_activations << endl;
+    MatrixF input_errors(input_extents);
+
+    //for (int i = 0; i < 200; ++i) {
+    normalizer.forward(input_activations);
+    //}
+    MatrixF& output_activations = normalizer.get_output();
+    MatrixF& output_errors = normalizer.get_output_deltas();
+    randomize_uniform(output_errors, 0.0f, 1.0f);
+    cout << "Random output errors:" << endl << output_errors << endl;
+    cout << "output_activations:" << endl << output_activations << endl;
+
+    // Compute mean of output:
+
+    MatrixF actual_means(image_depth);
+    for (int i = 0; i < image_depth; ++i) {
+      for (int j = 0; j < minibatch_size; ++j) {
+        for (int k = 0; k < image_height; ++k) {
+          for (int l = 0; l < image_width; ++l) {
+            actual_means(i) += output_activations(j,i,k,l);
+          }
+        }
+      }
+      actual_means(i) /= static_cast<float>(minibatch_size*image_height*image_width);
+    }
+    cout << "Mean of output activations (should be close to 0): " << endl << actual_means << endl;
+    assert_almost_equal(compute_rmse(actual_means), 0, 1e-2f);
+
+    MatrixF actual_std_dev(image_depth);
+    for (int i = 0; i < image_depth; ++i) {
+      for (int j = 0; j < minibatch_size; ++j) {
+        for (int k = 0; k < image_height; ++k) {
+          for (int l = 0; l < image_width; ++l) {
+            actual_std_dev(i) += (output_activations(j,i,k,l) - actual_means(i))*(output_activations(j,i,k,l) - actual_means(i));
+          }
+        }
+      }
+      actual_std_dev(i) /= static_cast<float>(minibatch_size*image_height*image_width);
+      actual_std_dev(i) = std::sqrt(actual_std_dev(i));
+    }
+
+    cout << "Standard deviation of output activations (should be close to 1): " << endl << actual_std_dev << endl;
+    MatrixF ones(actual_means.get_extents());
+    set_value(ones, 1.0f);
+    assert_almost_equal(actual_std_dev, ones, 1e-2f);
+
+    cout << "Back prop:" << endl;
+    normalizer.back_propagate(input_errors, input_activations);
+    cout << "input_errors:" << endl << input_errors << endl;
+
+    // Set momentum to 1.0 and enable gamma/beta for jacobian checking.
+    BatchNormalization3D normalizer2(true, 0.1f, "Batch Normalization 3D");
+    normalizer2.set_train_mode(true);
+
+    // Check weights gradients.
+    normalizer2.check_jacobian_weights(input_extents); // Will pass if momentum set to 1.0
+    // Now check bias gradients
+    normalizer2.check_jacobian_bias(input_extents); // Will pass if momentum set to 1.0
+    // Now check input error gradients
+    normalizer2.check_jacobian_input_error(input_extents);
+  }
+
+
+  void run_all_tests() {
+    test_mat_mult();
+    test_mat_multiply_left_transpose();
+    test_mat_multiply_right_transpose();
+    test_MatrixF1D();
+    test_MatrixF2D();
+    test_MatrixF3D();
+    test_MatrixF4D();
+    test_MatrixF5D();
+    test_MatrixF6D();
+
+    test_compute_kmax();
+    test_compute_kmax_v2();
+    test_relu();
+    test_PoolingLayer();
+    test_optimized_convolutive_deltas();
+    test_optimized_weight_grad_convolutive();
+
+    test_optimized_convolve_3d_minibatch();
+    test_optimized_3d_convolutive_deltas();
+    test_optimized_3d_weight_grad_convolutive();
+
+    test_compute_3d_kmax();
+
+
+    test_Dropout1D();
+    test_Dropout3D();
+    test_jacobian_LinearLayer();
+    test_jacobian_ConvLayer3D();
+    test_select();
+    test_jacobian_ConvLayer3D();
+    test_SequentialNetwork();
+    test_SequentialNetwork2();
+    test_jacobian_ImageToColumnLayer();
+    test_jacobian_BoxActivationFunction();
+    test_jacobian_ColumnActivationFunction();
+    test_MSECostFunction();
+    test_CrossEntropyCostFunction();
+    test_BatchNormalization1D();
+  }
+
+
 
 }

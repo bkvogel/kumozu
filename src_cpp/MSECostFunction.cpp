@@ -1,5 +1,3 @@
-#ifndef _EXAMPLESRECSYSTEM_H
-#define _EXAMPLESRECSYSTEM_H
 /*
  * Copyright (c) 2005-2015, Brian K. Vogel
  * All rights reserved.
@@ -30,29 +28,33 @@
  *
  */
 
+#include "MSECostFunction.h"
+#include "Utilities.h"
+
+
+using namespace std;
+
 namespace kumozu {
 
-  ////////////////////////////////////////////////////////////////////////////////
-  // Recommendation system examples.
+  void MSECostFunction::reinitialize(std::vector<int> input_extents) {
+    m_minibatch_size =  input_extents.at(1);
 
-  /*
-   * Predict movie ratings using a matrix factorization model.
-   *
-   * Load Netflix prize data (training and test data).
-   *
-   * Learn model parameters.
-   *
-   * Predict movie ratings for (user, movie) pairs in the probe set (validation set).
-   *
-   * Model:
-   *
-   * We use the model X = W * H where
-   * X is the partially-observed user ratings matrix.
-   *
-   */
-  void netflix_prize_example_1();
+    m_temp_input_error = MatrixF(input_extents);
+    m_temp_size_input = MatrixF(input_extents);
+  }
 
+  float MSECostFunction::forward_propagate(const MatrixF& input_activations, const MatrixF& target_activations) {
+    element_wise_difference(m_temp_input_error, input_activations, target_activations);
+    copy_matrix(m_temp_size_input, m_temp_input_error);
+    apply(m_temp_size_input, [] (float a) {
+        return a*a;
+      });
+    return 0.5*sum(m_temp_size_input);
+  }
+
+  void MSECostFunction::back_propagate(MatrixF& input_error, const MatrixF& input_activations,
+                                       const MatrixF& true_output_activations) {
+    copy_matrix(input_error, m_temp_input_error);
+  }
 
 }
-
-#endif  /* _EXAMPLESRECSYSTEM_H */

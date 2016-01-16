@@ -1,5 +1,3 @@
-#ifndef _EXAMPLESRECSYSTEM_H
-#define _EXAMPLESRECSYSTEM_H
 /*
  * Copyright (c) 2005-2015, Brian K. Vogel
  * All rights reserved.
@@ -8,7 +6,7 @@
  * modification, are permitted provided that the following conditions are met:
  *
  * 1. Redistributions of source code must retain the above copyright notice, this
- *    list of conditions and the following disclaimer.
+ *    list of conditions and the following disclaimer. 
  * 2. Redistributions in binary form must reproduce the above copyright notice,
  *    this list of conditions and the following disclaimer in the documentation
  *    and/or other materials provided with the distribution.
@@ -25,34 +23,8 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  * The views and conclusions contained in the software and documentation are those
- * of the authors and should not be interpreted as representing official policies,
+ * of the authors and should not be interpreted as representing official policies, 
  * either expressed or implied, of the FreeBSD Project.
  *
  */
-
-namespace kumozu {
-
-  ////////////////////////////////////////////////////////////////////////////////
-  // Recommendation system examples.
-
-  /*
-   * Predict movie ratings using a matrix factorization model.
-   *
-   * Load Netflix prize data (training and test data).
-   *
-   * Learn model parameters.
-   *
-   * Predict movie ratings for (user, movie) pairs in the probe set (validation set).
-   *
-   * Model:
-   *
-   * We use the model X = W * H where
-   * X is the partially-observed user ratings matrix.
-   *
-   */
-  void netflix_prize_example_1();
-
-
-}
-
-#endif  /* _EXAMPLESRECSYSTEM_H */
+#include "Matrix.h"

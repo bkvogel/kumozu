@@ -1,3 +1,5 @@
+#ifndef _ACCUMULATOR_H
+#define _ACCUMULATOR_H
 /*
  * Copyright (c) 2005-2015, Brian K. Vogel
  * All rights reserved.
@@ -28,49 +30,78 @@
  *
  */
 
-#include "ExamplesRecSystem.h"
-#include "NetflixRecSystem.h"
-#include <cstdlib>
-#include <string.h>
-#include <cmath>
-#include <fstream>
-#include <iostream>
-#include <vector>
-#include <map>
-#include <ctime>
-#include <omp.h>
-#include <algorithm>
-
 #include "Matrix.h"
-#include "MatrixIO.h"
-#include "Matrix_list.h"
-#include "Utilities.h"
-#include "Constants.h"
-
-// Uncomment following line to disable assertion checking.
-//#define NDEBUG
-// Uncomment to enable assertion checking.
-#undef NDEBUG
-#include <assert.h>
-
-using namespace std;
+#include <string>
+#include <iostream>
 
 namespace kumozu {
 
-  void netflix_prize_example_1() {
-    cout << "Netflix Prize Example 1" << endl << endl;
-    // Path to training set
-    const string training_set = "/home/brian/data/prototyping/netflix_data/download/training_set/";
-    //const string training_set = "/Users/brian/data/prototyping/netflix_data/download/training_set/";
-    // Path to probe file.
-    const string probe = "/home/brian/data/prototyping/netflix_data/download/probe.txt";
-    //const string probe = "/Users/brian/data/prototyping/netflix_data/download/probe.txt";
+  /*
+   * A utility class to keep track of a running sum or mean value.
+   *
+   * Usage:
+   *
+   * An example of
+   */
+  class Accumulator {
+  public:
 
-    NetflixRecSystem rec_system(training_set, probe);
-    cout << "Learning parameters..." << endl;
-    rec_system.learn_model();
-    cout << "Done." << endl;
-  }
+  Accumulator():
+    m_sum {0},
+      m_batch_size {1},
+        m_counter {0}
+        {
+
+        }
+
+  Accumulator(int batch_size):
+        m_sum {0},
+          m_batch_size {batch_size},
+            m_counter {0}
+            {
+
+            }
+
+            /*
+             * Accumulate the supplied value and increment the internal counter by the "batch_size"
+             * that was supplied to the constructor, or by 1 if the default constructor was used.
+             */
+            void accumulate(float x);
+
+            /*
+             * Reset the accumulator.
+             *
+             * This sets the internal sum and counter to 0.
+             */
+            void reset();
+
+            /*
+             * Return the sum of all values that have been passed to accumulate() sence the last time
+             * reset() was called.
+             */
+            float get_sum() const;
+
+            /*
+             * Return the sum of all values that have been passed to accumulate() divided by
+             * the counter value sence the last time
+             * reset() was called.
+             */
+            float get_mean() const;
+
+            /*
+             * Return the value of the internal counter.
+             */
+            int get_counter() const;
+
+  private:
+
+            float m_sum;
+            int m_batch_size;
+            int m_counter;
+
+  };
 
 
 }
+
+#endif /* _ACCUMULATOR_H */

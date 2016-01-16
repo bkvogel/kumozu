@@ -6,7 +6,7 @@
  * modification, are permitted provided that the following conditions are met:
  *
  * 1. Redistributions of source code must retain the above copyright notice, this
- *    list of conditions and the following disclaimer. 
+ *    list of conditions and the following disclaimer.
  * 2. Redistributions in binary form must reproduce the above copyright notice,
  *    this list of conditions and the following disclaimer in the documentation
  *    and/or other materials provided with the distribution.
@@ -23,7 +23,7 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  * The views and conclusions contained in the software and documentation are those
- * of the authors and should not be interpreted as representing official policies, 
+ * of the authors and should not be interpreted as representing official policies,
  * either expressed or implied, of the FreeBSD Project.
  *
  */
@@ -34,84 +34,105 @@ using namespace std;
 
 namespace kumozu {
 
-	void Dropout3D::forward_dropout(const Matrix& input) {
-		check_dimensions(input, m_output);
-		// Compute a new random dropout mask to use on each column in the mini-batch.
-		std::uniform_real_distribution<float> uni(0.0f, 1.0f);
-		for (int i = 0; i < m_dropout_mask.size(); i++) {
-			float x = uni(m_mersenne_twister_engine);
-			//m_temp_rand[i] = x; // fixme: experiemental
-			m_temp_rand[i] = 1-x; // fixme: experiemental
-			if (x < m_prob_keep_current) {
-				// Keep the element
-				m_dropout_mask[i] = 1;
-			} else {
-				// Drop the element
-				m_dropout_mask[i] = 0;
-			}
-		}
-		// Apply the dropout mask.
-		#pragma omp parallel for collapse(3)
-		for (int m = 0; m < m_minibatch_size; ++m) {
-			for (int d = 0; d < m_depth; ++d) {
-				for (int h = 0; h < m_height; ++h) {
-					for (int w = 0; w < m_width; ++w) {
-						/*
-						if (m_dropout_mask(d, h, w) == 1) {
-							m_output(m, d, h, w) = input(m, d, h, w)/m_prob_keep_current; // inverted dropout
-							//m_output(m, d, h, w) = input(m, d, h, w);
-						} else {
-							m_output(m, d, h, w) = 0.0f;
-						}
-						*/
-						
-						if (m_dropout_mask(d, h, w) == 1) {
-							m_output(m, d, h, w) = input(m, d, h, w)/m_prob_keep_current; // inverted dropout
-							//m_output(m, d, h, w) = input(m, d, h, w);
-						} else {
-							m_output(m, d, h, w) = 0.0f;
-							// leaky dropout
-							//m_output(m, d, h, w) = 0.1*input(m, d, h, w);
-							// leaky random dropout
-							//m_output(m, d, h, w) = m_temp_rand(d, h, w)*input(m, d, h, w);
-						}
-						
-					}
-				}
-			}
-		}
-	}
+  void Dropout3D::reinitialize(std::vector<int> input_extents) {
+    m_minibatch_size = input_extents.at(0);
+    m_depth =  input_extents.at(1);
+    m_height = input_extents.at(2);
+    m_width = input_extents.at(3);
+    m_output_activations = MatrixF(m_minibatch_size, m_depth, m_height, m_width);
+    m_output_error = MatrixF(m_minibatch_size, m_depth, m_height, m_width);
 
-	void Dropout3D::reverse_dropout(Matrix& input) {
-		#pragma omp parallel for collapse(3)
-		for (int m = 0; m < m_minibatch_size; ++m) {
-			for (int d = 0; d < m_depth; ++d) {
-				for (int h = 0; h < m_height; ++h) {
-					for (int w = 0; w < m_width; ++w) {
-						/*
-						if (m_dropout_mask(d, h, w) == 1) {
-							input(m, d, h, w) = m_output_deltas(m, d, h, w)/m_prob_keep_current; // for inverted dropout
-							//input(m, d, h, w) = m_output_deltas(m, d, h, w);
-						} else {
-							input(m, d, h, w) = 0.0f;
-						}
-						*/
-						
-						if (m_dropout_mask(d, h, w) == 1) {
-							//input(m, d, h, w) = m_output_deltas(m, d, h, w)*m_prob_keep_current; // for inverted dropout
-							input(m, d, h, w) = m_output_deltas(m, d, h, w)/m_prob_keep_current;
-						} else {
-							input(m, d, h, w) = 0.0f;
-							// leaky dropout
-							//input(m, d, h, w) = 0.1*m_output_deltas(m, d, h, w);
-							// leaky random dropout
-							//input(m, d, h, w) = m_temp_rand(d, h, w)*m_output_deltas(m, d, h, w);
-						}
-						
-					}
-				}
-			}
-		}
-	}
+    if (m_mode == 0) {
+      m_dropout_mask = Matrix<int>(m_depth, m_height, m_width);
+    } else if (m_mode == 1) {
+      m_dropout_mask = Matrix<int>(input_extents);
+    }
+  }
+
+  void Dropout3D::forward_propagate(const MatrixF& input_activations) {
+    //reinitialize(input_activations.get_extents());
+    float prob_keep_current = 1.0f;
+    if (m_is_train) {
+      prob_keep_current = m_prob_keep;
+    }
+    check_dimensions(input_activations, m_output_activations);
+    // Compute a new random dropout mask to use on each column in the mini-batch.
+    std::uniform_real_distribution<float> uni(0.0f, 1.0f);
+
+    for (int i = 0; i < m_dropout_mask.size(); i++) {
+      const float x = uni(m_random_engine);
+      if (x < prob_keep_current) {
+        // Keep the element
+        m_dropout_mask[i] = 1;
+      } else {
+        // Drop the element
+        m_dropout_mask[i] = 0;
+      }
+    }
+
+    if (m_mode == 0) {
+      // Apply the dropout mask.
+#pragma omp parallel for collapse(3)
+      for (int m = 0; m < m_minibatch_size; ++m) {
+        for (int d = 0; d < m_depth; ++d) {
+          for (int h = 0; h < m_height; ++h) {
+            for (int w = 0; w < m_width; ++w) {
+              if (m_dropout_mask(d, h, w) == 1) {
+                m_output_activations(m, d, h, w) = input_activations(m, d, h, w)/prob_keep_current; // inverted dropout
+              } else {
+                m_output_activations(m, d, h, w) = 0.0f;
+              }
+
+            }
+          }
+        }
+      }
+    } else if (m_mode == 1) {
+      const float scale = 1.0f/prob_keep_current;
+#pragma omp parallel for
+      for (int n = 0; n < m_dropout_mask.size(); ++n) {
+        if (m_dropout_mask[n] == 1) {
+          //m_output_activations[n] = input_activations[n]/prob_keep_current; // inverted dropout
+          m_output_activations[n] = input_activations[n]*scale; // inverted dropout
+        } else {
+          m_output_activations[n] = 0.0f;
+        }
+      }
+    }
+  }
+
+  void Dropout3D::back_propagate_deltas(MatrixF& input_error) {
+    float prob_keep_current = 1.0f;
+    if (m_is_train) {
+      prob_keep_current = m_prob_keep;
+    }
+    if (m_mode == 0) {
+#pragma omp parallel for collapse(3)
+      for (int m = 0; m < m_minibatch_size; ++m) {
+        for (int d = 0; d < m_depth; ++d) {
+          for (int h = 0; h < m_height; ++h) {
+            for (int w = 0; w < m_width; ++w) {
+              if (m_dropout_mask(d, h, w) == 1) {
+                input_error(m, d, h, w) = m_output_error(m, d, h, w)/prob_keep_current;
+              } else {
+                input_error(m, d, h, w) = 0.0f;
+              }
+
+            }
+          }
+        }
+      }
+    } else if (m_mode == 1) {
+      const float scale = 1.0f/prob_keep_current;
+#pragma omp parallel for
+      for (int n = 0; n < m_dropout_mask.size(); ++n) {
+        if (m_dropout_mask[n] == 1) {
+          input_error[n] = m_output_error[n]*scale; // inverted dropout
+        } else {
+          input_error[n] = 0.0f;
+        }
+      }
+    }
+  }
 
 }

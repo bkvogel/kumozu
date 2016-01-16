@@ -6,7 +6,7 @@
  * modification, are permitted provided that the following conditions are met:
  *
  * 1. Redistributions of source code must retain the above copyright notice, this
- *    list of conditions and the following disclaimer. 
+ *    list of conditions and the following disclaimer.
  * 2. Redistributions in binary form must reproduce the above copyright notice,
  *    this list of conditions and the following disclaimer in the documentation
  *    and/or other materials provided with the distribution.
@@ -23,7 +23,7 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  * The views and conclusions contained in the software and documentation are those
- * of the authors and should not be interpreted as representing official policies, 
+ * of the authors and should not be interpreted as representing official policies,
  * either expressed or implied, of the FreeBSD Project.
  *
  */
@@ -32,42 +32,39 @@
 using namespace std;
 
 namespace kumozu {
-	Matrix_list::Matrix_list(const Matrix& A) {
-		rows = A.extent(0);
-		columns = A.extent(1);
-		for (int r = 0; r < rows; r++) {
-			for (int c = 0; c < columns; c++) {
-				Matrix_element element;
-				element.row = r;
-				element.col = c;
-				element.val = A.get(r, c);
-				observed_list.push_back(element);
-			}
-		}
-	}
+  Matrix_list::Matrix_list(const MatrixF& A) {
+    rows = A.extent(0);
+    columns = A.extent(1);
+    for (int r = 0; r < rows; r++) {
+      for (int c = 0; c < columns; c++) {
+        Matrix_element element;
+        element.row = r;
+        element.col = c;
+        element.val = A(r, c);
+        observed_list.push_back(element);
+      }
+    }
+  }
 
-	Matrix_list::Matrix_list(int row_count, int col_count) {
-		rows = row_count;
-		columns = col_count;
-	}
-
-	//Matrix_list::~Matrix_list() {
-	//}
+  Matrix_list::Matrix_list(int row_count, int col_count) {
+    rows = row_count;
+    columns = col_count;
+  }
 
 
-	std::ostream& operator<<(std::ostream& os, const Matrix_list& m) {
-		os << "Row dimension = " << m.rows << endl;
-		os << "Column dimension = " << m.columns << endl;
-		os << "Size = " << m.observed_list.size() << endl;
-		os << "Elements:" << endl;
-		for (vector<Matrix_element>::const_iterator iter = m.observed_list.begin(); iter != m.observed_list.end(); ++iter) {
-			os << "-----------------------------------" << endl;
-			os << "row = " << iter->row << endl;
-			os << "col = " << iter->col << endl;
-			os << "val = " << iter->val << endl;
-			os << "-----------------------------------" << endl;
-		}
-		return os;
-	}
+  std::ostream& operator<<(std::ostream& os, const Matrix_list& m) {
+    os << "Row dimension = " << m.rows << endl;
+    os << "Column dimension = " << m.columns << endl;
+    os << "Size = " << m.observed_list.size() << endl;
+    os << "Elements:" << endl;
+    for (vector<Matrix_element>::const_iterator iter = m.observed_list.begin(); iter != m.observed_list.end(); ++iter) {
+      os << "-----------------------------------" << endl;
+      os << "row = " << iter->row << endl;
+      os << "col = " << iter->col << endl;
+      os << "val = " << iter->val << endl;
+      os << "-----------------------------------" << endl;
+    }
+    return os;
+  }
 
 }

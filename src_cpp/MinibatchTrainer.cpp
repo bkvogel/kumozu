@@ -1,5 +1,3 @@
-#ifndef _EXAMPLESRECSYSTEM_H
-#define _EXAMPLESRECSYSTEM_H
 /*
  * Copyright (c) 2005-2015, Brian K. Vogel
  * All rights reserved.
@@ -30,29 +28,12 @@
  *
  */
 
+#include "Utilities.h"
+#include "MinibatchTrainer.h"
+
+
+using namespace std;
+
 namespace kumozu {
 
-  ////////////////////////////////////////////////////////////////////////////////
-  // Recommendation system examples.
-
-  /*
-   * Predict movie ratings using a matrix factorization model.
-   *
-   * Load Netflix prize data (training and test data).
-   *
-   * Learn model parameters.
-   *
-   * Predict movie ratings for (user, movie) pairs in the probe set (validation set).
-   *
-   * Model:
-   *
-   * We use the model X = W * H where
-   * X is the partially-observed user ratings matrix.
-   *
-   */
-  void netflix_prize_example_1();
-
-
 }
-
-#endif  /* _EXAMPLESRECSYSTEM_H */

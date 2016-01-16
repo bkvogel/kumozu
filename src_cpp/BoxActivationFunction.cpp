@@ -6,7 +6,7 @@
  * modification, are permitted provided that the following conditions are met:
  *
  * 1. Redistributions of source code must retain the above copyright notice, this
- *    list of conditions and the following disclaimer. 
+ *    list of conditions and the following disclaimer.
  * 2. Redistributions in binary form must reproduce the above copyright notice,
  *    this list of conditions and the following disclaimer in the documentation
  *    and/or other materials provided with the distribution.
@@ -23,7 +23,7 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  * The views and conclusions contained in the software and documentation are those
- * of the authors and should not be interpreted as representing official policies, 
+ * of the authors and should not be interpreted as representing official policies,
  * either expressed or implied, of the FreeBSD Project.
  *
  */
@@ -34,28 +34,75 @@ using namespace std;
 
 namespace kumozu {
 
-	void BoxActivationFunction::forward_activation(const Matrix& input) {
-		if (m_activation_type == ACTIVATION_TYPE::ReLU) {
-			compute_forward_relu(input, m_output, m_state); 
-		} else if (m_activation_type == ACTIVATION_TYPE::leakyReLU) {
-			compute_forward_leaky_relu(input, m_output, m_state); 
-		} else if (m_activation_type == ACTIVATION_TYPE::linear) {
-			compute_forward_identity_activation(input, m_output, m_state); 
-		} else if (m_activation_type == ACTIVATION_TYPE::kmax) {
-			compute_forward_3d_kmax(input, m_output, m_state, m_box_depth, m_box_height, m_box_width, m_k);
-		}
-	}
+  void BoxActivationFunction::reinitialize(std::vector<int> input_extents) {
+    string indent = "    ";
+    if (m_activation_type == ACTIVATION_TYPE::ReLU) {
+      std::cout << indent << "Using ReLU activation:" << std::endl;
+    } else if (m_activation_type == ACTIVATION_TYPE::leakyReLU) {
+      std::cout << indent << "Using leakyReLU activation:" << std::endl;
+    } else if (m_activation_type == ACTIVATION_TYPE::linear) {
+      std::cout << indent << "Using linear activation:" << std::endl;
+    } else if (m_activation_type == ACTIVATION_TYPE::kmax) {
+      std::cout << indent << "Using kmax activation:" << std::endl;
+    }
 
-	void BoxActivationFunction::reverse_activation(Matrix& input) {
-		if (m_activation_type == ACTIVATION_TYPE::ReLU) {
-			compute_reverse_relu(input, m_output_deltas, m_state); 
-		} else if (m_activation_type == ACTIVATION_TYPE::leakyReLU) {
-			compute_reverse_leaky_relu(input, m_output_deltas, m_state); 
-		} else if (m_activation_type == ACTIVATION_TYPE::linear) {
-			compute_reverse_identity_activation(input, m_output_deltas, m_state); 
-		} else if (m_activation_type == ACTIVATION_TYPE::kmax) {
-			compute_reverse_3d_kmax(input, m_output_deltas, m_state);
-		}
-	}
+    m_minibatch_size = input_extents.at(0);
+    m_depth = input_extents.at(1);
+    m_height = input_extents.at(2);
+    m_width = input_extents.at(3);
+    m_output_activations = MatrixF(m_minibatch_size, m_depth, m_height, m_width);
+    m_output_error = MatrixF(m_minibatch_size, m_depth, m_height, m_width);
+    m_state = Matrix<int>(m_minibatch_size, m_depth, m_height, m_width);
+
+  }
+
+  void BoxActivationFunction::forward_propagate(const MatrixF& input_activations) {
+    if (m_activation_type == ACTIVATION_TYPE::ReLU) {
+      compute_forward_relu(input_activations, m_output_activations, m_state);
+    } else if (m_activation_type == ACTIVATION_TYPE::ReLU_decay_unused) {
+      compute_forward_relu(input_activations, m_output_activations, m_state);
+    } else if (m_activation_type == ACTIVATION_TYPE::leakyReLU) {
+      compute_forward_leaky_relu(input_activations, m_output_activations, m_state);
+    } else if (m_activation_type == ACTIVATION_TYPE::linear) {
+      compute_forward_identity_activation(input_activations, m_output_activations, m_state);
+    } else if (m_activation_type == ACTIVATION_TYPE::kmax) {
+      forward_3d_kmax(input_activations, m_output_activations, m_state, m_box_depth, m_box_height, m_box_width, m_k);
+    } else if (m_activation_type == ACTIVATION_TYPE::kmax_decay_unused) {
+      forward_3d_kmax(input_activations, m_output_activations, m_state, m_box_depth, m_box_height, m_box_width, m_k);
+    }
+  }
+
+  void BoxActivationFunction::back_propagate_deltas(MatrixF& input_error) {
+    if (m_activation_type == ACTIVATION_TYPE::ReLU) {
+      compute_reverse_relu(input_error, m_output_error, m_state);
+    } else if (m_activation_type == ACTIVATION_TYPE::leakyReLU) {
+      compute_reverse_leaky_relu(input_error, m_output_error, m_state);
+    } else if (m_activation_type == ACTIVATION_TYPE::linear) {
+      compute_reverse_identity_activation(input_error, m_output_error, m_state);
+    } else if (m_activation_type == ACTIVATION_TYPE::kmax) {
+      reverse_3d_kmax(input_error, m_output_error, m_state);
+    }
+  }
+
+  // To use this version, need to modify class to save the input acitvations on the forward pass so they can be used here.
+  /*
+    void BoxActivationFunction::reverse_activation(MatrixF& input_deltas, const MatrixF& input) {
+    if (m_activation_type == ACTIVATION_TYPE::kmax_decay_unused) {
+    reverse_3d_kmax_decay_unused(input_deltas, input, m_output_error, m_state, m_decay_unused_penalty);
+    } else if (m_activation_type == ACTIVATION_TYPE::ReLU_decay_unused) {
+    compute_reverse_relu_decay_unused(input_deltas, input, m_output_error, m_state, m_decay_unused_penalty);
+    } else if (m_activation_type == ACTIVATION_TYPE::ReLU) {
+    compute_reverse_relu(input_deltas, m_output_error, m_state);
+    } else if (m_activation_type == ACTIVATION_TYPE::leakyReLU) {
+    compute_reverse_leaky_relu(input_deltas, m_output_error, m_state);
+    } else if (m_activation_type == ACTIVATION_TYPE::linear) {
+    compute_reverse_identity_activation(input_deltas, m_output_error, m_state);
+    } else if (m_activation_type == ACTIVATION_TYPE::kmax) {
+    reverse_3d_kmax(input_deltas, m_output_error, m_state);
+    } else {
+    cerr << "reverse_activation(): Unrecognized activation type!" << endl;
+    }
+    }
+  */
 
 }
