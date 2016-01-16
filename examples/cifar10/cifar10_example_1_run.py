@@ -5,23 +5,24 @@ CIFAR10 example.
 Train a deep convolutional network on the CIFAR10 data set.
 """
 import sys
-sys.path =  ['..'] + sys.path
+sys.path =  ['../../src_python/'] + sys.path
 import arrayUtils
-import includePaths
 import os
 import scipy
 import scipy.signal
-from pylab import *
+from pylab import * # fixme: bad style
 import numpy as np
 #import mnist_utils
 from os.path import join
 import cPickle as pickle
 
+# Uncomment for debugging:
+#from ipsh import *
+
 ###############################################################
 # Name of the C++ function to run:
 RUN_CPP_FUNCTION_NAME = 'cifar10_example_1'
-# Full path to the folder that contains the CIFAR10 training and test data.
-PATH_TO_CIFAR10_DATA = '/home/brian/data/prototyping/deep_learning_prototyping/'
+
 ###############################################################
 
 
@@ -30,7 +31,7 @@ def load_cifar():
     Load the training and test images and labels.
     
     """
-    cifar_path = '/home/brian/data/prototyping/cifar_data'
+    cifar_path = 'data'
     # Load training data batches.
     with open(join(cifar_path,'cifar-10-batches-py','data_batch_1'),'rb') as f:
         train_data_b1 = pickle.load(f)
@@ -79,9 +80,11 @@ def load_cifar():
     test_images_net_format = test_images_2d_format.reshape((10000,3,32,32))
 
 
-    # Keep only a subset of the data. 
+    # Keep only a subset of the data for quick tests or use all data:
 
     train_keep = 50000 # Keep all data
+    #train_keep = 10000
+    #train_keep = 5000 
     #train_keep = 49920 # batch size up to 256.
     #train_keep = 9984 # batch size up to 256 quick tests.   
     #train_keep = 9728 # batch size up to 512 quick tests.  
@@ -92,6 +95,7 @@ def load_cifar():
     #test_keep = 9984 # batch size up to 256 quick tests.   
     #test_keep = 9728 # batch size up to 512 quick tests.  
     #test_keep = 1024
+    #test_keep = 5000
     #test_keep = 1000
 
     train_images_net_format = train_images_net_format[0:train_keep,:,:,:]
@@ -106,6 +110,8 @@ def load_cifar():
     label_names = batch_metadata['label_names']
     #print 'label_names = ', label_names
     #  ['airplane', 'automobile', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck']
+
+    #ipsh() # <- This will embed a full-fledged IPython interpreter
 
     DEBUG_PLOTS = False
     if (DEBUG_PLOTS):
@@ -161,7 +167,8 @@ def run_cifar():
     arrayUtils.writeArray(labels_test, "array_testing_labels.dat")
     arrayUtils.writeArray(labels_train, "array_training_labels.dat")
     print "Finished making data."
-    runExe = includePaths.executablePath + ' ' + RUN_CPP_FUNCTION_NAME
+    #runExe = includePaths.executablePath + ' ' + RUN_CPP_FUNCTION_NAME
+    runExe = '../../src_cpp/main ' + RUN_CPP_FUNCTION_NAME
     print(runExe)
     os.system(runExe)
 

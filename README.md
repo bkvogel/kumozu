@@ -1,109 +1,190 @@
 # Kumozu
-Kumozu is research software for implementing deep convolutional networks and matrix factorization algorithms.
-Brian Vogel, 2015
+Kumozu is research software for deep learning and matrix factorization algorithms.
 
-##Features
 
-Includes a simple multi-dimensional matrix class, various utilitiy functions for implementing SGD, convolutional layers, and classes that make it straightforward to implement deep convolutional neural networks.
+#### Features
 
-Written in a modern C++ style from scratch. The only dependencies are Boost (optional) and OpenBLAS (only the sgemm function is used).
+* Includes a multi-dimensional matrix class, various utility functions, and layer classes such as fully-connected, convolutional, batch normalization, dropout, etc. for constructing deep convolutional networks.
 
-Uses OpenBLAS sgemm to perform matrix multiplications. The convolutional layers also use BLAS sgemm to compute the convolution using the method described in [this paper](http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.137.482&rep=rep1&type=pdf). This method can use a bit more memory than the naive method but is often much faster.
+* The user only needs to specify the sizes of the input activations for the first layer in a deep network. All other layers will automatically determine their required input sizes as the network is initialized during the first forward pass of the back-propagation procedure. This makes is easy to create and modify very deep networks without needing to manually determine the required dimensions for the input activations at each layer. For example, the removal of a max-pooling layer from the middle of a deep network will cause the activation sizes to change for all downstream layers. In this framework, such a layer can often be removed by just commenting out a single line of code since the downstream layers will automatically determine their required activation sizes at runtime.
 
-Uses OpenMP where possible.
+* Data visualization using Gnuplot. Activations, layer weights, and various statistics can be plotted and refreshed as frequently as desired during network training.
 
-Currently runs only on the CPU, but is still fast enough to experiement with relatively small datasets such as MNIST and CIFAR. 
+* Written in a modern C++ style with few dependencies. The code should compile with little modification on most platforms that support C++11. An optimized BLAS implementation is highly recommended, though.
 
-##Requirements
+* Uses OpenBLAS sgemm to perform the matrix multiplications and optimized convolutions using the method described [here](http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.137.482&rep=rep1&type=pdf). This method can use a bit more memory than the naive method but is often much faster. This makes it fast enough to experiment with datasets such as MNIST and CIFAR in a reasonable amount of time (if you have a fast CPU).
 
-This software was developed under Ubuntu 14.04 but should also run under Mac OS X if scientific python packages, gcc, OpenBLAS, and Boost are installed with Homebrew.
+* Any layer in a network (including the whole network) can use the Jacobian checker that is included in the base `Layer` class. This makes it easy to verify that a network or newly-created layer is computing its gradients correctly.
 
-Install g++-4.9 or newer.
 
-Python is used for loading datasets and for data visualization. Either install a scientific python distribution such as [Anaconda](https://store.continuum.io/cshop/anaconda/) or manually install Python 2.7.x, Scipy, Numpy, Matplotlib, etc.
 
-Install Boost (optional, only needed if running the collaborative filtering example) and OpenBLAS. It is important to build OpenBLAS from source so that it can take advantage of your specific CPU.
+#### Limitations
 
-##Instalation
+* No GPU support.
 
-Go to src_cpp folder and open **makefile** in an editor. Edit the library and include paths to point to the locations of OpenBLAS and Boost libary and include folders.
+* Limited file IO capability. Currently, only a few C++ and Python functions are provided to load/save float-type multi-dimensional arrays to disk. This makes it possible to easily move multi-dimensional array data between Python scripts and the C++ code. No support for csv/text-formated files yet.
+
+
+#### Requirements
+
+This software was developed under Ubuntu 14.04.
+
+g++-4.9 or newer is required. The default 4.8 version used by Ubuntu 14.04 will not work.
+
+Install OpenBLAS from source and add the library path to `LD_LIBRARY_PATH` environment variable. The makefile assumes the install location is `/opt/OpenBLAS/lib`. It is important to build OpenBLAS from source so that it can optimize itself to your specific CPU. Build with:
+
+```
+git clone https://github.com/xianyi/OpenBLAS.git
+cd OpenBLAS
+make USE_OPENMP=1
+sudo make install
+```
+
+Python is used for loading the datasets for some of the examples. Either install a scientific python distribution such as [Anaconda](https://store.continuum.io/cshop/anaconda/) or manually install Python 2.7.x, Scipy, Numpy, Matplotlib, etc.
+
+Install Boost (optional, only needed if running the collaborative filtering matrix factorization example).
+
+Install Gnuplot.
+
+#### Instalation
+
+`cd` to `kumozu\src_cpp` folder and open **makefile** in an editor. Edit the library and include paths to point to the locations of OpenBLAS and Boost library and include folders if different than Ubuntu 14.04 defaults.
 
 Open main.cpp and set ```<number of threads>``` in
 
 ```C++
 omp_set_num_threads(<number of threads>);
 ```
-to the desired number of threads, typically the same as the number of available hardware threads of your CPU. Build the **main** executable:
+to the desired number of threads, typically the same as the number of cores in your CPU. Build the **main** executable:
 
-```bash
-$ make
+```
+make -j8
 ```
 
-##Setup paths
+Then run the unit tests to make sure there are no errors:
 
-Open includePaths.py and set executablePath to point to location of the **main** executable.
-
-Open ```mnist_example_1_run.py``` and set ```PATH_TO_MNIST_DATA``` to point to the location of the MNIST data set.
-
-Open ```cifar10_example_1_run.py``` and set ```PATH_TO_CIFAR10_DATA``` to point to the location of the CIFAR10 data set.
-
-Open ```ExamplesRecSystem.cpp``` and set ```training_set``` and ```probe``` to the locations of the Netflix Prize training set fold and probe.txt file. Note: This data set is no longer publicly available.
-
-##Usage
-
-The code currently supports deep feedforward convolutional neural networks (convnets). By default, Rmsprop is used. Various activations functions are supported. Dropout is supported. Softmax output layers are not yet supported.
-
-There are currently two examples that illustrate the usage:
-
-Run MNIST example:
-
-```bash
-cd src_python/mnist
-python mnist_example_1_run.py
+```
+./main test
 ```
 
-The training and test error will be displayed after each epoch. The default parameter settings should result in around 0.48% error on the test set.
+Then run the matrix multiplication benchmark to make sure the OpenBLAS library gives the expected FLOPS performance.
 
-To plot some stats and debugging plots:
-
-```bash
-python mnist_example_1_make_plots.py
+```
+./main matrix_mult_benchmark
 ```
 
-Run CIFAR-10 example:
+The result should probably be in the 100s of GFLOPS for a recent CPU. On a Core i7 5960X desktop, I get 692 GFLOPS.
 
-```bash
-cd src_python/cifar10
+
+
+#### Running the examples
+
+##### Matrix examples
+
+To see some examples of how to use the Matrix class and some utility functions, type
+
+```
+cd kumozu/src_cpp
+./main matrix_examples
+```
+
+##### Plotting examples
+
+```
+cd kumozu/src_cpp
+./main example_plots
+```
+
+##### CIFAR 10 Example
+
+Download the CIFAR 10 dataset (python version) from [here](https://www.cs.toronto.edu/~kriz/cifar.html) and copy the cifar-10-batches-py.tar file into the data folder within the cifar10 example folder:
+
+```
+cp cifar-10-batches-py.tar <path to kumozu>kumozu/examples/cifar10/data
+cd  <path to kumozu>kumozu/examples/cifar10/data
+tar xvf cifar-10-batches-py.tar
+```
+
+Run the example:
+
+```
+cd kumozu/examples/cifar10
 python cifar10_example_1_run.py
 ```
 
-The training and test error will be displayed after each epoch. The default parameter settings should result in around 22% error on the test set.
+Two plots will be displayed and updated after each training epoch:
 
-To plot some stats and debugging plots:
+A random image from the test set:
+![cifar activations](cifar10_activations_plot.png)
 
-```bash
-python cifar10_example_1_make_plots.py
+and
+
+The train/test errors so far:
+![cifar errors](cifar10_errors_plot.png)
+
+The example convnet is able to reach 88.9% test accuracy on CIFAR 10 without any data augmentation. For reference, human performance is supposedly around 94%. It is based on the VGG-style network from this [Torch7 example](http://torch.ch/blog/2015/07/30/cifar.html). Note that because this is a somewhat large network (15 layers + batch normalization + dropout) and Kumozu does not use GPU, it runs a few times slower than GPU-optimized software such as Torch7. On a fast CPU, it can take around 12-24 hours to train the network.
+
+You can experiment with changing which C++ function is called from the Python script, which is controlled by the variable `RUN_CPP_FUNCTION_NAME` in `cifar10_example_1_run.py`. It is also interesting to try different model parameters and enable/disable various network layers, try different activations functions and SGD update methods etc. For example, I find it interesting that some networks can still learn even if fixed random weights are used for the back-propagation.
+
+
+##### MNIST Example
+
+Downlaod the MNIST dataset from [here](http://yann.lecun.com/exdb/mnist/), copy and unzip the files to the data folder within the mnist example folder:
+
+```
+$ cp *ubyte.gz <path to kumozu>kumozu/examples/mnist/data
+$ cd  <path to kumozu>kumozu/examples/mnist/data
+$ gunzip *.gz
 ```
 
-The matrix factoriation classes and examples are not yet available, except for the collaborative filtering example in ```ExamplesRecSystem.h/cpp```. This example requires the Netflix Prize dataset (which is not included because it is no longer publicly available). If you happen to already have this dataset, the example can be run by typing:
+Run the example:
 
-```bash
-cd src_cpp
+```
+cd kumozu/examples/mnist
+python mnist_example_1_run.py
+```
+
+Two plots will be displayed and updated after each training epoch:
+
+A random image from the test set:
+![mnist activations](mnist_activations_plot.png)
+
+as well as a plot of the train/test errors.
+
+It should reach about 0.35% test error after 100 epochs or so.
+
+
+##### Matrix factorization example 1: Simple recommendation system
+
+Open ```ExamplesRecSystem.cpp``` and set ```training_set``` and ```probe``` to the locations of the Netflix Prize training set and probe.txt file. Note that this data set is unfortunately no longer publicly available. If you happen to already have this dataset, the example can be run by typing:
+
+```
+cd kumozu/src_cpp
 ./main netflix_prize_example_1
 ```
 
-The error on the probe dataset should reach a minimum RMSE of around 0.91. 
+After a while, the error on the probe dataset should reach a minimum RMSE of around 0.91.
 
-##License
+
+
+#### Documentation
+
+See the included examples, unit tests, and .h files.
+
+#### Notes
+
+A debugging mode can be enabled so that the Matrix class will perform bounds-checking. To enable, uncomment the `makefile` line that defines `KUMOZU_DEBUG`.
+
+
+#### License
 
 FreeBSD license.
 
-##Todo
+#### Todo
 
-Clean up documentation. Perhaps this software might be useful to others in its present state, but be advised that some of the code documentation is currently outdated and inaccurate.
 
-Adaptive learning rates are currently hard coded to use RMSProp.
+Add more MF/NMF examples.
 
-Softmax output layer is not yet available (hope to have it soon).
+Add deconvolutional layers and examples.
 
-Add PFN/NMF examples and classes.
+Add GPU support at some point.

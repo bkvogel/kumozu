@@ -105,6 +105,36 @@ def readArray(fileName, type='float'):
             raise 'Error: Invalid type.'
         shape = (dim1, dim2, dim3, dim4)
         arrayData =  flatArray.reshape(shape)
+    elif (dimensions == 5):
+        dim1Packed = inFile.read(4)
+        dim1Tuple = unpack('<i', dim1Packed)
+        dim1 = dim1Tuple[0]
+
+        dim2Packed = inFile.read(4)
+        dim2Tuple = unpack('<i', dim2Packed)
+        dim2 = dim2Tuple[0]
+
+        dim3Packed = inFile.read(4)
+        dim3Tuple = unpack('<i', dim3Packed)
+        dim3 = dim3Tuple[0]
+
+        dim4Packed = inFile.read(4)
+        dim4Tuple = unpack('<i', dim4Packed)
+        dim4 = dim4Tuple[0]
+
+        dim5Packed = inFile.read(4)
+        dim5Tuple = unpack('<i', dim5Packed)
+        dim5 = dim5Tuple[0]
+
+        num = dim1*dim2*dim3*dim4*dim5
+        if type == 'float':
+            flatArray = numpyIO.fread( inFile, num, 'f')
+        elif type == 'double':
+            flatArray = numpyIO.fread( inFile, num, 'd')
+        else:
+            raise 'Error: Invalid type.'
+        shape = (dim1, dim2, dim3, dim4, dim5)
+        arrayData =  flatArray.reshape(shape)
     else:
         raise "Error. Only 1 to 4-dimensional arrays (i.e., matrices) are supported!"
 
