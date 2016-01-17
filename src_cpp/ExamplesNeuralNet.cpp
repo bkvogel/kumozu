@@ -71,7 +71,9 @@ using namespace std;
 
 namespace kumozu {
 
-
+  // This is just a smaller version of the CIFAR 10 example network that I quickly put together to
+  // try on the MNIST data set.
+  // This network reaches around 0.35% test error.
   void mnist_example_1() {
     cout << "MNIST Example 1" << endl << endl;
     /////////////////////////////////////////////////////////////////////////////////////////
@@ -443,12 +445,6 @@ namespace kumozu {
       if (end_epoch) {
         train_epochs++;
 
-        //rms_prop_rate_weights *= 0.9f;
-        //rms_prop_rate_bias *=0.9f;
-        //weight_decay *= 0.9f;
-        //weights_updater.set_mode_rmsprop_momentum(rms_prop_rate_weights, 0.9f, 0.9f);
-        //bias_updater.set_mode_rmsprop_momentum(rms_prop_rate_bias, 0.9f, 0.9f);
-        //
         learning_rate_weights *= 0.97f;
         cout << "New learning rate weights: " << learning_rate_weights << endl;
         weights_updater.set_mode_constant_learning_rate(learning_rate_weights);
@@ -478,10 +474,16 @@ namespace kumozu {
   // http://arxiv.org/pdf/1409.1556v6.pdf
   //
   // The network uses 13 convolutional layers + 2 fully-connected layers with softmax output and NLL cost function.
-  // Leaky ReLU activations are used. No weight decay is used.
+  // Leaky ReLU activations are used. Vanilla SGD + weight decay is used.
   // No data augmentation is used.
   //
-  // Using BN + dropout results in 11.1% test error after about 100-125 iterations. Takes about 18 hours on 5960x.
+  // The main differences from the Torch7 blog example:
+  // I feed RGB images into the network after scaling to [0,1] range but do not perform any preprocessing.
+  // I perform max pooling using 3x3 regions with step size 2 so there is a little overlap.
+  // I use Leaky ReLU instead of ReLU. 
+  // I do not perform any data augmentation, not even horizontal flips.
+  //
+  // Using BN + dropout results in 9.3% test error after about 150-170 iterations. Takes a little over 24 hours on 5960x.
   void cifar10_example_1() {
     cout << "CIFAR10 Example 1" << endl << endl;
     /////////////////////////////////////////////////////////////////////////////////////////
@@ -859,7 +861,7 @@ namespace kumozu {
     vector<float> test_errors;
     Gnuplot plot_errors;
     Gnuplot plot_activations;
-    while (train_epochs < 125) { // 100-150 epochs is good
+    while (train_epochs < 175) { // 150-200 epochs is good
       cerr << ".";
       bool end_epoch = trainer.next(); // Get next training mini-batch
 
@@ -991,8 +993,9 @@ namespace kumozu {
 
 
       if (end_epoch) {
+	// This gets called at the end of each epoch.
         train_epochs++;
-        
+        // Reduce the learning rate:
         learning_rate_weights *= 0.97f;
         cout << "New learning rate weights: " << learning_rate_weights << endl;
         weights_updater.set_mode_constant_learning_rate(learning_rate_weights);

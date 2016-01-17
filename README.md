@@ -122,7 +122,7 @@ and
 The train/test errors so far:
 ![cifar errors](cifar10_errors_plot.png)
 
-The example convnet is able to reach 88.9% test accuracy on CIFAR 10 without any data augmentation. For reference, human performance is supposedly around 94%. It is based on the VGG-style network from this [Torch7 example](http://torch.ch/blog/2015/07/30/cifar.html). Note that because this is a somewhat large network (15 layers + batch normalization + dropout) and Kumozu does not use GPU, it runs a few times slower than GPU-optimized software such as Torch7. On a fast CPU, it can take around 12-24 hours to train the network.
+The example convnet is able to reach 90.7% test accuracy on CIFAR 10 without any data augmentation. For reference, human performance is supposedly around 94%. It is based on the VGG-style network from this [Torch7 example](http://torch.ch/blog/2015/07/30/cifar.html) with similar results. Note that because this is a somewhat large network (15 layers + batch normalization + dropout) and Kumozu does not use GPU, it runs a few times slower than GPU-optimized software such as Torch7. On a fast CPU, it can take 24 hours or more to train the network.
 
 You can experiment with changing which C++ function is called from the Python script, which is controlled by the variable `RUN_CPP_FUNCTION_NAME` in `cifar10_example_1_run.py`. It is also interesting to try different model parameters and enable/disable various network layers, try different activations functions and SGD update methods etc. For example, I find it interesting that some networks can still learn even if fixed random weights are used for the back-propagation.
 
