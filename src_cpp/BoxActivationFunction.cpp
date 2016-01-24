@@ -45,15 +45,13 @@ namespace kumozu {
     } else if (m_activation_type == ACTIVATION_TYPE::kmax) {
       std::cout << indent << "Using kmax activation:" << std::endl;
     }
-
     m_minibatch_size = input_extents.at(0);
     m_depth = input_extents.at(1);
     m_height = input_extents.at(2);
     m_width = input_extents.at(3);
-    m_output_activations = MatrixF(m_minibatch_size, m_depth, m_height, m_width);
-    m_output_error = MatrixF(m_minibatch_size, m_depth, m_height, m_width);
-    m_state = Matrix<int>(m_minibatch_size, m_depth, m_height, m_width);
-
+    m_output_activations.resize(m_minibatch_size, m_depth, m_height, m_width);
+    m_output_error.resize(m_minibatch_size, m_depth, m_height, m_width);
+    m_state.resize(m_minibatch_size, m_depth, m_height, m_width);
   }
 
   void BoxActivationFunction::forward_propagate(const MatrixF& input_activations) {

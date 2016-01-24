@@ -42,16 +42,16 @@ namespace kumozu {
     m_image_depth = input_extents.at(1);
     m_image_height = input_extents.at(2);
     m_image_width = input_extents.at(3);
-    m_output_activations = MatrixF(m_minibatch_size, m_filter_count, m_image_height, m_image_width);
-    m_output_error = MatrixF(m_minibatch_size, m_filter_count, m_image_height, m_image_width);
+    m_output_activations.resize(m_minibatch_size, m_filter_count, m_image_height, m_image_width);
+    m_output_error.resize(m_minibatch_size, m_filter_count, m_image_height, m_image_width);
     const std::vector<int> new_W_extents = {m_filter_count, m_image_depth, m_conv_filter_height, m_conv_filter_width};
     if (new_W_extents != m_W.get_extents()) {
-      m_W = MatrixF(new_W_extents);
-      m_temp_size_W = MatrixF(new_W_extents);
-      m_W_grad = MatrixF(new_W_extents);
-      m_bias = MatrixF(m_filter_count);
-      m_temp_size_bias = MatrixF(m_filter_count);
-      m_bias_grad = MatrixF(m_filter_count);
+      m_W.resize(new_W_extents);
+      m_temp_size_W.resize(new_W_extents);
+      m_W_grad.resize(new_W_extents);
+      m_bias.resize(m_filter_count);
+      m_temp_size_bias.resize(m_filter_count);
+      m_bias_grad.resize(m_filter_count);
 
       const float std_dev_init = 1.0f/std::sqrt(static_cast<float>(m_image_depth*m_conv_filter_height*m_conv_filter_width)); // default
       randomize_uniform(m_W, -std_dev_init, std_dev_init); // default
@@ -62,9 +62,9 @@ namespace kumozu {
       m_W_fixed_random = m_W;
       std::cout << indent << "Initialized weights with std dev = " << std_dev_init << std::endl;
     }
-    m_temp_Z2 = MatrixF(m_image_height*m_image_width*m_minibatch_size, m_filter_count);
-    m_temp_A1 = MatrixF(m_image_height*m_image_width*m_minibatch_size, m_image_depth*m_conv_filter_height*m_conv_filter_width + 1);
-    m_temp_W = MatrixF(m_image_depth*m_conv_filter_height*m_conv_filter_width + 1, m_filter_count);
+    m_temp_Z2.resize(m_image_height*m_image_width*m_minibatch_size, m_filter_count);
+    m_temp_A1.resize(m_image_height*m_image_width*m_minibatch_size, m_image_depth*m_conv_filter_height*m_conv_filter_width + 1);
+    m_temp_W.resize(m_image_depth*m_conv_filter_height*m_conv_filter_width + 1, m_filter_count);
 
     std::cout << indent << "Image height = " << m_image_height << std::endl;
     std::cout << indent << "Image width = " << m_image_width << std::endl;

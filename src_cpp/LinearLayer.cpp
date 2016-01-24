@@ -39,19 +39,19 @@ namespace kumozu {
     m_input_layer_units = input_extents.at(0);
     m_output_layer_units = m_dim_output;
     m_minibatch_size = input_extents.at(1);
-    m_output_activations = MatrixF(m_dim_output, m_minibatch_size);
-    m_output_error = MatrixF(m_dim_output, m_minibatch_size);
+    m_output_activations.resize(m_dim_output, m_minibatch_size);
+    m_output_error.resize(m_dim_output, m_minibatch_size);
     const std::vector<int> new_W_extents = {m_dim_output, m_input_layer_units};
     if (new_W_extents != m_W.get_extents()) {
       // Only reiniitalize W if its size has changed. Note that simply changing the mini-batch
       // size should not cause W to change size.
-      m_W = MatrixF(new_W_extents);
-      m_temp_size_W = MatrixF(new_W_extents);
-      m_W_grad = MatrixF(new_W_extents);
+      m_W.resize(new_W_extents);
+      m_temp_size_W.resize(new_W_extents);
+      m_W_grad.resize(new_W_extents);
       // If we reinitialize W, must reinitialize bias as well.
-      m_bias = MatrixF(m_dim_output);
-      m_temp_size_bias = MatrixF(m_dim_output);
-      m_bias_grad = MatrixF(m_dim_output);
+      m_bias.resize(m_dim_output);
+      m_temp_size_bias.resize(m_dim_output);
+      m_bias_grad.resize(m_dim_output);
 
       const float std_dev_init = 1.0f/std::sqrt(m_input_layer_units); // default
       randomize_uniform(m_W, -std_dev_init, std_dev_init); // default

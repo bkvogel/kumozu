@@ -48,13 +48,13 @@ namespace kumozu {
    *
    * Currently, 1 to 6-dimensional matrices
    * are supported and it is striaghtforward to add support for higher dimensional matrices.
-   *  The matrix is initialized
+   * The matrix is initialized
    * to all zeros.
    *
    * Views are not currently supported. That is, it is not currently possible for two distinct Matrix
    * objects to share the same underlying backing array.
    *
-   * Convinience typedefs for common numerical types are included:
+   * The following convinience typedefs for common numerical types are available:
    *
    * float type:  MatrixF is same as Matrix<float>
    * double type: MatrixD is same as Matrix<double>
@@ -64,15 +64,23 @@ namespace kumozu {
    * corresponding to the desired number of dimensions, which will create a new N-dimensional matrix,
    * initialized to all 0's.
    *
+   * It is also possible to use the default constructor to get a new Matrix instance of size 0. This matrix (as
+   * well as an existing nonzero size matrix) can later be given a different size and/or number of dimensions by
+   * calling the resize() member function.
+   *
    * It is important to note that once an N-dimensional matrix is created, it is still possible to call the (incorrect) functions that
-   * are intended for an M-dimensional matrix where N != M. Although these functions may still be called,
+   * are intended for an M-dimensional matrix where N != M. Although these functions may still be called without rasing an error,
    * they are typically not what is intended and will likely lead to undesired and/or undefined behavior.
-   * For simplicity and performance, no error checking is performed to prevent this by default. However, such
+   * For simplicity and performance, no error checking is performed to prevent such incorrect usage by default. However, such
    * checks are performed when debug-mode is enabled. While debugging, it is recommended to enable
    * bounds-checking and checking that the access function
    * called matches the actual dimension. Once the code runs correctly and does not
    * throw any out-of-bounds errors, the code can then be rebuilt without bounds-checking for increased performance. To enable
    * the debugging bounds-checking and dimension-checking, define KUMOZU_DEBUG as a compiler flag.
+   *
+   * If it is actually desired to interpret a N-dim matrix as a N-dim matrix (where M != N), then the resize() function should
+   * be used to change the number of dimensions. The underlying storage will only be reallocated if the new size is different than
+   * the old size.
    */
   template <typename T>
     class Matrix{
@@ -82,7 +90,6 @@ namespace kumozu {
 
     std::vector<T> m_values;
     // Number of dimensions.
-    //const int m_order;
     int m_order;
     // m_extents[i] is the size of the i'th dimension (0-based).
     std::vector<int> m_extents; // size is m_order
@@ -127,12 +134,8 @@ namespace kumozu {
 
     /*
      * Create a new 1D matrix of order 0 (0-dimensional).
-     * This matrix does not contain any data. It is only intended to be used
-     * to allow default initialization in a class, such as when it would be inconvinient
-     * to initialize the Matrix in the constructor initialization list. For example, if
-     * it requires some computations to compute the sizes of the various dimensions, it may
-     * be more convinient to use the assignment operator to "initialize" the Matrix in
-     * the constructor body.
+     * This matrix does not contain any data. If this constructor is used, the
+     * resize() function should be called to give the matrix a nonzero size.
      */
     Matrix();
 
@@ -182,6 +185,132 @@ namespace kumozu {
     Matrix(int e0, int e1, int e2, int e3, int e4, int e5);
 
     virtual ~Matrix() {};
+
+
+    // Resizing functions. These are used to change the size and/or number of dimensions of a Matrix.
+
+    /*
+     * Resize the matrix to the supplied extents. Note that extents = dimensions.
+     *
+     * This will resize to an N-dim matrix where N = extents.size().
+     * The i'th element of extents specifies the i'th extent. Note that
+     * the i'th extent is the size of the i'th dimension.
+     *
+     * If resized to the same size or smaller, the remaining element values are not changed, but
+     * any newly added values are initialized to 0.
+     */
+    void resize(const std::vector<int>& extents) {
+      m_values.resize(extents_to_size(extents));
+      m_order = static_cast<int>(extents.size());
+      m_extents = extents;
+      m_strides.resize(m_order);
+      extents_to_strides(m_strides, m_extents);
+    }
+
+    /*
+     * Resize to a 1D matrix with dimension e0.
+     *
+     * If resized to the same size or smaller, the remaining element values are not changed, but
+     * any newly added values are initialized to 0.
+     */
+    void resize(int e0) {
+      m_values.resize(e0);
+      m_order = 1;
+      m_extents.resize(1);
+      m_strides.resize(1);
+      m_extents[0] = e0;
+      extents_to_strides(m_strides, m_extents);
+    }
+
+    /*
+     * Resize to a 1D matrix with dimension (e0 x e1).
+     *
+     * If resized to the same size or smaller, the remaining element values are not changed, but
+     * any newly added values are initialized to 0.
+     */
+    void resize(int e0, int e1) {
+      m_values.resize(e0*e1);
+      m_order = 2;
+      m_extents.resize(2);
+      m_strides.resize(2);
+      m_extents[0] = e0;
+      m_extents[1] = e1;
+      extents_to_strides(m_strides, m_extents);
+    }
+
+    /*
+     * Resize to a 1D matrix with dimension (e0 x e1 x e2).
+     *
+     * If resized to the same size or smaller, the remaining element values are not changed, but
+     * any newly added values are initialized to 0.
+     */
+    void resize(int e0, int e1, int e2) {
+      m_values.resize(e0*e1*e2);
+      m_order = 3;
+      m_extents.resize(3);
+      m_strides.resize(3);
+      m_extents[0] = e0;
+      m_extents[1] = e1;
+      m_extents[2] = e2;
+      extents_to_strides(m_strides, m_extents);
+    }
+
+    /*
+     * Resize to a 1D matrix with dimension (e0 x e1 x e2 x e3).
+     *
+     * If resized to the same size or smaller, the remaining element values are not changed, but
+     * any newly added values are initialized to 0.
+     */
+    void resize(int e0, int e1, int e2, int e3) {
+      m_values.resize(e0*e1*e2*e3);
+      m_order = 4;
+      m_extents.resize(4);
+      m_strides.resize(4);
+      m_extents[0] = e0;
+      m_extents[1] = e1;
+      m_extents[2] = e2;
+      m_extents[3] = e3;
+      extents_to_strides(m_strides, m_extents);
+    }
+
+    /*
+     * Resize to a 1D matrix with dimension (e0 x e1 x e2 x e3 x e4).
+     *
+     * If resized to the same size or smaller, the remaining element values are not changed, but
+     * any newly added values are initialized to 0.
+     */
+    void resize(int e0, int e1, int e2, int e3, int e4) {
+      m_values.resize(e0*e1*e2*e3*e4);
+      m_order = 5;
+      m_extents.resize(5);
+      m_strides.resize(5);
+      m_extents[0] = e0;
+      m_extents[1] = e1;
+      m_extents[2] = e2;
+      m_extents[3] = e3;
+      m_extents[4] = e4;
+      extents_to_strides(m_strides, m_extents);
+    }
+
+    /*
+     * Resize to a 1D matrix with dimension (e0 x e1 x e2 x e3 x e4 x e5).
+     *
+     * If resized to the same size or smaller, the remaining element values are not changed, but
+     * any newly added values are initialized to 0.
+     */
+    void resize(int e0, int e1, int e2, int e3, int e4, int e5) {
+      m_values.resize(e0*e1*e2*e3*e4*e5);
+      m_order = 6;
+      m_extents.resize(6);
+      m_strides.resize(6);
+      m_extents[0] = e0;
+      m_extents[1] = e1;
+      m_extents[2] = e2;
+      m_extents[3] = e3;
+      m_extents[4] = e4;
+      m_extents[5] = e5;
+      extents_to_strides(m_strides, m_extents);
+    }
 
     /*
      * Return a reference to the value at position "index" in the backing array

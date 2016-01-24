@@ -56,9 +56,9 @@ namespace kumozu {
     const int out_dim_1 = static_cast<int>(ceil(static_cast<float>(dim1_in)/static_cast<float>(step_1)));
     const int out_dim_2 = static_cast<int>(ceil(static_cast<float>(dim2_in)/static_cast<float>(step_2)));
 
-    m_output_activations = MatrixF(minibatch_size, out_dim_0, out_dim_1, out_dim_2);
-    m_output_error = MatrixF(minibatch_size, out_dim_0, out_dim_1, out_dim_2);
-    m_state = Matrix<int>(minibatch_size, out_dim_0, out_dim_1, out_dim_2, 3);
+    m_output_activations.resize(minibatch_size, out_dim_0, out_dim_1, out_dim_2);
+    m_output_error.resize(minibatch_size, out_dim_0, out_dim_1, out_dim_2);
+    m_state.resize(minibatch_size, out_dim_0, out_dim_1, out_dim_2, 3);
 
 
     if (input_extents.size() != 4) {

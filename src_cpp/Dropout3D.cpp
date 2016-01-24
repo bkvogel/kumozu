@@ -39,13 +39,13 @@ namespace kumozu {
     m_depth =  input_extents.at(1);
     m_height = input_extents.at(2);
     m_width = input_extents.at(3);
-    m_output_activations = MatrixF(m_minibatch_size, m_depth, m_height, m_width);
-    m_output_error = MatrixF(m_minibatch_size, m_depth, m_height, m_width);
+    m_output_activations.resize(m_minibatch_size, m_depth, m_height, m_width);
+    m_output_error.resize(m_minibatch_size, m_depth, m_height, m_width);
 
     if (m_mode == 0) {
-      m_dropout_mask = Matrix<int>(m_depth, m_height, m_width);
+      m_dropout_mask.resize(m_depth, m_height, m_width);
     } else if (m_mode == 1) {
-      m_dropout_mask = Matrix<int>(input_extents);
+      m_dropout_mask.resize(input_extents);
     }
   }
 

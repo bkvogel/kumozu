@@ -138,8 +138,8 @@ namespace kumozu {
     for (int i=1; i < static_cast<int>(input_extents.size()); ++i) {
       column_dim *= input_extents.at(i);
     }
-    m_output_activations = MatrixF(column_dim, m_minibatch_size);
-    m_output_error = MatrixF(column_dim, m_minibatch_size);
+    m_output_activations.resize(column_dim, m_minibatch_size);
+    m_output_error.resize(column_dim, m_minibatch_size);
   }
 
 

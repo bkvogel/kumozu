@@ -499,7 +499,32 @@ namespace kumozu {
 
 
 
+  void test_MatrixResize() {
+    cout << "test_MatrixResize()..." << endl;
 
+    MatrixF A; // size 0.
+
+    vector<int> extents = {2, 3};
+    A.resize(extents);
+    set_value(A, 4.8f);
+    cout << "A size = " << A.size() << endl;
+    cout << "A = " << endl << A << endl;
+
+    A.resize(12);
+    cout << "A size = " << A.size() << endl;
+    cout << "A = " << endl << A << endl;
+
+    A.resize(3, 2);
+    cout << "A size = " << A.size() << endl;
+    cout << "A = " << endl << A << endl;
+
+    A.resize(3, 2, 3);
+    set_value(A, 1.0f);
+    cout << "A size = " << A.size() << endl;
+    cout << "A = " << endl << A << endl;
+
+    cout << "PASSED" << endl;    
+  }
 
 
 
@@ -1579,7 +1604,7 @@ namespace kumozu {
     test_MatrixF4D();
     test_MatrixF5D();
     test_MatrixF6D();
-
+    test_MatrixResize();
     test_compute_kmax();
     test_compute_kmax_v2();
     test_relu();

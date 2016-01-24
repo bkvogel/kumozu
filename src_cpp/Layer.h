@@ -262,96 +262,72 @@ namespace kumozu {
               /*
                * Return a reference to the weights matrix.
                *
-               * This funtion should not be called until a forward pass has been performed.
+	       * Note: The size will be zero until the layer has been initialized.
                */
               MatrixF& get_weights() {
-                if (!m_is_initialized) {
-                  std::cerr << m_layer_name <<  ": get_weights() called before being initialized." << std::endl;
-                  exit(1);
-                }
                 return m_W;
               }
 
               /*
                * Return a reference to the weights matrix.
                *
-               * This funtion should not be called until a forward pass has been performed.
+	       * Note: The size will be zero until the layer has been initialized.
                */
               const MatrixF& get_weights() const {
-                if (!m_is_initialized) {
-                  std::cerr << m_layer_name <<  ": get_weights() called before being initialized." << std::endl;
-                  exit(1);
-                }
                 return m_W;
               }
 
               /*
                * Return a reference to the bias vector.
                *
-               * This funtion should not be called until a forward pass has been performed.
+	       * Note: The size will be zero until the layer has been initialized.
                */
               MatrixF& get_bias() {
-                if (!m_is_initialized) {
-                  std::cerr << m_layer_name <<  ": get_bias() called before being initialized." << std::endl;
-                  exit(1);
-                }
                 return m_bias;
               }
 
               /*
                * Return a reference to the bias vector.
                *
-               * This funtion should not be called until a forward pass has been performed.
+	       * Note: The size will be zero until the layer has been initialized.
                */
               const MatrixF& get_bias() const {
-                if (!m_is_initialized) {
-                  std::cerr << m_layer_name <<  ": get_bias() called before being initialized." << std::endl;
-                  exit(1);
-                }
                 return m_bias;
               }
 
               /*
                * Return a reference to the weight gradient matrix.
+	       *
+	       * Note: The size will be zero until the layer has been initialized.
                */
               MatrixF& get_weight_gradient() {
-                if (!m_is_initialized) {
-                  std::cerr << m_layer_name <<  ": get_weight_gradient() called before being initialized." << std::endl;
-                  exit(1);
-                }
                 return m_W_grad;
               }
 
               /*
                * Return a reference to the weight gradient matrix.
+	       *
+	       * Note: The size will be zero until the layer has been initialized.
                */
               const MatrixF& get_weight_gradient() const {
-                if (!m_is_initialized) {
-                  std::cerr << m_layer_name <<  ": get_weight_gradient() called before being initialized." << std::endl;
-                  exit(1);
-                }
                 return m_W_grad;
               }
 
               /*
                * Return a reference to the bias gradient vector.
+	       *
+	       * Note: The size will be zero until the layer has been initialized.
                */
               MatrixF& get_bias_gradient() {
-                if (!m_is_initialized) {
-                  std::cerr << m_layer_name <<  ": get_bias_gradient() called before being initialized." << std::endl;
-                  exit(1);
-                }
                 return m_bias_grad;
               }
 
               /*
                * Return a reference to the bias gradient vector.
+	       *
+	       * Note: The size will be zero until the layer has been initialized.
                */
               const MatrixF& get_bias_gradient() const {
-                if (!m_is_initialized) {
-                  std::cerr << m_layer_name <<  ": get_bias_gradient() called before being initialized." << std::endl;
-                  exit(1);
-                }
                 return m_bias_grad;
               }
 
@@ -379,23 +355,19 @@ namespace kumozu {
 
               /*
                * Return a reference to this layer's output activations.
+	       *
+	       * Note: The size will be zero until the layer has been initialized.
                */
               virtual const MatrixF& get_output() const {
-                if (!m_is_initialized) {
-                  std::cerr << m_layer_name <<  ": get_output() called before being initialized." << std::endl;
-                  exit(1);
-                }
                 return m_output_activations;
               }
 
               /*
                * Return a reference to this layer's output activations.
+	       *
+	       * Note: The size will be zero until the layer has been initialized.
                */
               virtual MatrixF& get_output() {
-                if (!m_is_initialized) {
-                  std::cerr << m_layer_name <<  ": get_output() called before being initialized." << std::endl;
-                  exit(1);
-                }
                 return m_output_activations;
               }
 
@@ -403,12 +375,10 @@ namespace kumozu {
                * Return a reference to this layer's output deltas. These activations represent the
                * gradient of the output activations (that is, errors for the output activations)
                * that are computed during the back-propagation step.
+	       *
+	       * Note: The size will be zero until the layer has been initialized.
                */
               virtual const MatrixF& get_output_deltas() const {
-                if (!m_is_initialized) {
-                  std::cerr << m_layer_name <<  ": get_output_deltas() called before being initialized." << std::endl;
-                  exit(1);
-                }
                 return m_output_error;
               }
 
@@ -416,18 +386,18 @@ namespace kumozu {
                * Return a reference to this layer's output deltas. These activations represent the
                * gradient of the output activations (that is, errors for the output activations)
                * that are computed during the back-propagation step.
+	       *
+	       * Note: The size will be zero until the layer has been initialized.
                */
               virtual MatrixF& get_output_deltas() {
-                if (!m_is_initialized) {
-                  std::cerr << m_layer_name <<  ": get_output_deltas() called before being initialized." << std::endl;
-                  exit(1);
-                }
                 return m_output_error;
               }
 
               /*
                * Return the extents of the output activations.
-               * This information is typically passed to the constructor of the next layer in the network.
+               * 
+	       * Do not call this function until the layer has been initialized (i.e., forward() has been
+	       * called at least once). Otherwise exit with an error.
                */
               virtual std::vector<int> get_output_extents() const {
                 if (!m_is_initialized) {

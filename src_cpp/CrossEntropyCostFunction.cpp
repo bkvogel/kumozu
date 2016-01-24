@@ -39,10 +39,10 @@ namespace kumozu {
   void CrossEntropyCostFunction::reinitialize(std::vector<int> input_extents) {
     m_minibatch_size =  input_extents.at(1);
 
-    m_temp_input_error = MatrixF(input_extents);
-    m_exp_input = MatrixF(input_extents);
-    m_mu = MatrixF(input_extents);
-    m_col_sums = MatrixF(m_minibatch_size);
+    m_temp_input_error.resize(input_extents);
+    m_exp_input.resize(input_extents);
+    m_mu.resize(input_extents);
+    m_col_sums.resize(m_minibatch_size);
   }
 
   float CrossEntropyCostFunction::forward_propagate(const MatrixF& input_activations, const Matrix<int>& target_activations) {

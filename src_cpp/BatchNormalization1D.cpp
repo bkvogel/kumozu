@@ -38,39 +38,39 @@ namespace kumozu {
     string indent = "    ";
     m_dim_input = input_extents.at(0);
     m_minibatch_size = input_extents.at(1);
-    m_output_activations = MatrixF(input_extents);
-    m_output_error = MatrixF(input_extents);
-    m_input_sized_normalize_offset = MatrixF(input_extents);
-    m_input_sized_normalize_scale = MatrixF(input_extents);
-    m_temp_size_input = MatrixF(input_extents);
-    m_W_expanded = MatrixF(input_extents);
-    m_bias_expanded = MatrixF(input_extents);
-    m_x_hat  = MatrixF(input_extents);
-    m_centered_input = MatrixF(input_extents);
-    m_temp_size_input_1d = MatrixF(m_dim_input);
+    m_output_activations.resize(input_extents);
+    m_output_error.resize(input_extents);
+    m_input_sized_normalize_offset.resize(input_extents);
+    m_input_sized_normalize_scale.resize(input_extents);
+    m_temp_size_input.resize(input_extents);
+    m_W_expanded.resize(input_extents);
+    m_bias_expanded.resize(input_extents);
+    m_x_hat.resize(input_extents);
+    m_centered_input.resize(input_extents);
+    m_temp_size_input_1d.resize(m_dim_input);
     if (m_enable_gamma_beta) {
       const std::vector<int> new_W_extents = {m_dim_input};
       if (new_W_extents != m_W.get_extents()) {
-        m_W = MatrixF(m_dim_input); // This is "gamma" in the paper.
-        m_W_grad = MatrixF(m_dim_input);
-        m_bias = MatrixF(m_dim_input); // this is "beta" in the paper.
-        m_bias_grad = MatrixF(m_dim_input);
+        m_W.resize(m_dim_input); // This is "gamma" in the paper.
+        m_W_grad.resize(m_dim_input);
+        m_bias.resize(m_dim_input); // this is "beta" in the paper.
+        m_bias_grad.resize(m_dim_input);
         const float std_dev_init = 1.0f;
         randomize_uniform(m_W, -std_dev_init, std_dev_init);
         randomize_uniform(m_bias, -std_dev_init, std_dev_init);
         cout << indent << "weights std dev = " << std_dev_init << endl;
       }
     }
-    m_mean_cur_batch = MatrixF(m_dim_input);
-    m_mean_to_use = MatrixF(m_dim_input);
-    m_mean_running_avg = MatrixF(m_dim_input);
-    m_var_cur_batch = MatrixF(m_dim_input);
-    m_var_to_use = MatrixF(m_dim_input);
-    m_var_running_avg = MatrixF(m_dim_input);
+    m_mean_cur_batch.resize(m_dim_input);
+    m_mean_to_use.resize(m_dim_input);
+    m_mean_running_avg.resize(m_dim_input);
+    m_var_cur_batch.resize(m_dim_input);
+    m_var_to_use.resize(m_dim_input);
+    m_var_running_avg.resize(m_dim_input);
     set_value(m_var_running_avg, 1.0f);
-    m_var_deltas = MatrixF(m_var_running_avg.get_extents());
-    m_mean_deltas = MatrixF(m_mean_running_avg.get_extents());
-    m_xhat_deltas = MatrixF(input_extents);
+    m_var_deltas.resize(m_var_running_avg.get_extents());
+    m_mean_deltas.resize(m_mean_running_avg.get_extents());
+    m_xhat_deltas.resize(input_extents);
   }
 
 

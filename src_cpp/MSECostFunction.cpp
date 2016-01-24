@@ -39,8 +39,8 @@ namespace kumozu {
   void MSECostFunction::reinitialize(std::vector<int> input_extents) {
     m_minibatch_size =  input_extents.at(1);
 
-    m_temp_input_error = MatrixF(input_extents);
-    m_temp_size_input = MatrixF(input_extents);
+    m_temp_input_error.resize(input_extents);
+    m_temp_size_input.resize(input_extents);
   }
 
   float MSECostFunction::forward_propagate(const MatrixF& input_activations, const MatrixF& target_activations) {

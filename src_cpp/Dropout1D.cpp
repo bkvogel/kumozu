@@ -37,13 +37,13 @@ namespace kumozu {
   void Dropout1D::reinitialize(std::vector<int> input_extents) {
     // Note: input_extents.at(1) is mini-batch size.
     // input_extents.at(0) is dim_input.
-    m_output_activations = MatrixF(input_extents);
-    m_output_error = MatrixF(input_extents);
+    m_output_activations.resize(input_extents);
+    m_output_error.resize(input_extents);
     if (m_mode == 0) {
-      m_dropout_mask = Matrix<int>(input_extents.at(0));
+      m_dropout_mask.resize(input_extents.at(0));
     } else if (m_mode == 1) {
       //cout << "Using dropout maks of size: " << input_extents.size() << endl;
-      m_dropout_mask = Matrix<int>(input_extents);
+      m_dropout_mask.resize(input_extents);
     }
   }
 

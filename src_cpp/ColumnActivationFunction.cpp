@@ -59,9 +59,9 @@ namespace kumozu {
     }
 
     const int dim_output = input_extents.at(0)/m_maxout_factor;
-    m_output_activations = MatrixF(dim_output, input_extents.at(1));
-    m_output_error = MatrixF(dim_output, input_extents.at(1));
-    m_state = Matrix<int>(dim_output, input_extents.at(1));
+    m_output_activations.resize(dim_output, input_extents.at(1));
+    m_output_error.resize(dim_output, input_extents.at(1));
+    m_state.resize(dim_output, input_extents.at(1));
 
     std::cout << "dim_input = " << input_extents.at(0) << std::endl;
     std::cout << "mini-batch size = " << input_extents.at(1) << std::endl;
