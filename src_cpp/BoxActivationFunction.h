@@ -106,14 +106,14 @@ namespace kumozu {
 
 
               /*
-               * Back-propagate errors to compute new values for input_error.
+               * Back-propagate errors to compute new values for input_backward.
                *
                * The output error (that is, "output deltas") must have already been updated before
                * calling this method. Note that a reference to the output deltas can be obtained by
-               * calling get_output_deltas(). Otherwise, the error gradients will not be back-propagated
+               * calling get_output_backward(). Otherwise, the error gradients will not be back-propagated
                * correctly.
                */
-              virtual void back_propagate_deltas(MatrixF& input_error);
+              virtual void back_propagate_deltas(MatrixF& input_backward, const MatrixF& input_forward);
 
 
 
@@ -141,7 +141,7 @@ namespace kumozu {
                *
                * The activation function of the supplied input activations is computed.
                * The results are stored in the output activations member variable, which
-               * can be obtained by calling get_output().
+               * can be obtained by calling get_output_forward().
                *
                * input_activations: The input (and output activations) which are
                *                (minibatch_size, depth, height, width).

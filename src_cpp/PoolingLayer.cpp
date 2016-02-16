@@ -56,8 +56,8 @@ namespace kumozu {
     const int out_dim_1 = static_cast<int>(ceil(static_cast<float>(dim1_in)/static_cast<float>(step_1)));
     const int out_dim_2 = static_cast<int>(ceil(static_cast<float>(dim2_in)/static_cast<float>(step_2)));
 
-    m_output_activations.resize(minibatch_size, out_dim_0, out_dim_1, out_dim_2);
-    m_output_error.resize(minibatch_size, out_dim_0, out_dim_1, out_dim_2);
+    m_output_forward.resize(minibatch_size, out_dim_0, out_dim_1, out_dim_2);
+    m_output_backward.resize(minibatch_size, out_dim_0, out_dim_1, out_dim_2);
     m_state.resize(minibatch_size, out_dim_0, out_dim_1, out_dim_2, 3);
 
 
@@ -78,7 +78,7 @@ namespace kumozu {
     std::cout << std::endl;
 
     std::cout << indent << "Pooling output extents (minibatch_size, depth_out, height_out, width_out):" << std::endl << indent;
-    for (auto i : m_output_activations.get_extents()) {
+    for (auto i : m_output_forward.get_extents()) {
       std::cout << i << " ";
     }
     std::cout << std::endl;
@@ -86,12 +86,12 @@ namespace kumozu {
   }
 
   void PoolingLayer::forward_propagate(const MatrixF& input_activations) {
-    forward_maxout_3d(input_activations, m_output_activations, m_state,
+    forward_maxout_3d(input_activations, m_output_forward, m_state,
                       m_pooling_region_extents, m_pooling_region_step_sizes);
   }
 
-  void PoolingLayer::back_propagate_deltas(MatrixF& input_error) {
-    reverse_maxout_3d(input_error, m_output_error, m_state,
+  void PoolingLayer::back_propagate_deltas(MatrixF& input_backward, const MatrixF& input_forward) {
+    reverse_maxout_3d(input_backward, m_output_backward, m_state,
                       m_pooling_region_extents, m_pooling_region_step_sizes);
   }
 
@@ -149,14 +149,14 @@ namespace kumozu {
 
   }
 
-  void PoolingLayer::reverse_maxout_3d(MatrixF& input_deltas, const MatrixF& output_deltas, Matrix<int>& state,
+  void PoolingLayer::reverse_maxout_3d(MatrixF& input_backward, const MatrixF& output_backward, Matrix<int>& state,
                                        const std::vector<int>& pooling_region_extents, const std::vector<int>& pooling_region_step_sizes) {
-    const int minibatch_size = input_deltas.extent(0);
-    const int dim_out_0 = output_deltas.extent(1);
-    const int dim_out_1 = output_deltas.extent(2);
-    const int dim_out_2 = output_deltas.extent(3);
+    const int minibatch_size = input_backward.extent(0);
+    const int dim_out_0 = output_backward.extent(1);
+    const int dim_out_1 = output_backward.extent(2);
+    const int dim_out_2 = output_backward.extent(3);
 
-    set_value(input_deltas, 0.0f);
+    set_value(input_backward, 0.0f);
 
     // Here we split into 2 parrallelizable nested loops. We can continue to split in
     // this way if more harware threads are available.
@@ -165,11 +165,11 @@ namespace kumozu {
       for (int i = 0; i < dim_out_0; i += 2) {
         for (int j = 0; j < dim_out_1; j += 1) {
           for (int k = 0; k < dim_out_2; k += 1) {
-            float val = output_deltas(b,i,j,k);
+            float val = output_backward(b,i,j,k);
             int max_ind0 = state(b,i,j,k,0);
             int max_ind1 = state(b,i,j,k,1);
             int max_ind2 = state(b,i,j,k,2);
-            input_deltas(b, max_ind0, max_ind1, max_ind2) += val;
+            input_backward(b, max_ind0, max_ind1, max_ind2) += val;
           }
         }
       }
@@ -180,11 +180,11 @@ namespace kumozu {
       for (int i = 1; i < dim_out_0; i += 2) {
         for (int j = 0; j < dim_out_1; j += 1) {
           for (int k = 0; k < dim_out_2; k += 1) {
-            float val = output_deltas(b,i,j,k);
+            float val = output_backward(b,i,j,k);
             int max_ind0 = state(b,i,j,k,0);
             int max_ind1 = state(b,i,j,k,1);
             int max_ind2 = state(b,i,j,k,2);
-            input_deltas(b, max_ind0, max_ind1, max_ind2) += val;
+            input_backward(b, max_ind0, max_ind1, max_ind2) += val;
           }
         }
       }

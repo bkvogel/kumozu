@@ -97,7 +97,7 @@ namespace kumozu {
        * This method is typically used during the back-propigation step to back-propagate
        * deltas (errors) through the reverse dropout function.
        */
-      virtual void back_propagate_deltas(MatrixF& input_error);
+      virtual void back_propagate_deltas(MatrixF& input_backward, const MatrixF& input_forward);
 
       /*
        * Set the probability of keeping any given element.
@@ -113,7 +113,7 @@ namespace kumozu {
        *
        * The dropout function of the supplied input activations is computed.
        * The results are stored in the output activations member variable, which
-       * can be obtained by calling get_output().
+       * can be obtained by calling get_output_forward().
        *
        */
       virtual void forward_propagate(const MatrixF& input_activations);

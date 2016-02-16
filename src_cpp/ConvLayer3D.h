@@ -42,7 +42,7 @@
 
 namespace kumozu {
 
-  /*
+  /**
    * A convolutional layer that operates on a mini-batch of grayscale, color images or
    * hidden activations. If the input corresponds to grayscale images, image_depth will be 1.
    * If the input corresponds to color images, image_depth will be 3. For internal layers, image_depth
@@ -120,7 +120,7 @@ namespace kumozu {
           /*
            * Compute the gradients for W and bias.
            *
-           * This updates m_W_grad and m_bias_grad.
+           * This updates m_W_grad and m_bias_grad. // fixme
            *
            * back_propagate_deltas() must have already been called before calling this function.
            *
@@ -128,19 +128,19 @@ namespace kumozu {
            * by an external objct, such as the next layer in a network, before
            * calling this function. Otherwise, the error gradients will not be back-propagated
            * correctly. Note that a reference to the output error can be obtained by
-           * calling get_output_deltas().
+           * calling get_output_backward().
            */
           virtual void back_propagate_paramater_gradients(const MatrixF& input_activations);
 
           /*
-           * Back-propagate errors to compute new values for input_error.
+           * Back-propagate errors to compute new values for input_backward.
            *
            * The output error (that is, "output deltas") must have already been updated before
            * calling this function. Note that a reference to the output deltas can be obtained by
-           * calling get_output_deltas(). Otherwise, the error gradients will not be back-propagated
+           * calling get_output_backward(). Otherwise, the error gradients will not be back-propagated
            * correctly.
            */
-          virtual void back_propagate_deltas(MatrixF& input_error);
+          virtual void back_propagate_deltas(MatrixF& input_backward, const MatrixF& input_forward);
 
   private:
 
@@ -169,7 +169,7 @@ namespace kumozu {
           /*
            * Compute the output activations as a function of input activations.
            *
-           * The output activations can then be obtained by calling get_output().
+           * The output activations can then be obtained by calling get_output_forward().
            *
            * input_activations: The input activations for 1 mini-batch of data. The
            *                    dimensions are (minibatch_size, image_depth, image_height, image_width).

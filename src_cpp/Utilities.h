@@ -35,9 +35,62 @@
 #include <vector>
 //#include <functional>
 #include "Matrix_list.h"
+#include <algorithm>
 
 namespace kumozu {
 
+  //
+  // Conventions:
+  //
+  // Input matrices to functions are specified as const references. Output matrices are specified as (non-const) references.
+  //
+  // Automatic resizing of output matrices:
+  //
+  // Most (eventually all) functions that modify a matrix will resize the matrix to the appropriate dimensions, if necessary.
+  // This feature makes these functions easier to use because the user is releived from the burden of having to
+  // determine and set the appropriate dimensions before the function call. For example, to compute the matrix product:
+  //
+  // A <- B x C
+  //
+  // The user can simply allocate an empty Matrix A such as
+  //
+  // Matrix A;
+  // mat_multiply(A, B, C); // Assume B and C are already available and filled with data.
+  //
+  // The matrix A will be empty (size 0) when passed in to the function, but will be resized to the appropriate
+  // dimensions during the function call.
+  //
+  // Other functions that take a modifiable matrix reference generally behave similarly.
+  //
+  // Since resizing a matrix can be expensive, it is good practice to write code such that resizing is only performed during
+  // the "initialization" stage. For debugging purposes, these functions can be configured to print a "resized" message to
+  // stdout whenever a matrix is resized by defining KUMOZU_DEBUG in the makefile.
+
+  /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+  //
+  // Error-related
+
+  /**
+   * Print an error message and exit.
+   *
+   * @param reason Reason for error.
+   */
+  void error_exit(std::string reason);
+
+  /**
+   * Depending on the debug mode, do nothing or print a message that something was resized.
+   *
+   * Several utility functions will resize the output matrix if necessary, making these functions
+   * more convinient to use. However, such resizing is bad for performance and should be avoided
+   * after the initialization stage.
+   *
+   * For debugging purposes, when in "debug" mode, this function will simply print a message
+   * to std out stating that a resize operation has occured. If this messages continue to
+   * be displayed after initialization, there is likely a bug. In this case, it is recommended
+   * to set a break point in this function and check the stack trace to find where the unintended
+   * resizing is occuring.
+   */
+  void resized();
 
   ////////////////////////////////////////////////////////////////////////////////////////////
   // Matrix Utilities
@@ -155,15 +208,14 @@ namespace kumozu {
   }
 
 
-  /*
+  /**
    * Return a MatrixF in "outmat" that is a slice of MatrixF "inmat" where the dimension
    * "dimension" has its index set to "index." The returned matrix will have one
    * less dimension than "inmat."
    *
    * This function performs the same operation as the "select()" function in Torch.
    *
-   * Before calling this function, the matrix "outmat" must have already been allocated
-   * and have the correct dimensions. Otherwise, and error will occur.
+   * The matrix "outmat" will be resized to the correct dimensions if necessary.
    *
    * For example, if "inmat" is a 3 x 2 matrix:
    * [1 2]
@@ -203,12 +255,9 @@ namespace kumozu {
       ++cur_dim;
     }
 
-    //for_each(begin(outmat_extents), end(outmat_extents), [] (int val) {
-    //    std::cout << val << " ";
-    //  });
-    //Matrix<T> outmat(outmat_extents);
     if (outmat_extents != outmat.get_extents()) {
-      std::cerr << "select(): Supplied output matrix has wrong dimensions." << std::endl;
+      outmat.resize(outmat_extents);
+      resized();
     }
 
     if (out_order == 1) {
@@ -292,7 +341,6 @@ namespace kumozu {
       std::cerr << "Ask Brian." << std::endl;
       exit(1);
     }
-    //return outmat;
   }
 
 
@@ -314,6 +362,7 @@ namespace kumozu {
    * And select(inmat, 1, 0) will return the length-3 array
    * [1 3 5]
    */
+  // deprecated: use the version that does not return a matrix.
   template <typename T>
     Matrix<T> select(const Matrix<T>& inmat, int dimension, int index) {
     // Can we use variodic templates to make code more compact?
@@ -345,7 +394,7 @@ namespace kumozu {
     return outmat;
   }
 
-  /*
+  /**
    * Return a MatrixF in "submat" that is the sub-matrix in "fullmat" where "dimension"
    * has its extent narrowed to "size." The elements corresponding to the "size"
    * possible index values in "dimension" of "submat" correspond to the same
@@ -353,10 +402,7 @@ namespace kumozu {
    *
    * This function performs the same operation as the "narrow()" function in Torch.
    *
-   * Before calling this function, the matrix "submat" must have already been allocated
-   * and have the correct dimensions. Otherwise, and error will occur.
-   * Note that "submat" will have the same size as "fullmat"
-   * except the "dimension" of "submat" will have size of "size."
+   * The returned matrix "submat" will be resized to the correct dimensions if necessary.
    *
    * For example, if "fullmat" is a 4 x 2 matrix:
    * [1 2]
@@ -384,16 +430,14 @@ namespace kumozu {
     if (0 == order) {
       std::cerr << "narrow(): order too small." << std::endl;
       exit(1);
-    } //else if (1 == order) {
-    //std::cerr << "narrow(): order too small." << std::endl;
-    //exit(1);
-    //}
+    }
 
     std::vector<int> submat_extents = fullmat.get_extents();
     submat_extents.at(dimension) = size;
 
     if (submat_extents != submat.get_extents()) {
-      std::cerr << "narrow(): Supplied submat matrix has wrong dimensions." << std::endl;
+      submat.resize(submat_extents);
+      resized();
     }
 
     if (order == 1) {
@@ -497,6 +541,7 @@ namespace kumozu {
    * [5]
    * [7]
    */
+  // deprecated: use version that does not return a matrix.
   template <typename T>
     Matrix<T> narrow(const Matrix<T>& fullmat, int dimension, int index, int size) {
     if (dimension >= fullmat.order()) {
@@ -825,8 +870,7 @@ namespace kumozu {
   template <typename T, typename Func>
     void map2(Matrix<T>& outmat, const Matrix<T>& inmat1, const Matrix<T>& inmat2, Func func) {
     if ((outmat.size() != inmat1.size()) || (outmat.size() != inmat2.size())) {
-      std::cerr << "map2(): wrong matrix size." << std::endl;
-      exit(1);
+      error_exit("map2(): wrong matrix size.");
     }
 #pragma omp parallel for
     for (int i = 0; i < outmat.size(); i++) {
@@ -863,7 +907,7 @@ namespace kumozu {
   }
 
 
-  /*
+  /**
    * Copy the contents of B into the specified column of A.
    *
    * The data is copied in the same order that it is stored in the backing array of B.
@@ -962,89 +1006,51 @@ namespace kumozu {
 
   ////////////////////////////////////////////////////
 
-  /*
-   * Compute B x C and place the result in A. Note: all three matricies must
-   * have already been allocated.
-   *
-   * Note: This method implements the basic easy-to-understand version. It is
-   * not optimized in any way.
-   *
-   * Parameters
-   *
-   * A The result is returned in this matrix
-   * B Input matrix which is not modified.
-   * C Input matrix which is not modified.
-   */
-  void mat_multiply_naive(MatrixF& A, const MatrixF &B, const MatrixF &C);
 
-
-
-  /*
-   * Compute B x C and place the result in A. Note: all three matricies must
-   * have already been allocated.
-   *
-   * This implementation will call an optimized BLAS if one is available.
-   *
-   * A The result is returned in this matrix
-   * B Input matrix which is not modified.
-   * C Input matrix which is not modified.
-   */
-  void mat_multiply(MatrixF& A, const MatrixF& B, const MatrixF& C);
-
-  /*
-   * Compute A = alpha*B*C + beta*A.
-   *
-   * This implementation will call an optimized BLAS if one is available.
-   *
-   */
-  void mat_multiply(MatrixF& A, const MatrixF& B, const MatrixF& C, float alpha, float beta);
-
-  /*
-   * Compute A = B*C
-   */
-  void mat_multiply_blas(MatrixF& A, const MatrixF &B, const MatrixF &C);
-
-  /*
-   * Compute A = alpha*B*C + beta*A
-   */
-  void mat_multiply_blas(MatrixF& A, const MatrixF &B, const MatrixF &C, float alpha, float beta);
-
-
-  /*
+  /**
    * Compute the element-wise product of B and C and then place the result in A.
-   * Note: these matricies must have already been allocated and must have the
-   * same number of elements. Otherwise, an error will be thrown.
    *
-   * @param A Result is returned in this matrix.
+   * Matrices B and C must have the same number of elements. If Matrix A does not also
+   * have the same number of elements, it will be resized to the same dimensions as
+   * matrix B.
+   *
+   * Note that although B and C are required to have the same number of elements, their dimensions
+   * are allowed to differ. For example if B is of size (2 x 5) and C is of size (10 x 1), both
+   * matrices have a size of 10, which is allowed.
+   *
+   * @param A Result is returned in this matrix, which will be resized to the same dimensions as
+   * matrix B if it does not already have the same number of elements.
    * @param B Input matrix which is not modified.
    * @param C Input matrix which is not modified.
    */
   template <typename T>
     void element_wise_multiply(Matrix<T>& A, const Matrix<T> &B, const Matrix<T> &C) {
+    if (A.size() != B.size()) {
+      A.resize(B.get_extents());
+      resized();
+    }
     map2(A, B, C, [] (T b, T c) {
         return b*c;
       });
   }
 
-  /*
+  /**
    * Set all values to be uniformly disstributed random values in [min, max].
    *
-   * Not thread safe.
    */
   void randomize_uniform(MatrixF& A, float min, float max);
 
-  /*
+  /**
    * Set all values to be normally disstributed random values with "mean"
    * and "std_deviation".
    *
-   * Not thread safe.
    */
   void randomize_normal(MatrixF& A, float mean, float std_deviation);
 
-  /*
+  /**
    * Compute the element-wise division B / C and then place the result in A.
-   * Note: these matricies must have already been allocated and must have the
-   * same number of elements. Otherwise, an error will be thrown.
+   *
+   * Matrices B and C must have the same number of elements.
    *
    * Specifically, compute:
    *
@@ -1052,62 +1058,92 @@ namespace kumozu {
    * A = ------------
    *      C + epsilon
    *
-   * @param A The result is returned in this matrix.
+   * @param A The result is returned in this matrix, which will be resized to the same dimensions as
+   * matrix B if it does not already have the same number of elements.
    * @param B Input matrix which is not modified.
    * @param C Input matrix which is not modified.
    * @param epsilon A small positive constant that is added to both the numerator and denominator.
    */
   template <typename T>
     void element_wise_divide(Matrix<T>& A, const Matrix<T> &B, const Matrix<T> &C, T epsilon) {
+    if (A.size() != B.size()) {
+      A.resize(B.get_extents());
+      resized();
+    }
     map2(A, B, C, [=] (T b, T c) {
         return (b + epsilon)/(c + epsilon);
       });
   }
 
-  /*
+  /**
    * Element-wise divide.
    *
    * A = B/C
+   *
+   * Matrices B and C must have the same number of elements.
+   *
+   * @param A The result is returned in this matrix, which will be resized to the same dimensions as
+   * matrix B if it does not already have the same number of elements.
+   * @param B Input matrix which is not modified.
+   * @param C Input matrix which is not modified.
    */
   template <typename T>
     void element_wise_divide(Matrix<T>& A, const Matrix<T> &B, const Matrix<T> &C) {
+    if (A.size() != B.size()) {
+      A.resize(B.get_extents());
+      resized();
+    }
     map2(A, B, C, [=] (T b, T c) {
         return b/c;
       });
   }
 
-  /*
+  /**
    * Compute the element-wise difference (B-C) and then place the result in A.
-   * Note: these matricies must have already been allocated and must have the
-   * same number of elements. Otherwise, an error will be thrown.
-   * @param A The result is returned in this matrix.
+   *
+   * Matrices B and C must have the same number of elements.
+   *
+   * @param A The result is returned in this matrix, which will be resized to the same dimensions as
+   * matrix B if it does not already have the same number of elements.
    * @param B Input matrix which is not modified.
    * @param C Input matrix which is not modified.
    */
   template <typename T>
     void element_wise_difference(Matrix<T>& A, const Matrix<T> &B, const Matrix<T> &C) {
+    if (A.size() != B.size()) {
+      A.resize(B.get_extents());
+      resized();
+    }
     map2(A, B, C, [] (T b, T c) {
         return b - c;
       });
   }
 
-  /*
+  /**
    * Compute the element-wise square B.^2 and then place the result in A.
-   * Note: A and B must have already been initialized and must contain the
-   * same number of elements. Otherwise, an error will be thrown.
+   *
+   * Matrices A and B must have the same number of elements.
    * It is allowed for A
    * and B to refer to the same object.
-   * @param A Output matrix
+   *
+   * @param A Output matrix, which will be resized to the same dimensions as
+   * matrix B if it does not already have the same number of elements.
    * @param B Input matrix which is not modified.
    */
   template <typename T>
     void element_wise_square(Matrix<T>& A, const Matrix<T>& B) {
+    if (A.size() != B.size()) {
+      A.resize(B.get_extents());
+      resized();
+    }
     map1(A, B, [] (T b) {
         return b*b;
       });
   }
-  /*
+
+  /**
    * Compute the sum of all elements in <i>A</i> and return it.
+   *
    * @param A The input matrix.
    * @return The sum of all elements in A
    */
@@ -1120,25 +1156,27 @@ namespace kumozu {
     return sum;
   }
 
-  /*
+  /**
    * Compute the transpose of B and put the result in A.
-   * Both A and B must have already been initialized to consitent dimensions.
-   * Both A and B must be 2-dimensional matrices. Otherwise, and error will be thrown.
    *
-   * @param A The result matrix.
+   * B must be 2-dimensional matrices. Otherwise, and error will be thrown.
+   *
+   * @param A The result matrix, which will be resized to the appropriate dimensions
+   * if necessary.
    * @param B Input matrix which is not modified.
    */
   template <typename T>
     void transpose(Matrix<T>& A, const Matrix<T> &B) {
-    int rowsB = B.extent(0);
-    int colsB = B.extent(1);
-    int rowsA = A.extent(0);
-    int colsA = A.extent(1);
+    const int rowsB = B.extent(0);
+    const int colsB = B.extent(1);
+    const int rowsA = A.extent(0);
+    const int colsA = A.extent(1);
     if ((rowsA != colsB) || (colsA != rowsB)) {
-      std::cerr << "Inconsistent matrix dimensions in transpose()! Exiting.";
-      exit(1);
+      A.resize(colsB, rowsB);
+      resized();
     }
     // For each row of B
+#pragma omp parallel for collapse(2)
     for (int i = 0; i < rowsB; i++) {
       // For each column of C
       for (int j = 0; j < colsB; j++) {
@@ -1147,7 +1185,7 @@ namespace kumozu {
     }
   }
 
-  /*
+  /**
    * Set all elements of the matrix <i>A</i> to have value <i>value</i> and
    * return the result in <i>A</i>.
    * @param A
@@ -1161,11 +1199,8 @@ namespace kumozu {
     }
   }
 
-  /*
+  /**
    * Take the element-wise square root of <i>A</i> and return the result in A.
-   * A must have already been initialized.
-   *
-   * @param A
    *
    */
   template <typename T>
@@ -1175,7 +1210,7 @@ namespace kumozu {
       });
   }
 
-  /*
+  /**
    * Add the scalar value b to each element of matrix A.
    *
    */
@@ -1186,60 +1221,69 @@ namespace kumozu {
       });
   }
 
-  /*
+  /**
    * Multiply each element of B by scale_factor and put the result in A.
-   * A and B are allowed to refer to the same matrix. A and B must have the
-   * same number of elements. Otherwise, an error will be thrown.
+   * A and B are allowed to refer to the same matrix.
    *
    * A <- scale_factor*B
    *
-   * @param A
-   * @param B Input matrix which is not modified unless it is that same matrix as A..
+   * @param A Result is returned in this matrix, which will be resized to the same dimensions as
+   * matrix B if necessary.
+   * @param B Input matrix which is not modified.
    *
    */
   template <typename T>
     void scale(Matrix<T>& A, const Matrix<T> &B, T scale_factor) {
+    if (A.size() != B.size()) {
+      A.resize(B.get_extents());
+      resized();
+    }
     map1(A, B, [=] (T b) {
         return b*scale_factor;
       });
   }
 
 
-  /*
+  /**
    * Compute the element-wise sum (B+C) and then place the result in A.
    *
    * A <- B + C
    *
-   * Note: these matricies must have already been allocated and must have the
-   * same dimensions. Otherwise, a runtime exception will occur.
-   * @param A The result is returned in this matrix.
+   * Matrices B and C must have the same number of elements. Otherwise, a runtime exception will occur.
+   * @param A The result is returned in this matrix, which will be resized to the same dimensions as
+   * matrix B if it does not already have the same number of elements.
    * @param B Input matrix which is not modified.
    * @param C Input matrix which is not modified.
    */
   template <typename T>
     void element_wise_sum(Matrix<T>& A, const Matrix<T> &B, const Matrix<T> &C) {
+    if (B.size() != C.size()) {
+      error_exit("element_wise_sum(): Error: B and C do not have the same size.");
+    }
+    if (A.size() != B.size()) {
+      A.resize(B.get_extents());
+      resized();
+    }
     map2(A, B, C, [] (T b, T c) {
         return b + c;
       });
   }
 
 
-  /*
+  /**
    * Copy the contents of matrix B into matrix A.
    *
    * This performs the same operation as the copy assignment operator (=).
    *
-   * @param A The result is returned in this matrix. This matrix must have
-   * already been allocated and must have the same number of elements as B, although
-   * the dimensions may be different.
+   * @param A The result is returned in this matrixx, which will be resized to the same dimensions as
+   * matrix B if it does not already have the same number of elements.
    * @param B Input matrix which is not modified.
    */
   template <typename T>
     void copy_matrix(Matrix<T>& A, const Matrix<T>& B) {
-    // Allow the copy as long as A and B have same element count.
     if (A.size() != B.size()) {
-      std::cerr << "copy_matrix(): Supplied matrices have different numbers of elements." << std::endl;
-      exit(1);
+      A.resize(B.get_extents());
+      resized();
     }
     // Copy contents of B into A.
 #pragma omp parallel for
@@ -1291,13 +1335,73 @@ namespace kumozu {
    */
   bool check_dimensions_a_eq_b_times_c_tran(const MatrixF& A, const MatrixF& B, const MatrixF& C);
 
+  /**
+   * Compute B x C and place the result in A.
+   *
+   * Note: This method implements the basic easy-to-understand version. It is
+   * not optimized in any way.
+   *
+   * Parameters
+   *
+   * @param A The result is returned in this matrix, which will be resized to the appropriate dimensions
+   * if necessary.
+   * @param B Input matrix which is not modified.
+   * @param C Input matrix which is not modified.
+   */
+  void mat_multiply_naive(MatrixF& A, const MatrixF &B, const MatrixF &C);
 
-  /*
-   * Compute B^T x C and place the result in A. Note: all three matricies must
-   * have already been allocated.
+
+
+  /**
+   * Compute B x C and place the result in A.
+   *
+   * This implementation will call an optimized BLAS if one is available.
+   *
+   * @param A The result is returned in this matrix, which will be resized to the appropriate dimensions
+   * if necessary.
+   * @param B Input matrix which is not modified.
+   * @param C Input matrix which is not modified.
+   */
+  void mat_multiply(MatrixF& A, const MatrixF& B, const MatrixF& C);
+
+  /**
+   * Compute A = alpha*B*C + beta*A.
+   *
+   * This implementation will call an optimized BLAS if one is available.
+   *
+   * @param A The result is returned in this matrix, which will be resized to the appropriate dimensions
+   * if necessary.
+   * @param B Input matrix which is not modified.
+   * @param C Input matrix which is not modified.
+   */
+  void mat_multiply(MatrixF& A, const MatrixF& B, const MatrixF& C, float alpha, float beta);
+
+  /**
+   * Compute A = B*C using an optimized BLAS.
+   *
+   * @param A The result is returned in this matrix, which will be resized to the appropriate dimensions
+   * if necessary.
+   * @param B Input matrix which is not modified.
+   * @param C Input matrix which is not modified.
+   */
+  void mat_multiply_blas(MatrixF& A, const MatrixF &B, const MatrixF &C);
+
+  /**
+   * Compute A = alpha*B*C + beta*A using an optimzied BLAS.
+   *
+   * @param A The result is returned in this matrix, which will be resized to the appropriate dimensions
+   * if necessary.
+   * @param B Input matrix which is not modified.
+   * @param C Input matrix which is not modified.
+   */
+  void mat_multiply_blas(MatrixF& A, const MatrixF &B, const MatrixF &C, float alpha, float beta);
+
+  /**
+   * Compute A <- B^T x C.
    *
    *
-   * @param A The result is returned in this matrix
+   * @param A The result is returned in this matrix, which will be resized to the appropriate dimensions
+   * if necessary.
    * @param B Input matrix which is not modified. Note that the transpose of this matrix is used in the
    * multiplication.
    * @param C Input matrix which is not modified.
@@ -1307,11 +1411,26 @@ namespace kumozu {
   // Slow version for verifying correctness.
   void mat_multiply_left_transpose_naive(MatrixF& A, const MatrixF& B, const MatrixF& C);
 
-  /*
-   * Compute B x C^T and place the result in A. Note: all three matricies must
-   * have already been allocated.
+  /**
+   * Compute A <- A + B^T x C
    *
-   * @param A The result is returned in this matrix
+   *
+   * @param A The result is returned in this matrix, which will be resized to the appropriate dimensions
+   * if necessary.
+   * @param B Input matrix which is not modified. Note that the transpose of this matrix is used in the
+   * multiplication.
+   * @param C Input matrix which is not modified.
+   */
+  void mat_multiply_left_transpose_accumulate(MatrixF& A, const MatrixF& B, const MatrixF& C);
+
+  // Slow version for verifying correctness.
+  void mat_multiply_left_transpose_naive_accumulate(MatrixF& A, const MatrixF& B, const MatrixF& C);
+
+  /**
+   * Compute A <- A + B x C^T.
+   *
+   * @param A The result is returned in this matrix, which will be resized to the appropriate dimensions
+   * if necessary.
    * @param B Input matrix which is not modified.
    * @param C Input matrix which is not modified. Note that the transpose of this matrix is used in the
    * multiplication.
@@ -1320,6 +1439,92 @@ namespace kumozu {
 
   // Slow version for verifying correctness.
   void mat_multiply_right_transpose_naive(MatrixF& A, const MatrixF& B, const MatrixF& C);
+
+  /**
+   * Compute A <- A + B x C^T.
+   *
+   *
+   * @param A The result is returned in this matrix, which will be resized to the appropriate dimensions
+   * if necessary.
+   * @param B Input matrix which is not modified.
+   * @param C Input matrix which is not modified. Note that the transpose of this matrix is used in the
+   * multiplication.
+   */
+  void mat_multiply_right_transpose_accumulate(MatrixF& A, const MatrixF& B, const MatrixF& C);
+
+  // Slow version for verifying correctness.
+  void mat_multiply_right_transpose_accumulate_naive(MatrixF& A, const MatrixF& B, const MatrixF& C);
+
+
+  /**
+   * Copy the elements from a list of Matrix into a single flat Matrix.
+   *
+   * Since it can be inconvinient to determine to determine the total number of elements in the matrix
+   * list before calling this function, it is not necessary to supply a "flat_mat" of the correct size.
+   * The supplied "flat_mat" will be resized to match the total number of elements.
+   *
+   * @param mat_list The list of matrices that will be copied from.
+   * @param flat_mat The matrix that will be copied into. This matrix will be resized to the same total
+   * number of elements in the matrix list if necessary.
+   */
+  template <typename T>
+    void copy_list_to_flat_matrix(const std::vector<Matrix<T>>& mat_list, Matrix<T>& flat_mat) {
+    // Do an initial pass through all matrices to determine the total number of elements.
+    int total_size = 0;
+    for (size_t i = 0; i < mat_list.size(); i++) {
+      const Matrix<T>& temp = mat_list[i];
+      total_size += temp.size();
+    }
+    // If the element count is different the size of the current flat_mat, then reinitialize.
+    if (total_size != flat_mat.size()) {
+      // Create 1-dim matrix of size total_size.
+      std::cout << "Resizing flat_mat to size = " << total_size << std::endl;
+      flat_mat.resize(total_size);
+    }
+    int cur_pos = 0;
+    for (size_t i = 0; i < mat_list.size(); i++) {
+      const Matrix<T>& temp = mat_list[i];
+      for (int backing_index = 0; backing_index < temp.size(); ++backing_index) {
+        flat_mat[cur_pos + backing_index] = temp[backing_index];
+      }
+      cur_pos += temp.size();
+    }
+  }
+
+  /**
+   * Copy the elements from a flat Matrix into a list of matrices.
+   *
+   * The size of "flat_mat" must be equal to the total number of elements in the matrix list. Otherwise,
+   * this function will exit with an error.
+   *
+   * @param mat_list The list of matrices that will be copied to.
+   * @param flat_mat The matrix that will be copied from.
+   */
+  template <typename T>
+    void copy_flat_matrix_to_list(std::vector<Matrix<T>>& mat_list, const Matrix<T>& flat_mat) {
+    // Do an initial pass through all matrices to determine the total number of elements.
+    int total_size = 0;
+    for (size_t i = 0; i < mat_list.size(); i++) {
+      Matrix<T>& temp = mat_list[i];
+      total_size += temp.size();
+    }
+    // If the element count is different the size of the current flat_mat, then exit with error.
+    if (total_size != flat_mat.size()) {
+      error_exit("copy_flat_matrix_to_list(): Supplied matrix list has different element count than supplied flat matrix.");
+    }
+    int cur_pos = 0;
+    for (size_t i = 0; i < mat_list.size(); i++) {
+      MatrixF& temp = mat_list[i];
+      for (int backing_index = 0; backing_index < temp.size(); ++backing_index) {
+        temp[backing_index] = flat_mat[cur_pos + backing_index];
+      }
+      cur_pos += temp.size();
+    }
+  }
+
+
+  ////////////////////////////////////////////////////////////////////////////////////////////
+  // Network/layer utilities
 
   /*
    * Return the number of errors in the supplied network_output matrix, given the target labels
@@ -1352,20 +1557,20 @@ namespace kumozu {
   void compute_forward_maxout(const MatrixF& input, MatrixF& output, Matrix<int>& state);
 
   /*
-   * For each element in "output_deltas", update the corresponding
-   * value in "input_deltas."
+   * For each element in "output_backward", update the corresponding
+   * value in "input_backward."
    *
-   * In this version, all elements of "input_deltas" are updated. The elements of "input_deltas" that were chosen as a "max value" are
-   * updated with the corresponding max value. All other elements of "input_deltas" are set to 0.
+   * In this version, all elements of "input_backward" are updated. The elements of "input_backward" that were chosen as a "max value" are
+   * updated with the corresponding max value. All other elements of "input_backward" are set to 0.
    */
-  void compute_reverse_maxout(MatrixF& input_deltas, const MatrixF& output_deltas, const Matrix<int>& state);
+  void compute_reverse_maxout(MatrixF& input_backward, const MatrixF& output_backward, const Matrix<int>& state, bool accumulate=true);
 
   /*
    * Parameters:
    *
    * decay_val: The penalty for unused weights. Must be in the range [0, 1] where 0 imposes no penalty and 1 imposes the maximum penalty.
    */
-  void compute_reverse_maxout_decay_unused(MatrixF& input_deltas, const MatrixF& input, const MatrixF& output_deltas,
+  void compute_reverse_maxout_decay_unused(MatrixF& input_backward, const MatrixF& input, const MatrixF& output_backward,
                                            const Matrix<int>& state, float decay_val);
 
 
@@ -1428,7 +1633,7 @@ namespace kumozu {
 
   /*
    * Same as kmax_v2 except that the input activations ("inputs") that were computed during the forward pass also need to
-   * be provided. The supplied "input_deltas" that represent the error gradients with respect to the input activations are
+   * be provided. The supplied "input_backward" that represent the error gradients with respect to the input activations are
    * updated.
    *
    * This is basically, kmax with weight decay (actually, activation decay) for the activations that did not make it into the
@@ -1448,7 +1653,7 @@ namespace kumozu {
    *
    * decay_val: The penalty for unused weights. Must be in the range [0, 1] where 0 imposes no penalty and 1 imposes the maximum penalty.
    */
-  void compute_reverse_kmax_decay_unused(MatrixF& input_deltas, const MatrixF& inputs, const MatrixF& output_deltas, const Matrix<int>& state,
+  void compute_reverse_kmax_decay_unused(MatrixF& input_backward, const MatrixF& inputs, const MatrixF& output_backward, const Matrix<int>& state,
                                          int partition_count, int k, float decay_val);
 
   /*
@@ -1483,13 +1688,13 @@ namespace kumozu {
    * Update the values in kmax_in given the values in kmax_out and the state information in kmax_state.
    *
    */
-  void reverse_3d_kmax(MatrixF& input_deltas, const MatrixF& output_deltas, const Matrix<int>& state);
+  void reverse_3d_kmax(MatrixF& input_backward, const MatrixF& output_backward, const Matrix<int>& state);
 
-  void reverse_3d_kmax_decay_unused(MatrixF& input_deltas, const MatrixF& input, const MatrixF& output_deltas,
+  void reverse_3d_kmax_decay_unused(MatrixF& input_backward, const MatrixF& input, const MatrixF& output_backward,
                                     const Matrix<int>& state, float decay_val);
 
 
-  /*
+  /**
    * Compute the forward-direction ReLU (Rectified Linear Unit) activation function on the input matrix "input".
    *
    * The output values are placed into the matrix "output" and the corresponding state information
@@ -1504,11 +1709,11 @@ namespace kumozu {
    *
    * Parameters:
    *
-   * inpu: An N-dimensional matrix.
+   * @param input An N-dimensional matrix.
    *
-   * output: An N-dimensional matrix of the same size as in_vals.
+   * @param output An N-dimensional matrix of the same size as in_vals.
    *
-   * state: An N-dimensional matrix of the same size as in_vals. This is used for storing
+   * @param state An N-dimensional matrix of the same size as in_vals. This is used for storing
    *              state information that will be needed later by the reverse-direction relu function.
    *              This does not need to be initialized to
    *              any particular values since calling this function will overwrite its contents anyway.
@@ -1520,6 +1725,56 @@ namespace kumozu {
    * parameter (see code for value).
    */
   void compute_forward_leaky_relu(const MatrixF& input, MatrixF& output, Matrix<int>& state);
+
+  /**
+   * Compute the forward-direction tanh activation function
+   *
+   * output <- tanh(input)
+   *
+   * @param input The input N-dimensional matrix.
+   * @param output The output N-dimensional matrix. This matrix will be resized to the same size as
+   *  "input" if necessary.
+   */
+  void compute_forward_tanh(const MatrixF& input, MatrixF& output);
+
+  /**
+   * Compute the reverse-direction tanh activation function
+   *
+   * This function computes the derivates as a function of the output activations computed during the
+   * forward pass. Note that "output_forward" consists of the tanh values from the forward pass, not
+   * the error gradients of the outputs.
+   *
+   * @param input_backward The input N-dimensional matrix. This matrix will be resized to the same size as
+   *  "output" if necessary.
+   * @param output_forward The tanh function values that were computed during the forward pass.
+   * @param output_backward The error gradients corresponding to output_forward.
+   */
+  void compute_reverse_tanh(MatrixF& input_backward, const MatrixF& output_forward, const MatrixF& output_backward, bool accumulate=true);
+
+  /**
+   * Compute the forward-direction sigmoid activation function
+   *
+   * output <- sigmoid(input)
+   *
+   * @param input The input N-dimensional matrix.
+   * @param output The output N-dimensional matrix. This matrix will be resized to the same size as
+   *  "input" if necessary.
+   */
+  void compute_forward_sigmoid(const MatrixF& input, MatrixF& output);
+
+  /**
+   * Compute the reverse-direction sigmoid activation function
+   *
+   * This function computes the derivates as a function of the output activations computed during the
+   * forward pass. Note that "output_forward" consists of the sigmoid values from the forward pass, not
+   * the error gradients of the outputs.
+   *
+   * @param input_backward The input N-dimensional matrix. This matrix will be resized to the same size as
+   *  "output" if necessary.
+   * @param output_forward The sigmoid function values that were computed during the forward pass.
+   * @param output_backward The error gradients corresponding to output_forward.
+   */
+  void compute_reverse_sigmoid(MatrixF& input_backward, const MatrixF& output_forward, const MatrixF& output_backward, bool accumulate=true);
 
   /*
    * The identify function activation, forward direction.
@@ -1533,46 +1788,61 @@ namespace kumozu {
    *
    * Used for gradient checking and debugging.
    */
-  void compute_reverse_identity_activation(MatrixF& in_vals, const MatrixF& out_vals, const Matrix<int>& out_indices);
+  void compute_reverse_identity_activation(MatrixF& in_vals, const MatrixF& out_vals, const Matrix<int>& out_indices, bool accumulate=true);
 
   /*
-   * Same as compute_forward_relu() except compute the reverse-direction ReLu to update "input_deltas"
-   * from "output_deltas" and "state".
+   * Same as compute_forward_relu() except compute the reverse-direction ReLu to update "input_backward"
+   * from "output_backward" and "state".
    */
-  void compute_reverse_relu(MatrixF& input_deltas, const MatrixF& output_deltas, const Matrix<int>& state);
+  void compute_reverse_relu(MatrixF& input_backward, const MatrixF& output_backward, const Matrix<int>& state, bool accumulate=true);
 
   /*
-   * Same as compute_forward_relu() except compute the reverse-direction ReLu to update "input_deltas"
-   * from "output_deltas" and "state".
+   * Same as compute_forward_relu() except compute the reverse-direction ReLu to update "input_backward"
+   * from "output_backward" and "state".
    *
    * Parameters:
    *
    * decay_val: The penalty for unused weights. Must be in the range [0, 1] where 0 imposes no penalty and 1 imposes the maximum penalty.
    */
-  void compute_reverse_relu_decay_unused(MatrixF& input_deltas, const MatrixF& input, const MatrixF& output_deltas,
+  void compute_reverse_relu_decay_unused(MatrixF& input_backward, const MatrixF& input, const MatrixF& output_backward,
                                          const Matrix<int>& state, float decay_val);
 
-  void compute_reverse_leaky_relu(MatrixF& in_vals, const MatrixF& out_vals, const Matrix<int>& out_indices);
+  void compute_reverse_leaky_relu(MatrixF& in_vals, const MatrixF& out_vals, const Matrix<int>& out_indices, bool accumulate=true);
 
   ///////////////////////////////////////////////////////////////////////////////////////////////////////
   // Various SGD-related functions:
 
 
-  /*
+  /**
    * Given matrices X_error, W, H which are related according to
    *
    * X_pred = W * H + bias
+   *
+   * or without bias (it makes no difference to gradients of W):
+   *
+   * X_pred = W * H
    *
    * and
    *
    * X_error is the corresponding error matrix (deltas) from backpropagation
    * or some other method, compute the gradient matrix for W, W_grad.
    *
-   * This computes grad_W = X_error*H^T / mini_batch_size
+   * If "accumulate" is true (which is the default), compute:
+   *
+   * grad_W += X_error*H^T / mini_batch_size
+   *
+   * Otherwise, if "accumulate" is false, compute:
+   *
+   * grad_W = X_error*H^T / mini_batch_size
    *
    * This function does not compute the mean gradient. To get the mean gradient, you should do element-wise divide by the mini-batch size.
+   *
+   * @param X_error
+   * @param W_grad The output gradients matrix.
+   * @param H
+   * @param accumulate Accumulate gradients if set to true. Otherwise, do not accumulate. Default is true.
    */
-  void compute_weight_grad_sgd_minibatch(const MatrixF& X_error, MatrixF& W_grad, const MatrixF& H);
+  void compute_weight_grad_sgd_minibatch(const MatrixF& X_error, MatrixF& W_grad, const MatrixF& H, bool accumulate=true);
 
   /*
    * Update the weights matrix W using the gradient W_grad and the learning rate alpha.
@@ -1638,13 +1908,42 @@ namespace kumozu {
 
 
 
-  // We compute H_error = W^T * X_error
-  void do_backprop_update_sgd_minibatch(const MatrixF& X_error, const MatrixF& W, MatrixF& H_error);
-
-  /*
-   * Compute the gradient of the bias vector and return it in b_grad.
+  /**
+   * Compute the input layer gradients for a mini-batch of data in a linear layer.
+   *
+   * The linear model is
+   *
+   * X = W*H + bias
+   *
+   * where X is one mini-batch of output activations, W is the weights matrix, and H is one mini-batch of input activations.
+   * The bias term is optional.
+   *
+   * Given the gradients with respect to the output, X_error, this function computes the gradients with respect to
+   * the inputs, H_error as
+   *
+   * H_error <- W^T * X_error
+   *
+   * if "accumulate" is set to false.
+   *
+   * If "accumulate" is set to true (the default value), then the errors are computed as
+   *
+   *  H_error <- H_error + W^T * X_error
+   *
+   * @param X_error A (N x minibatch_size) matrix containing the output errors (deltas) where N is the size of the output layer.
+   * @param W A (N x M) weights matrix.
+   * @param H_error A (M x minibatch_size) matrix containing the input errors, which are computed by this function. The
+   * supplied matrix will be resized to the correct dimensions if necessary.
    */
-  void compute_bias_grad_sgd_minibatch(const MatrixF& X_error, MatrixF& b_grad);
+  void do_backprop_update_sgd_minibatch(const MatrixF& X_error, const MatrixF& W, MatrixF& H_error, bool accumulate=true);
+
+  /**
+   * Compute the gradients for the bias vector (a 1-dim Matrix) and return it in b_grad.
+   *
+   * @param X_error The 2-dimensional errors matrix of size M x minibatch_size.
+   * @param b_grad The 1-dimensional output gradients matrix of size M.
+   * @param accumulate Accumulate gradients if set to true. Otherwise, do not accumulate. Default is true.
+   */
+  void compute_bias_grad_sgd_minibatch(const MatrixF& X_error, MatrixF& b_grad, bool accumulate=true);
 
   /*
    * Use the current W and H to compute the product W*H and update X.
@@ -1697,14 +1996,14 @@ namespace kumozu {
   /*
    * If abs(a -b) > tolerance, exit with an error.
    */
-  void assert_almost_equal(float a, float b, float tolerance);
+  void assert_almost_equal(float a, float b, float tolerance=1.0e-3f);
 
   /*
    * For each element of the two suplied matrices, which must be of the same size,
    * test if the magnitude of the difference exceeds the tolerance. If so,
    * exit with an error.
    */
-  void assert_almost_equal(const MatrixF& A, const MatrixF& B, float tolerance);
+  void assert_almost_equal(const MatrixF& A, const MatrixF& B, float tolerance=1.0e-3f);
 
 
   /*
@@ -1875,24 +2174,26 @@ namespace kumozu {
    */
   void compute_weight_grad_convolutive_minibatch(MatrixF& grad_W, const MatrixF& deltas_Z2, const MatrixF& A1);
 
-  /*
+  /**
    * This function performs the "update weight gradients" back-propagation step corresponding
    * to the forward propagation performed by convolve_3d_filter_with_bias_minibatch().
    *
    * Parameters:
    *
-   * grad_W: Input matrix of same size as W: R x D x P x Q matrix containing R filter gradient matrices of size D x P x Q.
+   * @param grad_W: Input matrix of same size as W: R x D x P x Q matrix containing R filter gradient matrices of size D x P x Q.
    *
-   * deltas_Z2: Input matrix of same size as Z2: minibatch_size x R x M x N.
+   * @param deltas_Z2: Input matrix of same size as Z2: minibatch_size x R x M x N.
    *
-   * A1: Input matrix of size minibatch_size x D x M x N.
+   * @param A1: Input matrix of size minibatch_size x D x M x N.
+   *
+   * @param accumulate Accumulate gradients if set to true. Otherwise, do not accumulate. Default is true.
    *
    * Note: This function computes the actual gradient of W. However, for SGD updates, the average (mean) gradient
-   * is probably desired. The mean gradient can be obtained by scaling the returned
+   * might be desired. The mean gradient can be obtained by scaling the returned
    * gradient by 1/(deltas_Z2.dim0*deltas_Z2.dim1*minibatch_size).
    *
    */
-  void compute_3d_weight_grad_convolutive_minibatch(MatrixF& grad_W, const MatrixF& deltas_Z2, const MatrixF& A1);
+  void compute_3d_weight_grad_convolutive_minibatch(MatrixF& grad_W, const MatrixF& deltas_Z2, const MatrixF& A1, bool accumulate=true);
 
 
   /*
@@ -1917,7 +2218,7 @@ namespace kumozu {
                                                            MatrixF& temp_deltas_Z2, MatrixF& temp_A1,
                                                            MatrixF& temp_grad_W);
 
-  /*
+  /**
    * Same as compute_3d_weight_grad_convolutive_minibatch() except this version is optimized for speed at the
    * expense of increased memory usage.
    *
@@ -1933,14 +2234,15 @@ namespace kumozu {
    *
    * temp_W: of size (D*P*Q + 1) x R
    *
+   * @param accumulate Accumulate gradients if set to true. Otherwise, do not accumulate. Default is true.
    * If any of the supplied matrices have inconsitent sizes, exit with an error.
    */
   void compute_3d_weight_grad_convolutive_minibatch_optimized(MatrixF& grad_W, const MatrixF& deltas_Z2, const MatrixF& A1,
                                                               MatrixF& temp_deltas_Z2, MatrixF& temp_A1,
-                                                              MatrixF& temp_grad_W);
+                                                              MatrixF& temp_grad_W, bool accumulate=true);
 
 
-  /*
+  /**
    * Same as compute_weight_grad_convolutive() except operates on a mini-batch of data.
    *
    * This function performs the "update bias gradients" back-propagation step corresponding
@@ -1954,8 +2256,10 @@ namespace kumozu {
    *
    * Before performing gradient updates, you should scale "grad_bias" from this function by
    * 1/(minibatch_size*M*N) to get the average gradient.
+   * @param accumulate Accumulate gradients if set to true. Otherwise, do not accumulate. Default is true.
+   * If any of the supplied matrices have inconsitent sizes, exit with an error.
    */
-  void compute_bias_grad_convolutive_minibatch(MatrixF& grad_bias, const MatrixF& deltas_Z2);
+  void compute_bias_grad_convolutive_minibatch(MatrixF& grad_bias, const MatrixF& deltas_Z2, bool accumulate=true);
 
 
   /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -2003,6 +2307,8 @@ namespace kumozu {
       });
     std::cout << std::endl;
   }
+
+
 
 }
 

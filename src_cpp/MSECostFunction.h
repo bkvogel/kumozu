@@ -52,7 +52,7 @@ namespace kumozu {
    *   can be thought of as existing in some toher "external" object, such as the output activations of another
    *   Layer instance, for example.
    * - A cost function value that is computed when forward_propagate() is called. Since this class operates on a
-   *   mini-batch of data at a time, the cost function values are returned in output_activations, which contains one
+   *   mini-batch of data at a time, the cost function values are returned in output_forward, which contains one
    *   scalar cost function value for each batch index.
    *
    * - Gradients of the "input" activations with respect to the cost function can be computed by calling a
@@ -89,7 +89,7 @@ namespace kumozu {
      * The input activations correspond to the "output" of the network which is connected to the
      * "input" of this class. Thus, the supplied "input_activations" and "target"activations"
      * must have the same dimensions. The cost function output (one scalar value per example) will
-     * be stored in the output activations, which can then be obtained by calling get_output().
+     * be stored in the output activations, which can then be obtained by calling get_output_forward().
      *
      */
     virtual float forward_propagate(const MatrixF& input_activations, const MatrixF& target_activations);
@@ -103,7 +103,7 @@ namespace kumozu {
      *
      */
     virtual void back_propagate(MatrixF& input_error, const MatrixF& input_activations,
-                                const MatrixF& true_output_activations);
+                                const MatrixF& true_output_forward);
 
 
   protected:

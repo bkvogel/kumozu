@@ -1,3 +1,5 @@
+#ifndef _SEQUENTIAL_LAYER_H
+#define _SEQUENTIAL_LAYER_H
 /*
  * Copyright (c) 2005-2015, Brian K. Vogel
  * All rights reserved.
@@ -28,33 +30,67 @@
  *
  */
 
-#include "MSECostFunction.h"
-#include "Utilities.h"
-
-
-using namespace std;
+#include "Matrix.h"
+#include <string>
+#include <iostream>
+#include "PlotUtilities.h"
+#include "Node.h"
+#include <functional>
 
 namespace kumozu {
 
-  void MSECostFunction::reinitialize(std::vector<int> input_extents) {
-    m_minibatch_size =  input_extents.at(1);
+  /*
+   * This is a Node that is a container for a sequence of Layer nodes.
+   *
+   * This class corresponds to a composite node with 1 input port and 1 output port in which one or more 
+   * contained layers are connected serially to form a feed-forward graph.
+   * 
+   * It is possible to nest instances of this class, such that one or more of the contained nodes may also
+   * be an instance of SequentialLayer.
+   *
+   * Usage:
+   *
+   * Create an instance of this class and add layers using the add_layer() function.
+   *
+   *
+   */
+  class SequentialLayer : public Node {
 
-    m_temp_input_error.resize(input_extents);
-    m_temp_size_input.resize(input_extents);
-  }
+  public:
 
-  float MSECostFunction::forward_propagate(const MatrixF& input_activations, const MatrixF& target_activations) {
-    element_wise_difference(m_temp_input_error, input_activations, target_activations);
-    copy_matrix(m_temp_size_input, m_temp_input_error);
-    apply(m_temp_size_input, [] (float a) {
-        return a*a;
-      });
-    return 0.5*sum(m_temp_size_input);
-  }
+  SequentialLayer(std::string name) :
+    Node(name)
+    {
 
-  void MSECostFunction::back_propagate(MatrixF& input_error, const MatrixF& input_activations,
-                                       const MatrixF& true_output_forward) {
-    copy_matrix(input_error, m_temp_input_error);
-  }
+    }
+
+    virtual ~SequentialLayer(){}
+
+    /*
+     * Add a node to the sequence of contained nodes.
+     *
+     * Nodes are connected in series in the
+     * order that they were added. 
+     *
+     * The supplied node must already have exactly 1 output port. This function
+     * will give it 1 input port as it is connected inside this node.
+     */
+    void add_layer(Node& contained_node);
+
+
+  protected:
+
+    /*
+     * This does nothing.
+     */
+    virtual void reinitialize() {}
+
+  private:
+
+
+  };
 
 }
+
+
+#endif /* _SEQUENTIAL_LAYER_H */

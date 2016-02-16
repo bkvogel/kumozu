@@ -38,8 +38,8 @@ namespace kumozu {
     string indent = "    ";
     m_dim_input = input_extents.at(0);
     m_minibatch_size = input_extents.at(1);
-    m_output_activations.resize(input_extents);
-    m_output_error.resize(input_extents);
+    m_output_forward.resize(input_extents);
+    m_output_backward.resize(input_extents);
     m_input_sized_normalize_offset.resize(input_extents);
     m_input_sized_normalize_scale.resize(input_extents);
     m_temp_size_input.resize(input_extents);
@@ -50,14 +50,14 @@ namespace kumozu {
     m_temp_size_input_1d.resize(m_dim_input);
     if (m_enable_gamma_beta) {
       const std::vector<int> new_W_extents = {m_dim_input};
-      if (new_W_extents != m_W.get_extents()) {
-        m_W.resize(m_dim_input); // This is "gamma" in the paper.
-        m_W_grad.resize(m_dim_input);
-        m_bias.resize(m_dim_input); // this is "beta" in the paper.
-        m_bias_grad.resize(m_dim_input);
+      if (new_W_extents != get_weights().get_extents()) {
+        get_weights().resize(m_dim_input); // This is "gamma" in the paper.
+        get_weight_gradient().resize(m_dim_input);
+        get_bias().resize(m_dim_input); // this is "beta" in the paper.
+        get_bias_gradient().resize(m_dim_input);
         const float std_dev_init = 1.0f;
-        randomize_uniform(m_W, -std_dev_init, std_dev_init);
-        randomize_uniform(m_bias, -std_dev_init, std_dev_init);
+        randomize_uniform(get_weights(), -std_dev_init, std_dev_init);
+        randomize_uniform(get_bias(), -std_dev_init, std_dev_init);
         cout << indent << "weights std dev = " << std_dev_init << endl;
       }
     }
@@ -90,7 +90,7 @@ namespace kumozu {
     }
 
     // Compute running average mean. Only do this if in training mode:
-    if (m_is_train) {
+    if (is_train_mode()) {
       map2(m_mean_running_avg, m_mean_running_avg, m_mean_cur_batch, [=](float old_avg, float new_avg) {
           return old_avg*(1 - m_momentum) + new_avg*m_momentum;
         });
@@ -125,7 +125,7 @@ namespace kumozu {
     }
     scale(m_var_cur_batch, m_var_cur_batch, minibatch_scale); // variance for current mini-batch.
 
-    if (m_is_train) {
+    if (is_train_mode()) {
       map2(m_var_running_avg, m_var_running_avg, m_var_cur_batch, [=](float old_avg, float new_avg) {
           return old_avg*(1 - m_momentum) + new_avg*m_momentum;
         });
@@ -152,75 +152,78 @@ namespace kumozu {
 
     copy_matrix(m_x_hat, m_centered_input);
     element_wise_multiply(m_x_hat, m_x_hat, m_input_sized_normalize_scale);
-    copy_matrix(m_output_activations, m_x_hat);
+    copy_matrix(m_output_forward, m_x_hat);
     if (m_enable_gamma_beta) {
       // Perform the "scale and shift" using learned gamma and beta parameters.
-
+      
+      MatrixF& W = get_weights();
       // Expand W to same size as input mini-batch:
 #pragma omp parallel for
       for (int i = 0; i < m_dim_input; ++i) {
         for (int j = 0; j < m_minibatch_size; ++j) {
-          m_W_expanded(i, j) = m_W(i); // fixme
+          m_W_expanded(i, j) = W(i); // fixme
         }
       }
 
-      // Perform scale: Note: m_W is gamma in the paper.
-      element_wise_multiply(m_output_activations, m_output_activations, m_W_expanded);
-
+      // Perform scale: Note: W is gamma in the paper.
+      element_wise_multiply(m_output_forward, m_output_forward, m_W_expanded);
+      const MatrixF& bias = get_bias();
       // Expand bias to same size as input mini-batch:
 #pragma omp parallel for
       for (int i = 0; i < m_dim_input; ++i) {
         for (int j = 0; j < m_minibatch_size; ++j) {
-          m_bias_expanded(i, j) = m_bias(i);
+          m_bias_expanded(i, j) = bias(i);
         }
       }
 
       // Perform shift: Note: m_bias is beta in the paper.
-      element_wise_sum(m_output_activations, m_output_activations, m_bias_expanded);
+      element_wise_sum(m_output_forward, m_output_forward, m_bias_expanded);
     }
 
   }
 
   void BatchNormalization1D::back_propagate_paramater_gradients(const MatrixF& input_activations) {
+    MatrixF& W_grad = get_weight_gradient();
     if (m_enable_gamma_beta) {
       // Update gamma:
 #pragma omp parallel for
       for (int i = 0; i < m_dim_input; ++i) {
         float sum = 0.0f;
         for (int j = 0; j < m_minibatch_size; ++j) {
-          sum += m_output_error(i, j)*m_x_hat(i, j);
+          sum += m_output_backward(i, j)*m_x_hat(i, j);
         }
-        m_W_grad(i) = sum;
+        W_grad(i) = sum;
       }
 
       // Update beta:
+      MatrixF& bias_grad = get_bias_gradient();
 #pragma omp parallel for
       for (int i = 0; i < m_dim_input; ++i) {
         float sum = 0.0f;
         for (int j = 0; j < m_minibatch_size; ++j) {
-          sum += m_output_error(i, j);
+          sum += m_output_backward(i, j);
         }
-        m_bias_grad(i) = sum;
+        bias_grad(i) = sum;
       }
     }
 
   }
 
 
-  void BatchNormalization1D::back_propagate_deltas(MatrixF& input_error) {
-
+  void BatchNormalization1D::back_propagate_deltas(MatrixF& input_backward, const MatrixF& input_forward) {
+    MatrixF& W = get_weights();
     // Compute del loss/ del x hat
     if (m_enable_gamma_beta) {
       // Expand W to same size as input mini-batch:
 #pragma omp parallel for
       for (int i = 0; i < m_dim_input; ++i) {
         for (int j = 0; j < m_minibatch_size; ++j) {
-          m_W_expanded(i, j) = m_W(i);
+          m_W_expanded(i, j) = W(i);
         }
       }
-      element_wise_multiply(m_xhat_deltas, m_output_error, m_W_expanded);
+      element_wise_multiply(m_xhat_deltas, m_output_backward, m_W_expanded);
     } else {
-      copy_matrix(m_xhat_deltas, m_output_error);
+      copy_matrix(m_xhat_deltas, m_output_backward);
     }
     map1(m_temp_size_input_1d, m_var_to_use, [=] (float var) {
         return -0.5f*std::pow(var + m_normalization_epsilon, -1.5f);
@@ -260,8 +263,8 @@ namespace kumozu {
     element_wise_sum(m_mean_deltas, m_mean_deltas, m_temp_size_input_1d);
 
     // part 1 of 3 for input deltas (before first plus sign in paper):
-    copy_matrix(input_error, m_xhat_deltas);
-    element_wise_multiply(input_error, input_error, m_input_sized_normalize_scale);
+    copy_matrix(input_backward, m_xhat_deltas);
+    element_wise_multiply(input_backward, input_backward, m_input_sized_normalize_scale);
 
     // part 2 and 3 of 3 for input deltas (aftere first plus sign in paper):
 #pragma omp parallel for
@@ -269,7 +272,7 @@ namespace kumozu {
       for (int j = 0; j < m_minibatch_size; ++j) {
         const float second_term = m_var_deltas(i)*2.0f*minibatch_scale*m_centered_input(i,j);
         const float third_term = m_mean_deltas(i)*minibatch_scale;
-        input_error(i,j) += second_term + third_term;
+        input_backward(i,j) += second_term + third_term;
       }
     }
 

@@ -53,7 +53,7 @@ def run_mnist_test1():
     
 
     # Set to true to run quick tests on less data.
-    USE_SMALL_DATA = False
+    USE_SMALL_DATA = True
     if USE_SMALL_DATA:
         #keep = 60000
         #keep = 59904 # batch size up to 512

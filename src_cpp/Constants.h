@@ -1,5 +1,5 @@
 #ifndef _CONSTANTS_H
-#define	_CONSTANTS_H
+#define _CONSTANTS_H
 /*
  * Copyright (c) 2005-2015, Brian K. Vogel
  * All rights reserved.
@@ -8,7 +8,7 @@
  * modification, are permitted provided that the following conditions are met:
  *
  * 1. Redistributions of source code must retain the above copyright notice, this
- *    list of conditions and the following disclaimer. 
+ *    list of conditions and the following disclaimer.
  * 2. Redistributions in binary form must reproduce the above copyright notice,
  *    this list of conditions and the following disclaimer in the documentation
  *    and/or other materials provided with the distribution.
@@ -25,24 +25,32 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  * The views and conclusions contained in the software and documentation are those
- * of the authors and should not be interpreted as representing official policies, 
+ * of the authors and should not be interpreted as representing official policies,
  * either expressed or implied, of the FreeBSD Project.
  *
  */
 
+#include <string>
+
 // Various useful constants.
 namespace kumozu {
 
-	// A small value that will often be added in a computation to prevent denormalized values.
-	const float EPSILON_DENORMAL{ 1e-9f };
+// A small value that will often be added in a computation to prevent denormalized values.
+const float EPSILON_DENORMAL{ 1e-9f };
 
-	// Small negative random value for initializing network weights.
-	const float RAND_INIT_NEG { -0.01f }; // -0.01
+// Small negative random value for initializing network weights.
+const float RAND_INIT_NEG { -0.01f }; // -0.01
 
-	// Small positive random value for initializing network weights.
-	const float RAND_INIT_POS { 0.01f }; // 0.01
+// Small positive random value for initializing network weights.
+const float RAND_INIT_POS { 0.01f }; // 0.01
+
+// Default name for the input port name of a Node with only a single port.
+const std::string DEFAULT_INPUT_PORT_NAME = "0";
+
+// Default name for the output port name of a Node with only a single port.
+const std::string DEFAULT_OUTPUT_PORT_NAME = "0";
 
 }
 
 
-#endif	/* _CONSTANTS_H */
+#endif  /* _CONSTANTS_H */

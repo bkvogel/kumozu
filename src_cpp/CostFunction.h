@@ -48,10 +48,10 @@ namespace kumozu {
    *
    * - A notion of "input" activations. The input typically corresponds to one mini-batch of data. We use the convention
    *   that the input activations are not considered an internal state of a Layer. That is, the input activations
-   *   can be thought of as existing in some toher "external" object, such as the output activations of another
+   *   can be thought of as existing in some other "external" object, such as the output activations of another
    *   Layer instance, for example.
    * - A cost function value that is computed when forward_propagate() is called. Since this class operates on a
-   *   mini-batch of data at a time, the cost function values are returned in output_activations, which contains one
+   *   mini-batch of data at a time, the cost function values are returned in output_forward, which contains one
    *   scalar cost function value for each batch index.
    *
    * - Gradients of the "input" activations with respect to the cost function can be computed by calling a
@@ -74,6 +74,13 @@ namespace kumozu {
    * A CostFunction sub-class is typically placed after a LinearLayer instance in a network. Note that the activations
    * in a LinearLayer correspond to a mini-batch of data represented by a 2D matrix of dimension layer_units x minibatch_size.
    * This class therefore assumes that the second dimension (number of columns) is the mini-batch size.
+   *
+   * Todo:
+   *
+   * Consider makeing this class be a subclass of Node. The output_forward activations matrix would then correspond to the
+   * cost for each sample in the mini-batch. If we make this a Node, then it can be included in a computational graph (i.e.,
+   * as a contained node in a composite node). This would simplify the implementation and allow for gradient checking the
+   * entire model.
    */
   class CostFunction {
 
@@ -96,10 +103,9 @@ namespace kumozu {
            * The input activations correspond to the "output" of the network which is connected to the
            * "input" of this class. Thus, the supplied "input_activations" and "target"activations"
            * must have the same dimensions. The cost function output (one scalar value per example) will
-           * be stored in the output activations, which can then be obtained by calling get_output().
+           * be stored in the output activations, which can then be obtained by calling get_output_forward().
            *
            */
-          //virtual float forward_propagate(const MatrixF& input_activations, const MatrixF& target_activations) = 0;
           virtual float forward_propagate(const MatrixF& input_activations, const MatrixF& target_activations) {
             return 0.0f;
           }
@@ -168,7 +174,7 @@ namespace kumozu {
           virtual void reinitialize(std::vector<int> input_extents) = 0;
 
           std::string m_layer_name;
-          MatrixF m_output_activations;
+          MatrixF m_output_forward;
           std::vector<int> m_input_extents;
 
           const float m_epsilon;

@@ -35,6 +35,7 @@ namespace kumozu {
   ////////////////////////////////////////////////////////////////////////////////
   // Neural network examples.
 
+
   /*
    * Example deep convolutional network for MNIST.
    */

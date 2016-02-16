@@ -28,33 +28,31 @@
  *
  */
 
-#include "MSECostFunction.h"
+#include "SequentialLayer.h"
 #include "Utilities.h"
-
+#include "MatrixIO.h"
 
 using namespace std;
 
 namespace kumozu {
 
-  void MSECostFunction::reinitialize(std::vector<int> input_extents) {
-    m_minibatch_size =  input_extents.at(1);
+  void SequentialLayer::add_layer(Node& contained_node) {
+      if (get_contained_node_count() == 0) {
+	// If the supplied node is the first layer to be added, connect the input port of this container to it.
+	connect_input_to_contained_node(contained_node);
+      } else {
+	// Must connect the supplied node to the output of the previous node in the sequence.
+	Node& prev_node = get_node(get_contained_node_count()-1);
+	contained_node.connect_parent(prev_node);
+      }
+      add_node(contained_node);
+      // Always assume the supplied layer is the last layer that will be added and update output port accordingly.
+      delete_all_output_ports(); // Must remove any existing output ports since one is created on each call of this function.
+      // Now create output port that is connected to the current layer's output.
+      create_output_port(contained_node, "0", "0"); // assume the default names are used.
+    }
+  
+  
 
-    m_temp_input_error.resize(input_extents);
-    m_temp_size_input.resize(input_extents);
-  }
-
-  float MSECostFunction::forward_propagate(const MatrixF& input_activations, const MatrixF& target_activations) {
-    element_wise_difference(m_temp_input_error, input_activations, target_activations);
-    copy_matrix(m_temp_size_input, m_temp_input_error);
-    apply(m_temp_size_input, [] (float a) {
-        return a*a;
-      });
-    return 0.5*sum(m_temp_size_input);
-  }
-
-  void MSECostFunction::back_propagate(MatrixF& input_error, const MatrixF& input_activations,
-                                       const MatrixF& true_output_forward) {
-    copy_matrix(input_error, m_temp_input_error);
-  }
 
 }

@@ -138,17 +138,23 @@ namespace kumozu {
     for (int i=1; i < static_cast<int>(input_extents.size()); ++i) {
       column_dim *= input_extents.at(i);
     }
-    m_output_activations.resize(column_dim, m_minibatch_size);
-    m_output_error.resize(column_dim, m_minibatch_size);
+    m_output_forward.resize(column_dim, m_minibatch_size);
+    m_output_backward.resize(column_dim, m_minibatch_size);
+
+    //fixme:
+    if (get_input_port_backward().size() == 0) {
+      std::cout << "oops reinitialize" << std::endl;
+      exit(1);
+    }
   }
 
 
   void ImageToColumnLayer::forward_propagate(const MatrixF& input_activations) {
-    multi_dim_minibatch_to_column_minibatch(m_output_activations, input_activations);
+    multi_dim_minibatch_to_column_minibatch(m_output_forward, input_activations);
   }
 
-  void ImageToColumnLayer::back_propagate_deltas(MatrixF& input_error) {
-    column_minibatch_to_multi_dim_minibatch(m_output_error, input_error);
+  void ImageToColumnLayer::back_propagate_deltas(MatrixF& input_backward, const MatrixF& input_forward) {
+    column_minibatch_to_multi_dim_minibatch(m_output_backward, input_backward);
   }
 
 

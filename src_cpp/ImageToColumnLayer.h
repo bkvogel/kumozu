@@ -54,7 +54,7 @@ namespace kumozu {
    * input activations: A multi-dimensional matrix of size minibatch_size x dim1 x dim2 ... dimR. This typically
    * corresponds to one minibatch of output activations from a convolutional layer.
    *
-   * output_activations: Size P x minibatch_size matrix where P = (dim1 x dim2 ... dimR)..
+   * output_forward: Size P x minibatch_size matrix where P = (dim1 x dim2 ... dimR)..
    * This typically corresponds to one mini-batch of input activations
    * to a fully-connected layer.
    */
@@ -81,14 +81,14 @@ namespace kumozu {
 
 
     /*
-     * Back-propagate errors to compute new values for input_error.
+     * Back-propagate errors to compute new values for input_backward.
      *
      * The output error (that is, "output deltas") must have already been updated before
      * calling this method. Note that a reference to the output deltas can be obtained by
-     * calling get_output_deltas(). Otherwise, the error gradients will not be back-propagated
+     * calling get_output_backward(). Otherwise, the error gradients will not be back-propagated
      * correctly.
      */
-    virtual void back_propagate_deltas(MatrixF& input_error);
+    virtual void back_propagate_deltas(MatrixF& input_backward, const MatrixF& input_forward);
 
 
 
@@ -124,7 +124,7 @@ namespace kumozu {
     /*
      * Compute the output activations as a function of input activations.
      *
-     * The output activations can then be obtained by calling get_output().
+     * The output activations can then be obtained by calling get_output_forward().
      *
      */
     virtual void forward_propagate(const MatrixF& input_activations);

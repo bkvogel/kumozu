@@ -41,16 +41,16 @@ namespace kumozu {
     // Create random input activations for the layer.
     MatrixF input_activations(input_extents);
     randomize_uniform(input_activations, 0.0f, 1.0f);
-    MatrixF input_deltas(input_extents);
-    randomize_uniform(input_deltas, 0.0f, 1.0f);
+    MatrixF input_backward(input_extents);
+    randomize_uniform(input_backward, 0.0f, 1.0f);
     MatrixF target_activations(input_extents);
     //randomize_uniform(target_activations, 0.0f, 1.0f);
     randomize_uniform(target_activations, 0.0f, 1.0f);
     float cost = forward(input_activations, target_activations);
-    back_propagate(input_deltas, input_activations, target_activations);
+    back_propagate(input_backward, input_activations, target_activations);
     cout << "Cost = " << cost << endl;
 
-    MatrixF gradients_numerical = input_deltas; // Temp matrix to hold the numerical gradients.
+    MatrixF gradients_numerical = input_backward; // Temp matrix to hold the numerical gradients.
     set_value(gradients_numerical, 0.0f);
     for (int n = 0; n != input_activations.size(); ++n) {
       float orig = input_activations[n]; // backup
@@ -64,9 +64,9 @@ namespace kumozu {
       input_activations[n] = orig;
       gradients_numerical[n] = (J_plus - J_minus)/(2*m_epsilon);
     }
-    const float relative_error_score = relative_error(input_deltas, gradients_numerical);
+    const float relative_error_score = relative_error(input_backward, gradients_numerical);
     std::cout << "numerical-back-prop gradients relative error = " << relative_error_score << std::endl;
-    std::cout << "input_deltas = " << std::endl << input_deltas << std::endl;
+    std::cout << "input_backward = " << std::endl << input_backward << std::endl;
     std::cout << "-----------------------------" << std::endl;
     std::cout << "gradients_numerical = " << std::endl << gradients_numerical << std::endl;
     assert_almost_equal(relative_error_score, 0.0f, m_pass_relative_error);

@@ -45,7 +45,6 @@
 #include <chrono>
 #include <ctime>
 
-#include "SequentialNetwork.h"
 #include "ConvLayer3D.h"
 #include "LinearLayer.h"
 #include "ImageToColumnLayer.h"
@@ -58,6 +57,11 @@
 #include "Dropout3D.h"
 #include "BatchNormalization1D.h"
 #include "BatchNormalization3D.h"
+#include "SequentialLayer.h"
+#include "AdderNode.h"
+#include "SubtractorNode.h"
+#include "MultiplyerNode.h"
+#include "SplitterNode.h"
 
 // Uncomment following line to disable assertion checking.
 // #define NDEBUG
@@ -227,6 +231,40 @@ namespace kumozu {
     std::cout << "done" << std::endl;
   }
 
+  void test_mat_multiply_left_transpose_accumulate() {
+    std::cout << "test_mat_multiply_left_transpose_accumulate()..." << std::endl;
+    const int rows_A = 16;
+    const int cols_A = 16 * 2;
+    const int cols_B = 16 * 3;
+    // Compute A = B^T * C
+    MatrixF A(rows_A, cols_A);
+
+    MatrixF B(cols_B, rows_A);
+    randomize_uniform(B,-1.0f, 1.0f);
+    MatrixF C(cols_B, cols_A);
+    randomize_uniform(C,-1.0f, 1.0f);
+
+    // Make copies:
+    MatrixF Ac = A;
+    MatrixF Bc = B;
+    MatrixF Cc = C;
+
+    mat_multiply_left_transpose_accumulate(A, B, C);
+    mat_multiply_left_transpose_accumulate(A, B, C);
+    std::cout << "A = " << std::endl << A << std::endl;
+    //cout << "B = " << endl << B << endl;
+
+    mat_multiply_left_transpose_naive_accumulate(Ac, Bc, Cc);
+    mat_multiply_left_transpose_naive_accumulate(Ac, Bc, Cc);
+    std::cout << "Ac = " << std::endl << Ac << std::endl;
+    //cout << "Bc = " << endl << Bc << endl;
+    float tolerance = 1.0e-4;
+    assert_almost_equal(A, Ac, tolerance);
+
+    std::cout << "done" << std::endl;
+  }
+
+
   void test_mat_multiply_right_transpose() {
     std::cout << "test_mat_multiply_right_transpose()..." << std::endl;
     const int rows_A = 16;
@@ -255,6 +293,37 @@ namespace kumozu {
     float tolerance = 1.0e-4;
     assert_almost_equal(A, Ac, tolerance);
 
+    std::cout << "done" << std::endl;
+  }
+
+void test_mat_multiply_right_transpose_accumulate() {
+    std::cout << "test_mat_multiply_right_transpose_accumulate()..." << std::endl;
+    const int rows_A = 16;
+    const int cols_A = 16 * 2;
+    const int cols_B = 16 * 3;
+    // Compute A = B * C^T
+    MatrixF A(rows_A, cols_A);
+
+    MatrixF B(rows_A, cols_B);
+    randomize_uniform(B,-1.0f, 1.0f);
+    MatrixF C(cols_A, cols_B);
+    randomize_uniform(C,-1.0f, 1.0f);
+
+    // Make copies:
+    MatrixF Ac = A;
+    MatrixF Bc = B;
+    MatrixF Cc = C;
+
+    mat_multiply_right_transpose_accumulate(A, B, C);
+    mat_multiply_right_transpose_accumulate(A, B, C);
+    std::cout << "A = " << std::endl << A << std::endl;
+    //cout << "B = " << endl << B << endl;
+
+    mat_multiply_right_transpose_accumulate_naive(Ac, Bc, Cc);
+    mat_multiply_right_transpose_accumulate_naive(Ac, Bc, Cc);
+    std::cout << "Ac = " << std::endl << Ac << std::endl;
+    //cout << "Bc = " << endl << Bc << endl;
+    assert_almost_equal(A, Ac);
     std::cout << "done" << std::endl;
   }
 
@@ -1021,6 +1090,7 @@ namespace kumozu {
     for (int n = 0; n != loop_count; ++n) {
       //cout << "naive: n = " << n << endl;
       // Assume this version is correct.
+      set_value(grad_W_true, 0.0f);
       compute_3d_weight_grad_convolutive_minibatch(grad_W_true, deltas_Z2, A1);
     }
     // Stop timer here.
@@ -1045,6 +1115,7 @@ namespace kumozu {
     cout << "Running optimized convolutive back-progatation to compute deltas_A1..." << endl;
     auto t0_opt = high_resolution_clock::now();
     for (int n = 0; n != loop_count; ++n) {
+      set_value(grad_W_optimized, 0.0f);
       compute_3d_weight_grad_convolutive_minibatch_optimized(grad_W_optimized, deltas_Z2, A1,
                                                              temp_deltas_Z2, temp_A1, temp_grad_W);
     }
@@ -1127,42 +1198,44 @@ namespace kumozu {
     // Now check bias gradients
     layer.check_jacobian_bias(input_extents);
     // Now check input error gradients
-    layer.check_jacobian_input_error(input_extents);
+    layer.check_jacobian_input_backward(input_extents);
 
   }
 
 
-  void test_SequentialNetwork() {
-    cout << "test_SequentialNetwork()..." << endl;
+
+  void test_SequentialLayer() {
+    cout << "test_SequentialLayer()..." << endl;
     const int minibatch_size = 4;
-    const int image_depth = 3;
-    const int image_height = 13;
-    const int image_width = 15;
-    const int filter_count = 5;
-    const int filter_height = 3;
-    const int filter_width = 4;
+    const int dim_input = 5;
+    const int dim_output = 7;
 
-    SequentialNetwork seq_net("sequential network 1");
-    ConvLayer3D conv_layer1(filter_count, filter_height, filter_width, "Conv Layer 1");
-    seq_net.add_layer(conv_layer1);
-
-    const vector<int> input_extents = {minibatch_size, image_depth, image_height, image_width};
+    SequentialLayer seq_net("sequential layer 1");
+    const vector<int> input_extents = {dim_input, minibatch_size};
+    //MatrixF input_activations(input_extents);
+    //randomize_uniform(input_activations, 0.0f, 1.0f);
+    //MatrixF input_backwards(input_extents);
+    //seq_net.create_input_port(input_activations, input_backwards);
+    LinearLayer lin_layer(dim_output, "Linear Layer 1");
+    seq_net.add_layer(lin_layer);
+    
     // Check weights gradients.
     seq_net.check_jacobian_weights(input_extents);
     // Now check bias gradients
     seq_net.check_jacobian_bias(input_extents);
     // Now check input error gradients
-    seq_net.check_jacobian_input_error(input_extents);
+    seq_net.check_jacobian_input_backward(input_extents);
 
     //MatrixF input_activations(minibatch_size, image_depth, image_height, image_width);
     //seq_net.forward(input_activations);
     //seq_net.forward(input_activations);
 
-    //cout << "PASSED" << endl;
+    //
   }
 
-  void test_SequentialNetwork2() {
-    cout << "test_SequentialNetwork2()..." << endl;
+
+  void test_SequentialLayer2() {
+    cout << "test_SequentialLayer2()..." << endl;
     const int minibatch_size = 4;
     const int image_depth = 3;
     const int image_height = 13;
@@ -1173,7 +1246,7 @@ namespace kumozu {
 
     const int dim_output = 7;
 
-    SequentialNetwork net("sequential network 1");
+    SequentialLayer net("sequential network 1");
     ConvLayer3D conv_layer1(filter_count, filter_height, filter_width, "Conv Layer 1");
     net.add_layer(conv_layer1);
     BoxActivationFunction box_activation_layer1(BoxActivationFunction::ACTIVATION_TYPE::leakyReLU, "Box Activation Function 1");
@@ -1195,9 +1268,38 @@ namespace kumozu {
     // Now check bias gradients
     net.check_jacobian_bias(input_extents);
     // Now check input error gradients
-    net.check_jacobian_input_error(input_extents);
+    net.check_jacobian_input_backward(input_extents);
 
   }
+
+    void test_SequentialLayer_shared_parameters() {
+    cout << "test_SequentialLayer_shared_parameters()" << endl;
+    const int minibatch_size = 4;
+    const int dim_input = 5;
+    const int dim_output = 5;
+
+    SequentialLayer seq_net("sequential layer 1");
+    const vector<int> input_extents = {dim_input, minibatch_size};
+    //MatrixF input_activations(input_extents);
+    //randomize_uniform(input_activations, 0.0f, 1.0f);
+    //MatrixF input_backwards(input_extents);
+    //seq_net.create_input_port(input_activations, input_backwards);
+    LinearLayer lin_layer(dim_output, "Linear Layer 1");
+    seq_net.add_layer(lin_layer);
+
+    LinearLayer lin_layer2(dim_output, "Linear Layer 2");
+    lin_layer2.set_shared(lin_layer);
+    seq_net.add_layer(lin_layer2);
+
+    // Check weights gradients.
+    seq_net.check_jacobian_weights(input_extents);
+    // Now check bias gradients
+    seq_net.check_jacobian_bias(input_extents);
+    // Now check input error gradients
+    seq_net.check_jacobian_input_backward(input_extents);
+    //
+  }
+
 
   void test_jacobian_LinearLayer() {
     cout << "test_jacobian_LinearLayer()..." << endl;
@@ -1213,9 +1315,33 @@ namespace kumozu {
     // Now check bias gradients
     layer.check_jacobian_bias(input_extents);
     // Now check input error gradients
-    layer.check_jacobian_input_error(input_extents);
+    layer.check_jacobian_input_backward(input_extents);
 
   }
+
+  void test_jacobian_LinearLayer_Node() {
+    cout << "test_jacobian_LinearLayer_Node()..." << endl;
+    const int minibatch_size = 4;
+    const int dim_input = 5;
+    const int dim_output = 7;
+
+    const vector<int> input_extents = {dim_input, minibatch_size};
+    MatrixF input_activations(input_extents);
+    LinearLayer layer(dim_output, "Linear Layer 1");
+
+    std::map<std::string, std::vector<int>> input_port_extents_map;
+    input_port_extents_map["0"] = input_extents;
+
+    // Check weights gradients.
+    //layer.check_jacobian_weights(input_extents);
+    layer.check_jacobian_weights(input_port_extents_map);
+    // Now check bias gradients
+    layer.check_jacobian_bias(input_port_extents_map);
+    // Now check input error gradients
+    layer.check_jacobian_input_backward(input_port_extents_map);
+
+  }
+
 
   void test_jacobian_ImageToColumnLayer() {
     cout << "test_jacobian_ImageToColumnLayer()..." << endl;
@@ -1232,7 +1358,7 @@ namespace kumozu {
     // Now check bias gradients
     layer.check_jacobian_bias(input_extents);
     // Now check input error gradients
-    layer.check_jacobian_input_error(input_extents);
+    layer.check_jacobian_input_backward(input_extents);
 
   }
 
@@ -1252,7 +1378,7 @@ namespace kumozu {
     // Now check bias gradients
     layer.check_jacobian_bias(input_extents);
     // Now check input error gradients
-    layer.check_jacobian_input_error(input_extents);
+    layer.check_jacobian_input_backward(input_extents);
 
   }
 
@@ -1262,14 +1388,30 @@ namespace kumozu {
     const int dim_input = 5;
 
     const vector<int> input_extents = {dim_input, minibatch_size};
-    ColumnActivationFunction layer(ColumnActivationFunction::ACTIVATION_TYPE::leakyReLU, "Column Activation Function 1");
+    ColumnActivationFunction layer(ColumnActivationFunction::ACTIVATION_TYPE::identity, "Column Activation Function 1");
 
-    // Check weights gradients.
-    layer.check_jacobian_weights(input_extents);
-    // Now check bias gradients
-    layer.check_jacobian_bias(input_extents);
     // Now check input error gradients
-    layer.check_jacobian_input_error(input_extents);
+    layer.check_jacobian_input_backward(input_extents);
+
+    layer.set_activation_type(ColumnActivationFunction::ACTIVATION_TYPE::ReLU);
+
+    // Now check input error gradients
+    layer.check_jacobian_input_backward(input_extents);
+
+    layer.set_activation_type(ColumnActivationFunction::ACTIVATION_TYPE::leakyReLU);
+
+    // Now check input error gradients
+    layer.check_jacobian_input_backward(input_extents);
+
+    layer.set_activation_type(ColumnActivationFunction::ACTIVATION_TYPE::tanh);
+
+    // Now check input error gradients
+    layer.check_jacobian_input_backward(input_extents);
+
+    layer.set_activation_type(ColumnActivationFunction::ACTIVATION_TYPE::sigmoid);
+
+    // Now check input error gradients
+    layer.check_jacobian_input_backward(input_extents);
 
   }
 
@@ -1296,7 +1438,7 @@ namespace kumozu {
     // Now check bias gradients
     layer.check_jacobian_bias(input_extents);
     // Now check input error gradients
-    layer.check_jacobian_input_error(input_extents);
+    layer.check_jacobian_input_backward(input_extents);
 
   }
 
@@ -1321,20 +1463,22 @@ namespace kumozu {
 
 
     MatrixF input_activations(input_extents);
+    MatrixF input_backwards(input_extents);
+    layer.create_input_port(input_activations, input_backwards);
     //randomize_uniform(input_activations, -1.0f, 1.0f);
     set_value(input_activations, 0.12f);
     cout << "input_activations: " << endl << input_activations << endl;
-    layer.forward(input_activations);
+    layer.forward();
 
-    MatrixF& output_activations = layer.get_output();
-    cout << "output_activations: " << endl << output_activations << endl;
+    const MatrixF& output_forward = layer.get_output_forward();
+    cout << "output_forward: " << endl << output_forward << endl;
 
-    MatrixF& output_deltas = layer.get_output_deltas();
-    randomize_uniform(output_deltas, -1.0f, 1.0f);
-    cout << "output_deltas: " << endl << output_deltas << endl;
-    MatrixF input_error(input_extents);
-    layer.back_propagate(input_error, input_activations);
-    cout << "input_error: " << endl << input_error << endl;
+    MatrixF& output_backward = layer.get_output_backward();
+    randomize_uniform(output_backward, -1.0f, 1.0f);
+    cout << "output_backward: " << endl << output_backward << endl;
+    
+    layer.back_propagate();
+    cout << "input_backwards: " << endl << input_backwards << endl;
 
   }
 
@@ -1373,33 +1517,33 @@ namespace kumozu {
     MatrixF input_activations(unit_count, minibatch_size);
     randomize_uniform(input_activations, 0.0f, 1.0f);
     cout << "input_activations:" << endl << input_activations << endl;
-    MatrixF input_errors(unit_count, minibatch_size);
-    randomize_uniform(input_errors, 0.0f, 1.0f);
-
+    MatrixF input_backwards(unit_count, minibatch_size);
+    randomize_uniform(input_backwards, 0.0f, 1.0f);
+    drop1d.create_input_port(input_activations, input_backwards);
 
 
     cout << "dropout forward:" << endl;
-    drop1d.forward(input_activations);
-    MatrixF& output_activations = drop1d.get_output();
-    cout << "output_activations:" << endl << output_activations << endl;
+    drop1d.forward();
+    const MatrixF& output_forward = drop1d.get_output_forward();
+    cout << "output_forward:" << endl << output_forward << endl;
 
-    MatrixF& output_errors = drop1d.get_output_deltas();
-    randomize_uniform(output_errors, 0.0f, 1.0f);
-    cout << "Random output_errors:" << endl << output_errors << endl;
-
-    cout << "dropout forward:" << endl;
-    drop1d.forward(input_activations);
-    cout << "output_activations:" << endl << output_activations << endl;
+    MatrixF& output_backwards = drop1d.get_output_backward();
+    randomize_uniform(output_backwards, 0.0f, 1.0f);
+    cout << "Random output_backwards:" << endl << output_backwards << endl;
 
     cout << "dropout forward:" << endl;
-    drop1d.forward(input_activations);
-    cout << "output_activations:" << endl << output_activations << endl;
+    drop1d.forward();
+    cout << "output_forward:" << endl << output_forward << endl;
 
-    cout << "Random output_errors:" << endl << output_errors << endl;
+    cout << "dropout forward:" << endl;
+    drop1d.forward();
+    cout << "output_forward:" << endl << output_forward << endl;
+
+    cout << "Random output_backwards:" << endl << output_backwards << endl;
 
     cout << "dropout backward:" << endl;
-    drop1d.back_propagate(input_errors, input_activations);
-    cout << "input_errors:" << endl << input_errors << endl;
+    drop1d.back_propagate();
+    cout << "input_backwards:" << endl << input_backwards << endl;
 
 
   }
@@ -1418,31 +1562,32 @@ namespace kumozu {
     MatrixF input_activations(minibatch_size, depth, height, width);
     randomize_uniform(input_activations, 0.0f, 1.0f);
     cout << "input_activations:" << endl << input_activations << endl;
-    MatrixF input_errors(input_activations.get_extents());
-    randomize_uniform(input_errors, 0.0f, 1.0f);
+    MatrixF input_backwards(input_activations.get_extents());
+    randomize_uniform(input_backwards, 0.0f, 1.0f);
+    dropout.create_input_port(input_activations, input_backwards);
+    
+    cout << "dropout forward:" << endl;
+    dropout.forward();
+    const MatrixF& output_forward = dropout.get_output_forward();
+    cout << "output_forward:" << endl << output_forward << endl;
+
+    MatrixF& output_backwards = dropout.get_output_backward();
+    randomize_uniform(output_backwards, 0.0f, 1.0f);
+    cout << "Random output_backwards:" << endl << output_backwards << endl;
 
     cout << "dropout forward:" << endl;
-    dropout.forward(input_activations);
-    MatrixF& output_activations = dropout.get_output();
-    cout << "output_activations:" << endl << output_activations << endl;
-
-    MatrixF& output_errors = dropout.get_output_deltas();
-    randomize_uniform(output_errors, 0.0f, 1.0f);
-    cout << "Random output_errors:" << endl << output_errors << endl;
+    dropout.forward();
+    cout << "output_forward:" << endl << output_forward << endl;
 
     cout << "dropout forward:" << endl;
-    dropout.forward(input_activations);
-    cout << "output_activations:" << endl << output_activations << endl;
+    dropout.forward();
+    cout << "output_forward:" << endl << output_forward << endl;
 
-    cout << "dropout forward:" << endl;
-    dropout.forward(input_activations);
-    cout << "output_activations:" << endl << output_activations << endl;
-
-    cout << "Random output_errors:" << endl << output_errors << endl;
+    cout << "Random output_backwards:" << endl << output_backwards << endl;
 
     cout << "dropout backward:" << endl;
-    dropout.back_propagate(input_errors, input_activations);
-    cout << "input_errors:" << endl << input_errors << endl;
+    dropout.back_propagate();
+    cout << "input_backwards:" << endl << input_backwards << endl;
 
 
   }
@@ -1461,23 +1606,24 @@ namespace kumozu {
     MatrixF input_activations(input_extents);
     randomize_uniform(input_activations, 0.0f, 1.0f);
     cout << "input_activations:" << endl << input_activations << endl;
-    MatrixF input_errors(input_extents);
+    MatrixF input_backwards(input_extents);
+    normalizer.create_input_port(input_activations, input_backwards);
 
     //for (int i = 0; i < 200; ++i) {
-    normalizer.forward(input_activations);
+    normalizer.forward();
     //}
-    MatrixF& output_activations = normalizer.get_output();
-    MatrixF& output_errors = normalizer.get_output_deltas();
-    randomize_uniform(output_errors, 0.0f, 1.0f);
-    cout << "Random output errors:" << endl << output_errors << endl;
-    cout << "output_activations:" << endl << output_activations << endl;
+    const MatrixF& output_forward = normalizer.get_output_forward();
+    MatrixF& output_backwards = normalizer.get_output_backward();
+    randomize_uniform(output_backwards, 0.0f, 1.0f);
+    cout << "Random output errors:" << endl << output_backwards << endl;
+    cout << "output_forward:" << endl << output_forward << endl;
 
     // Compute mean of output:
-    //float mean = sum(output_activations)/output_activations.size();
+    //float mean = sum(output_forward)/output_forward.size();
     MatrixF actual_means(dim_input);
     for (int i = 0; i < dim_input; ++i) {
       for (int j = 0; j < minibatch_size; ++j) {
-        actual_means(i) += output_activations(i, j);
+        actual_means(i) += output_forward(i, j);
       }
       actual_means(i) /= static_cast<float>(minibatch_size);
     }
@@ -1488,7 +1634,7 @@ namespace kumozu {
     MatrixF actual_std_dev(dim_input);
     for (int i = 0; i < dim_input; ++i) {
       for (int j = 0; j < minibatch_size; ++j) {
-        actual_std_dev(i) += (output_activations(i,j) - actual_means(i))*(output_activations(i,j) - actual_means(i));
+        actual_std_dev(i) += (output_forward(i,j) - actual_means(i))*(output_forward(i,j) - actual_means(i));
       }
       actual_std_dev(i) /= static_cast<float>(minibatch_size);
       actual_std_dev(i) = std::sqrt(actual_std_dev(i));
@@ -1500,8 +1646,8 @@ namespace kumozu {
     assert_almost_equal(actual_std_dev, ones, 1e-2f);
 
     cout << "Back prop:" << endl;
-    normalizer.back_propagate(input_errors, input_activations);
-    cout << "input_errors:" << endl << input_errors << endl;
+    normalizer.back_propagate();
+    cout << "input_backwards:" << endl << input_backwards << endl;
 
     // enable gamma/beta for jacobian checking.
     BatchNormalization1D normalizer2(true, 0.1f, "Batch Normalization 1D");
@@ -1512,7 +1658,7 @@ namespace kumozu {
     // Now check bias gradients
     normalizer2.check_jacobian_bias(input_extents); // Will pass if momentum set to 1.0
     // Now check input error gradients
-    normalizer2.check_jacobian_input_error(input_extents);
+    normalizer2.check_jacobian_input_backward(input_extents);
   }
 
   void test_BatchNormalization3D() {
@@ -1532,16 +1678,17 @@ namespace kumozu {
     MatrixF input_activations(input_extents);
     randomize_uniform(input_activations, 0.0f, 1.0f);
     cout << "input_activations:" << endl << input_activations << endl;
-    MatrixF input_errors(input_extents);
+    MatrixF input_backwards(input_extents);
+    normalizer.create_input_port(input_activations, input_backwards);
 
     //for (int i = 0; i < 200; ++i) {
-    normalizer.forward(input_activations);
+    normalizer.forward();
     //}
-    MatrixF& output_activations = normalizer.get_output();
-    MatrixF& output_errors = normalizer.get_output_deltas();
-    randomize_uniform(output_errors, 0.0f, 1.0f);
-    cout << "Random output errors:" << endl << output_errors << endl;
-    cout << "output_activations:" << endl << output_activations << endl;
+    const MatrixF& output_forward = normalizer.get_output_forward();
+    MatrixF& output_backwards = normalizer.get_output_backward();
+    randomize_uniform(output_backwards, 0.0f, 1.0f);
+    cout << "Random output errors:" << endl << output_backwards << endl;
+    cout << "output_forward:" << endl << output_forward << endl;
 
     // Compute mean of output:
 
@@ -1550,7 +1697,7 @@ namespace kumozu {
       for (int j = 0; j < minibatch_size; ++j) {
         for (int k = 0; k < image_height; ++k) {
           for (int l = 0; l < image_width; ++l) {
-            actual_means(i) += output_activations(j,i,k,l);
+            actual_means(i) += output_forward(j,i,k,l);
           }
         }
       }
@@ -1564,7 +1711,7 @@ namespace kumozu {
       for (int j = 0; j < minibatch_size; ++j) {
         for (int k = 0; k < image_height; ++k) {
           for (int l = 0; l < image_width; ++l) {
-            actual_std_dev(i) += (output_activations(j,i,k,l) - actual_means(i))*(output_activations(j,i,k,l) - actual_means(i));
+            actual_std_dev(i) += (output_forward(j,i,k,l) - actual_means(i))*(output_forward(j,i,k,l) - actual_means(i));
           }
         }
       }
@@ -1578,8 +1725,8 @@ namespace kumozu {
     assert_almost_equal(actual_std_dev, ones, 1e-2f);
 
     cout << "Back prop:" << endl;
-    normalizer.back_propagate(input_errors, input_activations);
-    cout << "input_errors:" << endl << input_errors << endl;
+    normalizer.back_propagate();
+    cout << "input_backwards:" << endl << input_backwards << endl;
 
     // Set momentum to 1.0 and enable gamma/beta for jacobian checking.
     BatchNormalization3D normalizer2(true, 0.1f, "Batch Normalization 3D");
@@ -1590,14 +1737,569 @@ namespace kumozu {
     // Now check bias gradients
     normalizer2.check_jacobian_bias(input_extents); // Will pass if momentum set to 1.0
     // Now check input error gradients
-    normalizer2.check_jacobian_input_error(input_extents);
+    normalizer2.check_jacobian_input_backward(input_extents);
   }
 
+
+  void test_Node_shared_parameters() {
+    cout << "test_Node_shared_parameters()" << endl;
+
+    const int minibatch_size = 4;
+    const int dim_input = 5;
+    const int dim_output = 7;
+
+    const vector<int> input_extents = {dim_input, minibatch_size};
+    MatrixF input_activations(input_extents);
+    MatrixF input_backwards(input_extents);
+    LinearLayer layer1(dim_output, "Linear Layer 1");
+    layer1.create_input_port(input_activations, input_backwards);
+
+    LinearLayer layer2(dim_output, "Linear Layer 2");
+    layer2.create_input_port(input_activations, input_backwards);
+    // Make layer2 share layer1's parameters:
+    layer2.set_shared(layer1);
+
+    layer1.forward(); // Initialize
+    layer2.forward(); // Initialize
+
+    // Both layers should now have identical parameter values. Let's check:
+    cout << "Layer 1 weights: " << endl << layer1.get_weights() << endl;
+    cout << "Layer 2 weights: " << endl << layer2.get_weights() << endl;
+    
+    randomize_uniform(layer2.get_bias(), 0.0f, 1.0f);
+      
+    cout << "Layer 1 bias: " << endl << layer1.get_bias() << endl;
+    cout << "Layer 2 bias: " << endl << layer2.get_bias() << endl;
+    assert_almost_equal(layer1.get_weights(), layer2.get_weights());
+    assert_almost_equal(layer1.get_bias(), layer2.get_bias());
+    cout << "PASSED" << endl;
+  }
+
+  void test_Node_shared_parameters2() {
+    cout << "test_Node_shared_parameters2()..." << endl;
+    const int minibatch_size = 4;
+    const int image_depth = 3;
+    const int image_height = 13;
+    const int image_width = 15;
+    const int filter_count = 5;
+    const int filter_height = 3;
+    const int filter_width = 4;
+
+    const int dim_output = 7;
+
+    SequentialLayer net1("sequential network 1");
+    ConvLayer3D conv_layer1(filter_count, filter_height, filter_width, "Conv Layer 1");
+    net1.add_layer(conv_layer1);
+    BoxActivationFunction box_activation_layer1(BoxActivationFunction::ACTIVATION_TYPE::leakyReLU, "Box Activation Function 1");
+    net1.add_layer(box_activation_layer1);
+    const vector<int> pooling_region_extents = {1, 3, 3};
+    const vector<int> pooling_region_step_sizes = {1, 2, 2};
+    PoolingLayer pooling_layer1(pooling_region_extents, pooling_region_step_sizes, "Pooling Layer 1");
+    net1.add_layer(pooling_layer1);
+    ImageToColumnLayer layer2("Image To Column Layer 1");
+    net1.add_layer(layer2);
+    LinearLayer linear_laye1(dim_output, "Linear Layer 1");
+    net1.add_layer(linear_laye1);
+    ColumnActivationFunction column_activation_layer1(ColumnActivationFunction::ACTIVATION_TYPE::leakyReLU, "Column Activation Function 1");
+    net1.add_layer(column_activation_layer1);
+
+    const vector<int> input_extents = {minibatch_size, image_depth, image_height, image_width};
+    MatrixF input_activations(input_extents);
+    MatrixF input_backwards(input_extents);
+
+    net1.create_input_port(input_activations, input_backwards);
+    SequentialLayer net2 = net1;
+    net2.create_input_port(input_activations, input_backwards);
+    cout << "layers in net: " << net1.get_contained_node_count() << endl;
+    cout << "layers in net2: " << net2.get_contained_node_count() << endl;
+
+    // Make net2 share net1's parameters:
+    net2.set_shared(net1);
+
+    net1.forward(); // Initialize
+    net2.forward(); // Initialize
+
+    // Both layers should now have identical parameter values. Let's check:
+    randomize_uniform(net2.get_bias(), 0.0f, 1.0f);
+    assert_almost_equal(net1.get_weights(), net2.get_weights());
+    assert_almost_equal(net1.get_bias(), net2.get_bias());
+
+    // Check each of the internal nodes:
+    for (int i = 0; i < net1.get_contained_node_count(); ++i) {
+      const MatrixF& W1 = net1.get_node(i).get_weights();
+      const MatrixF& W2 = net2.get_node(i).get_weights();
+      if (W1.size() > 0) {
+	assert_almost_equal(W1, W2);
+      }
+    }
+
+    cout << "PASSED" << endl;
+  }
+
+  void test_multi_port_node() {
+    cout << "test_multi_port_node()" << endl;
+    // Test a simple Node with two input ports and two output ports.
+
+    Node composite_node("Composite Node");
+
+    // First internal node.
+    const int dim_output1 = 5;
+    LinearLayer linear_laye1(dim_output1, "Linear Layer 1");
+    composite_node.connect_input_to_contained_node("in1", linear_laye1);
+    composite_node.create_output_port_this_name(linear_laye1, "out1");
+    
+    composite_node.add_node(linear_laye1);
+
+    // Second internal node.
+    const int dim_output2 = 7;
+    LinearLayer linear_laye2(dim_output2, "Linear Layer 2");
+    composite_node.connect_input_to_contained_node("in2", linear_laye2);
+    composite_node.create_output_port_this_name(linear_laye2, "out2");
+
+    composite_node.add_node(linear_laye2);
+
+    // Add input extents for each input port of the composite node:
+    const int minibatch_size = 4;
+    const int dim_in1 = 3;
+    const int dim_in2 = 6;
+    std::map<std::string, std::vector<int>> input_port_extents_map;
+    input_port_extents_map["in1"] = {dim_in1, minibatch_size};
+    input_port_extents_map["in2"] = {dim_in2, minibatch_size};
+
+    // Check weights gradients.
+    composite_node.check_jacobian_weights(input_port_extents_map);
+    // Now check bias gradients
+    composite_node.check_jacobian_bias(input_port_extents_map);
+    // Now check input error gradients
+    composite_node.check_jacobian_input_backward(input_port_extents_map);
+  }
+
+  void test_AdderNode() {
+    cout << "test_AdderNode()" << endl;
+    const int dim1 = 3;
+    const int dim2 = 2;
+    const vector<int> input_extents = {dim1, dim2};
+    AdderNode adder("Adder");
+    MatrixF input_forward1(input_extents);
+    set_value(input_forward1, 1.0f);
+    cout << "Input 1: " << endl << input_forward1 << endl;
+    MatrixF input_backward1(input_extents);
+    adder.create_input_port(input_forward1, input_backward1, "in1");
+
+    MatrixF input_forward2(input_extents);
+    set_value(input_forward2, 2.0f);
+    cout << "Input 2: " << endl << input_forward2 << endl;
+    MatrixF input_backward2(input_extents);
+    adder.create_input_port(input_forward2, input_backward2, "in2");
+
+    //adder.reinitialize();
+    adder.forward();
+
+    cout << "Output: " << endl << adder.get_output_forward() << endl;
+    
+    // Check gradients:
+    std::map<std::string, std::vector<int>> input_port_extents_map;
+    input_port_extents_map["in1"] = input_extents;
+    input_port_extents_map["in2"] = input_extents;
+
+    // Check weights gradients.
+    adder.check_jacobian_weights(input_port_extents_map);
+    // Now check bias gradients
+    adder.check_jacobian_bias(input_port_extents_map);
+    // Now check input error gradients
+    adder.check_jacobian_input_backward(input_port_extents_map);
+  }
+
+  void test_SubtractorNode() {
+    cout << "test_SubtractorNode()" << endl;
+    const int dim1 = 3;
+    const int dim2 = 2;
+    const vector<int> input_extents = {dim1, dim2};
+    SubtractorNode suber("Suber");
+    MatrixF input_forward1(input_extents);
+    set_value(input_forward1, 1.0f);
+    cout << "Input 1: " << endl << input_forward1 << endl;
+    MatrixF input_backward1(input_extents);
+    suber.create_input_port(input_forward1, input_backward1, "plus");
+
+    MatrixF input_forward2(input_extents);
+    set_value(input_forward2, 2.0f);
+    cout << "Input 2: " << endl << input_forward2 << endl;
+    MatrixF input_backward2(input_extents);
+    suber.create_input_port(input_forward2, input_backward2, "minus");
+
+    suber.forward();
+
+    cout << "Output: " << endl << suber.get_output_forward() << endl;
+    
+    // Check gradients:
+    std::map<std::string, std::vector<int>> input_port_extents_map;
+    input_port_extents_map["plus"] = input_extents;
+    input_port_extents_map["minus"] = input_extents;
+
+    // Check weights gradients.
+    suber.check_jacobian_weights(input_port_extents_map);
+    // Now check bias gradients
+    suber.check_jacobian_bias(input_port_extents_map);
+    // Now check input error gradients
+    suber.check_jacobian_input_backward(input_port_extents_map);
+  }
+
+  void test_MultiplyerNode() {
+    cout << "test_MultiplyerNode()" << endl;
+    const int dim1 = 3;
+    const int dim2 = 2;
+    const vector<int> input_extents = {dim1, dim2};
+    MultiplyerNode multiplyer("Multiplyer");
+    MatrixF input_forward1(input_extents);
+    set_value(input_forward1, 2.0f);
+    cout << "Input 1: " << endl << input_forward1 << endl;
+    MatrixF input_backward1(input_extents);
+    multiplyer.create_input_port(input_forward1, input_backward1, "in1");
+
+    MatrixF input_forward2(input_extents);
+    set_value(input_forward2, 3.0f);
+    cout << "Input 2: " << endl << input_forward2 << endl;
+    MatrixF input_backward2(input_extents);
+    multiplyer.create_input_port(input_forward2, input_backward2, "in2");
+
+    MatrixF input_forward3(input_extents);
+    set_value(input_forward3, 4.0f);
+    cout << "Input 3: " << endl << input_forward3 << endl;
+    MatrixF input_backward3(input_extents);
+    multiplyer.create_input_port(input_forward3, input_backward2, "in3");
+
+    multiplyer.forward();
+
+    cout << "Output: " << endl << multiplyer.get_output_forward() << endl;
+    
+    // Check gradients:
+    std::map<std::string, std::vector<int>> input_port_extents_map;
+    input_port_extents_map["in1"] = input_extents;
+    input_port_extents_map["in2"] = input_extents;
+    input_port_extents_map["in3"] = input_extents;
+
+    // Check weights gradients.
+    multiplyer.check_jacobian_weights(input_port_extents_map);
+    // Now check bias gradients
+    multiplyer.check_jacobian_bias(input_port_extents_map);
+    // Now check input error gradients
+    multiplyer.check_jacobian_input_backward(input_port_extents_map);
+  }
+
+  void test_SplitterNode() {
+    cout << "test_SplitterNode()" << endl;
+    const int dim1 = 3;
+    const int dim2 = 2;
+    const vector<int> input_extents = {dim1, dim2};
+    const int output_port_count = 3;
+    SplitterNode splitter(output_port_count, "Splitter");
+    MatrixF input_forward(input_extents);
+    randomize_uniform(input_forward, 0.0f, 1.0f);
+    cout << "Input: " << endl << input_forward << endl;
+    MatrixF input_backward(input_extents);
+    splitter.create_input_port(input_forward, input_backward);
+
+    splitter.forward();
+    
+    for (int i = 0; i < output_port_count; ++i) {
+      cout << "Output port: " << i << " " << endl << splitter.get_output_forward(to_string(i)) << endl;
+    }
+    // Check gradients:
+    std::map<std::string, std::vector<int>> input_port_extents_map;
+    input_port_extents_map[DEFAULT_INPUT_PORT_NAME] = input_extents;
+
+    // Now check input error gradients
+    splitter.check_jacobian_input_backward(input_port_extents_map);
+  }
+
+
+  void test_rnn_slice() {
+    cout << "test_rnn_slice()" << endl;
+
+    // Create 1 slice of a vanilla RNN as a local class and check its jacobians.
+
+    // Create a local class that represents 1 time slice in the vanilla RNN:
+    // 
+    // Input ports:
+    //               "x_t"
+    //               "h_t_prev"
+    //
+    // Output ports:
+    //               "h_t"
+    //
+    // Note: Since this will be a composite node (that is, a node that contains a subgraph of
+    // other nodes), all we need to do is the following:
+    //
+    // 1. For each contained node, add a corresponding private member variable (see below).
+    // 2. In the constructor initialization list, call the constructor of each contained node (most of
+    // them will only need a name, but some will require configuration parameters.
+    // 3. In the constructor body, do the following in order: 
+    //     i. Connect each input port of this node to desired internal node input port.
+    //     ii. Connect internal nodes together however you want, adding each of them via add_node() in
+    //         the order that they should be called in the forward data propagation.
+    //     iii. Connect outputs of internal nodes to output ports of this node.
+    class RNNNode : public Node {
+
+    public:
+
+      RNNNode(int dim, std::string name) :
+	Node(name), 
+	m_linear_x_t {dim, "Linear x_t"},
+	m_linear_h_t_prev {dim, "Linear h_t_prev"},
+	m_adder {"Adder"},
+	m_tanh {ColumnActivationFunction::ACTIVATION_TYPE::tanh, "tanh activation"}
+      {
+	// This node is a "composite node" since it will contain a network subgraph.
+	// We now spcecify the subgraph:
+
+	// Note: add_node() must add the contained nodes in the same order that they should
+	// be called in the forward data pass.
+
+	// Connect inputs of this node to internal nodes:
+	connect_input_to_contained_node("x_t", m_linear_x_t);
+	add_node(m_linear_x_t);
+	connect_input_to_contained_node("h_t_prev", m_linear_h_t_prev);
+	add_node(m_linear_h_t_prev);
+	// Sum the outputs of the two linear nodes:
+	m_adder.create_input_port_this_name(m_linear_x_t, "in1");
+	m_adder.create_input_port_this_name(m_linear_h_t_prev, "in2");
+	add_node(m_adder);
+
+	// Connect the output of the adder to the input of a tanh activation:
+	m_tanh.connect_parent(m_adder);
+	add_node(m_tanh);
+
+	// create output ports:
+	create_output_port_this_name(m_tanh, "h_t");
+      }
+
+    private:
+
+      LinearLayer m_linear_x_t;
+      LinearLayer m_linear_h_t_prev;
+      AdderNode m_adder;
+      ColumnActivationFunction m_tanh;
+    };
+
+    // Internal size of RNN:
+    const int rnn_dim = 5;
+    RNNNode slice(rnn_dim, "Slice 0");
+
+    const int char_dim = 7;
+    const int minibatch_size = 2;
+    const vector<int> x_t_extents = {char_dim, minibatch_size};
+    const vector<int> h_t_extents = {rnn_dim, minibatch_size};
+
+    std::map<std::string, std::vector<int>> input_port_extents_map;
+    input_port_extents_map["x_t"] = x_t_extents;
+    input_port_extents_map["h_t_prev"] = h_t_extents;
+
+    // Now check the Jacobians:
+    slice.check_jacobian_weights(input_port_extents_map);
+    slice.check_jacobian_bias(input_port_extents_map);
+    slice.check_jacobian_input_backward(input_port_extents_map);
+  }
+
+  void test_simple_rnn() {
+    cout << "test_simple_rnn()" << endl;
+        // Create a local class that represents 1 time slice in the vanilla RNN.
+
+    // Note: It is not actually necessary to create a subclass of Node explicity as below.
+    // An alternative that also works is to simply get a new instance of Node, allocate
+    // instances of internal Node instances (probably using unique_ptr) and calling the
+    // various member functions of Node to connect everything together. The following is
+    // simply intended to show one option that works.
+
+    //
+    // Input ports:
+    //               "x_t"
+    //               "h_t_prev"
+    //
+    // Output ports:
+    //               "h_t": hidden output to next node (in next time slice)
+    //               "y_t": output to next layer or final output (in same time slice)
+    //
+    // Note: Since this will be a composite node (that is, a node that contains a subgraph of
+    // other nodes), all we need to do is the following:
+    //
+    // 1. For each contained node, add a corresponding private member variable (see below).
+    // 2. In the constructor initialization list, call the constructor of each contained node (most of
+    // them will only need a name, but some will require configuration parameters.
+    // 3. In the constructor body, do the following in order:
+    //     i. Connect each input port of this node to desired internal node input port.
+    //     ii. Connect internal nodes together however you want, adding each of them via add_node() in
+    //         the order that they should be called in the forward data propagation.
+    //     iii. Connect outputs of internal nodes to output ports of this node.
+    class RNNNode : public Node {
+
+    public:
+
+      // rnn_dim: dimension of internal RNN state.
+      // output_dim: dimension of y_t, the output
+      RNNNode(int rnn_dim, int output_dim, std::string name) :
+        Node(name),
+        // Note: Call the constructor of each contained node here, in the same order that
+        // they appear as private member variables.
+        m_linear_x_t {rnn_dim, "Linear x_t"},
+        m_linear_h_t_prev {rnn_dim, "Linear h_t_prev"},
+        m_adder {"Adder"},
+        m_tanh {ColumnActivationFunction::ACTIVATION_TYPE::tanh, "tanh activation"},
+        m_splitter{2, "Splitter"},
+	m_linear_output {output_dim, "Linear output"}
+      {
+        // This node is a "composite node" since it will contain a network subgraph.
+        // We now spcecify the subgraph:
+
+        // Note: add_node() must add the contained nodes in the same order that they should
+        // be called in the forward data pass.
+
+        // Connect inputs of this node to internal nodes:
+        connect_input_to_contained_node("x_t", m_linear_x_t);
+        add_node(m_linear_x_t);
+        connect_input_to_contained_node("h_t_prev", m_linear_h_t_prev);
+        add_node(m_linear_h_t_prev);
+        // Sum the outputs of the two linear nodes:
+        m_adder.create_input_port_this_name(m_linear_x_t, "in1");
+        m_adder.create_input_port_this_name(m_linear_h_t_prev, "in2");
+        add_node(m_adder);
+
+        // Connect the output of the adder to the input of a tanh activation:
+        m_tanh.connect_parent(m_adder);
+        add_node(m_tanh);
+
+        // Connect the output of the tanh into the splitter node.
+        m_splitter.connect_parent(m_tanh);
+        add_node(m_splitter);
+
+	// Connect output 1 of splitter to input of the "output" linear layer.
+	m_linear_output.create_input_port_parent_name(m_splitter, "1");
+	add_node(m_linear_output);
+
+        // create output ports: 
+        create_output_port(m_splitter, "0", "h_t"); // Internal state to send to next time slice.
+	create_output_port_this_name(m_linear_output, "y_t"); // Output for this time slice.
+      }
+
+    private:
+      // Each contain node should be a private member of this class:
+      LinearLayer m_linear_x_t;
+      LinearLayer m_linear_h_t_prev;
+      AdderNode m_adder;
+      ColumnActivationFunction m_tanh;
+      SplitterNode m_splitter;
+      LinearLayer m_linear_output;
+    };
+
+    // Internal size of RNN:
+    const int rnn_dim = 5;
+    const int output_dim = 3; // Number of unique characters
+    RNNNode slice(rnn_dim, output_dim, "Slice 0");
+
+    const int char_dim = 7;
+    const int minibatch_size = 2;
+    const vector<int> x_t_extents = {char_dim, minibatch_size};
+    MatrixF x_t_foward(x_t_extents);
+    MatrixF x_t_backward(x_t_extents);
+
+    const vector<int> h_t_extents = {rnn_dim, minibatch_size};
+    MatrixF h_t_prev_forward(h_t_extents);
+    MatrixF h_t_prev_backward(h_t_extents);
+
+    // Now create the input ports for a slice:
+    slice.create_input_port(x_t_foward, x_t_backward, "x_t");
+    slice.create_input_port(h_t_prev_forward, h_t_prev_backward, "h_t_prev");
+
+    // Check gradients:
+    // Only run this check on very small network size or it will take forever.
+    const bool check_gradients_slice = true;
+    if (check_gradients_slice) {
+      std::map<std::string, std::vector<int>> input_port_extents_map1;
+      input_port_extents_map1["x_t"] = x_t_extents;
+      input_port_extents_map1["h_t_prev"] = h_t_extents;
+      slice.check_jacobian_weights(input_port_extents_map1);
+      slice.check_jacobian_bias(input_port_extents_map1);
+      slice.check_jacobian_input_backward(input_port_extents_map1);
+    }
+
+    //
+    // Input ports:
+    //
+    // "h_t_init": This initial h_t input.
+    // The x_t inputs: "0", "1", ..., num_slices-1
+    //
+    // Output ports:
+    //
+    // h_t_final: the output of the last time slice.
+    // The y_t outputs: "0", "1", ..., num_slices-1
+    class VanillaRNN : public Node {
+
+    public:
+
+      VanillaRNN(int rnn_dim, int output_dim, int num_slices, std::string name) :
+        Node(name)
+      {
+        for (int i = 0; i < num_slices; ++i) {
+          string slice_name = "Slice " + std::to_string(i);
+          cout << "Creating: " << slice_name << endl;
+          m_slices.push_back(std::make_unique<RNNNode>(rnn_dim, output_dim, slice_name));
+          Node& current_contained = *m_slices.back();
+          if (i == 0) {
+            cout << "Adding first rnn node." << endl;
+            // Connect input port "h_t_init" of this container node to input port "h_t_prev" of the current contained node.
+            connect_input_to_contained_node("h_t_init", current_contained, "h_t_prev");
+          } else {
+            // Make the contained node share paramters with the first of the contained nodes.
+            cout << "Adding rnn node: " << i << endl;
+            Node& contained_0 = *m_slices.at(0);
+            current_contained.set_shared(contained_0); // Make all slices other than the first slice have shared parameters with the first slice.
+
+            // Connect hidden output "h_t" of previous contained node to input port "h_t_prev" of the current contained node.
+            Node& prev_contained = *m_slices.at(i-1);
+            current_contained.create_input_port(prev_contained, "h_t", "h_t_prev");
+          }
+          // Connect input port "i" of the this container node to input port "x_t" of the current contained node.
+          connect_input_to_contained_node(std::to_string(i), current_contained, "x_t");
+          // Connect output port "y_t" of the current contained node to output port "i" of this container node.
+          create_output_port(current_contained, "y_t", std::to_string(i));
+          add_node(current_contained);
+	  if (i == num_slices-1) {
+	    // For the final slice, need to create an output port that sends the hidden state "h_t" as an output.
+	    create_output_port(current_contained, "h_t", "h_t_final");
+	  }
+        }
+      }
+
+    private:
+      vector<unique_ptr<RNNNode>> m_slices;
+    };
+
+    const int num_slices = 3;
+    VanillaRNN rnn(rnn_dim, output_dim, num_slices, "Vanilla RNN");
+
+    // Uncomment to check gradients of RNN.
+    // Only run this check on very small network size or it will take forever.
+    const bool check_gradients_rnn = true;
+    if (check_gradients_rnn) {
+      std::map<std::string, std::vector<int>> input_port_extents_map;
+      input_port_extents_map.clear();
+      input_port_extents_map["h_t_init"] = h_t_extents;
+      for (int i = 0; i < num_slices; ++i) {
+        input_port_extents_map[std::to_string(i)] = x_t_extents;
+      }
+      rnn.check_jacobian_weights(input_port_extents_map);
+      rnn.check_jacobian_bias(input_port_extents_map);
+      rnn.check_jacobian_input_backward(input_port_extents_map);
+    }
+
+  }
 
   void run_all_tests() {
     test_mat_mult();
     test_mat_multiply_left_transpose();
+    test_mat_multiply_left_transpose_accumulate();
     test_mat_multiply_right_transpose();
+    test_mat_multiply_right_transpose_accumulate();
     test_MatrixF1D();
     test_MatrixF2D();
     test_MatrixF3D();
@@ -1611,30 +2313,35 @@ namespace kumozu {
     test_PoolingLayer();
     test_optimized_convolutive_deltas();
     test_optimized_weight_grad_convolutive();
-
     test_optimized_convolve_3d_minibatch();
     test_optimized_3d_convolutive_deltas();
     test_optimized_3d_weight_grad_convolutive();
-
     test_compute_3d_kmax();
-
-
     test_Dropout1D();
     test_Dropout3D();
     test_jacobian_LinearLayer();
+    test_jacobian_LinearLayer_Node();
     test_jacobian_ConvLayer3D();
     test_select();
     test_jacobian_ConvLayer3D();
-    test_SequentialNetwork();
-    test_SequentialNetwork2();
+    test_SequentialLayer();
+    test_SequentialLayer2();
+    test_SequentialLayer_shared_parameters();
     test_jacobian_ImageToColumnLayer();
     test_jacobian_BoxActivationFunction();
     test_jacobian_ColumnActivationFunction();
     test_MSECostFunction();
     test_CrossEntropyCostFunction();
     test_BatchNormalization1D();
+    test_Node_shared_parameters();
+    test_Node_shared_parameters2();
+    test_multi_port_node();
+    test_AdderNode();
+    test_SubtractorNode();
+    test_MultiplyerNode();
+    test_SplitterNode();
+    test_rnn_slice();
+    test_simple_rnn();
   }
-
-
 
 }

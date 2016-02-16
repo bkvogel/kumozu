@@ -45,7 +45,7 @@
 #include "UnitTests.h"
 #include "PlotUtilities.h"
 
-#include "SequentialNetwork.h"
+#include "SequentialLayer.h"
 #include "BoxActivationFunction.h"
 #include "ColumnActivationFunction.h"
 #include "ConvLayer3D.h"
@@ -70,6 +70,8 @@
 using namespace std;
 
 namespace kumozu {
+
+
 
   // This is just a smaller version of the CIFAR 10 example network that I quickly put together to
   // try on the MNIST data set.
@@ -122,7 +124,8 @@ namespace kumozu {
 
     const bool is_enable_bias_linear_layers = false;
 
-    SequentialNetwork network("sequential network 1");
+    //SequentialNetwork network("sequential network 1");
+    SequentialLayer network("sequential network 1");
 
     BoxActivationFunction::ACTIVATION_TYPE box_activation_type = BoxActivationFunction::ACTIVATION_TYPE::leakyReLU;
     //BoxActivationFunction::ACTIVATION_TYPE box_activation_type = BoxActivationFunction::ACTIVATION_TYPE::ReLU;
@@ -300,9 +303,12 @@ namespace kumozu {
 
     const MatrixF& train_input_mini = trainer.get_input_batch();
     const Matrix<int>& train_output_mini = trainer.get_output_batch();
-    MatrixF input_deltas = train_input_mini;
+    MatrixF input_backward = train_input_mini;
+    // Connect the input activations and deltas to the network.
+    network.create_input_port(train_input_mini, input_backward);
     // Initialize the network:
-    network.forward(train_input_mini);
+    //network.forward(train_input_mini);
+    network.forward();
 
     // Optionally load saved parameters:
     if (false) {
@@ -345,11 +351,13 @@ namespace kumozu {
       cerr << ".";
       bool end_epoch = trainer.next(); // Get next training mini-batch
 
-      network.forward(train_input_mini);
-      train_loss_accumulator.accumulate(cost_func.forward(network.get_output(), train_output_mini));
-      train_accumulator.accumulate(error_count(network.get_output(), train_output_mini));
-      cost_func.back_propagate(network.get_output_deltas(), network.get_output(), train_output_mini);
-      network.back_propagate(input_deltas, train_input_mini);
+      //network.forward(train_input_mini);
+      network.forward();
+      train_loss_accumulator.accumulate(cost_func.forward(network.get_output_forward(), train_output_mini));
+      train_accumulator.accumulate(error_count(network.get_output_forward(), train_output_mini));
+      cost_func.back_propagate(network.get_output_backward(), network.get_output_forward(), train_output_mini);
+      //network.back_propagate(input_backward, train_input_mini);
+      network.back_propagate();
       weights_updater.update(W, W_grad);
       bias_updater.update(bias, bias_grad);
       if (end_epoch) {
@@ -365,20 +373,24 @@ namespace kumozu {
         test_accumulator.reset();
         test_loss_accumulator.reset();
         network.set_train_mode(false);
+	// Now connect the test input activations and deltas to the network.
+	network.create_input_port(test_input_mini, input_backward);
         bool done = false;
         while (!done) {
           done = tester.next(); // Get next test mini-batch
-
-          network.forward(test_input_mini);
-          test_loss_accumulator.accumulate(cost_func.forward(network.get_output(), test_output_mini));
-          test_accumulator.accumulate(error_count(network.get_output(), test_output_mini));
+          //network.forward(test_input_mini);
+	  network.forward();
+          test_loss_accumulator.accumulate(cost_func.forward(network.get_output_forward(), test_output_mini));
+          test_accumulator.accumulate(error_count(network.get_output_forward(), test_output_mini));
         }
         cout << "Test error rate: " << test_accumulator.get_mean() << endl;
         cout << "Test loss/example: " << test_loss_accumulator.get_mean() << endl;
         cout << "Test examples: " << test_accumulator.get_counter() << endl;
         test_errors.push_back(test_accumulator.get_mean());
+	// Connect the input activations and deltas to the network.
+	network.create_input_port(train_input_mini, input_backward);
 
-
+	// Display plots?
         if (true) {
 
           // Update plot:
@@ -399,40 +411,40 @@ namespace kumozu {
 
 
           // Plot conv layer 1 output:
-          MatrixF images_conv_layer_1_out = select(conv_layer1.get_output(), 0, image_index);
+          MatrixF images_conv_layer_1_out = select(conv_layer1.get_output_forward(), 0, image_index);
           plot_images_greyscale_3dim(plot_activations, images_conv_layer_1_out, conv_layer1.get_name());
 
           // Plot conv layer 2 output:
-          MatrixF images_conv_layer_2_out = select(conv_layer2.get_output(), 0, image_index);
+          MatrixF images_conv_layer_2_out = select(conv_layer2.get_output_forward(), 0, image_index);
           plot_images_greyscale_3dim(plot_activations, images_conv_layer_2_out, conv_layer2.get_name());
 
           // Plot conv layer 3 output:
-          MatrixF images_conv_layer_3_out = select(conv_layer3.get_output(), 0, image_index);
+          MatrixF images_conv_layer_3_out = select(conv_layer3.get_output_forward(), 0, image_index);
           plot_images_greyscale_3dim(plot_activations, images_conv_layer_3_out, conv_layer3.get_name());
 
           // Plot conv layer 4 output:
-          MatrixF images_conv_layer_4_out = select(conv_layer4.get_output(), 0, image_index);
+          MatrixF images_conv_layer_4_out = select(conv_layer4.get_output_forward(), 0, image_index);
           plot_images_greyscale_3dim(plot_activations, images_conv_layer_4_out, conv_layer4.get_name());
 
           // Plot conv layer 5 output:
-          MatrixF images_conv_layer_5_out = select(conv_layer5.get_output(), 0, image_index);
+          MatrixF images_conv_layer_5_out = select(conv_layer5.get_output_forward(), 0, image_index);
           plot_images_greyscale_3dim(plot_activations, images_conv_layer_5_out, conv_layer5.get_name());
 
           // Plot conv layer 6 output:
-          MatrixF images_conv_layer_6_out = select(conv_layer6.get_output(), 0, image_index);
+          MatrixF images_conv_layer_6_out = select(conv_layer6.get_output_forward(), 0, image_index);
           plot_images_greyscale_3dim(plot_activations, images_conv_layer_6_out, conv_layer6.get_name());
 
           // Plot conv layer 7 output:
-          MatrixF images_conv_layer_7_out = select(conv_layer7.get_output(), 0, image_index);
+          MatrixF images_conv_layer_7_out = select(conv_layer7.get_output_forward(), 0, image_index);
           plot_images_greyscale_3dim(plot_activations, images_conv_layer_7_out, conv_layer7.get_name());
 
 
           // Plot linear layer 1:
-          MatrixF linear_laye1_out = select(linear_laye1.get_output(), 1, image_index);
+          MatrixF linear_laye1_out = select(linear_laye1.get_output_forward(), 1, image_index);
           plot_image_greyscale(plot_activations, linear_laye1_out, linear_laye1.get_name());
 
           // Plot linear layer 2:
-          MatrixF linear_laye2_out = select(linear_laye2.get_output(), 1, image_index);
+          MatrixF linear_laye2_out = select(linear_laye2.get_output_forward(), 1, image_index);
           plot_image_greyscale(plot_activations, linear_laye2_out, linear_laye2.get_name());
 
           plot_activations << "unset multiplot" << endl;
@@ -529,7 +541,7 @@ namespace kumozu {
     // batch normalization is used since batch normalization has its own bias.
     const bool is_enable_bias_linear_layers = false;
 
-    SequentialNetwork network("sequential network 1");
+    SequentialLayer network("sequential network 1");
 
     BoxActivationFunction::ACTIVATION_TYPE box_activation_type = BoxActivationFunction::ACTIVATION_TYPE::leakyReLU;
     //BoxActivationFunction::ACTIVATION_TYPE box_activation_type = BoxActivationFunction::ACTIVATION_TYPE::ReLU;
@@ -821,9 +833,10 @@ namespace kumozu {
 
     const MatrixF& train_input_mini = trainer.get_input_batch();
     const Matrix<int>& train_output_mini = trainer.get_output_batch();
-    MatrixF input_deltas = train_input_mini;
+    MatrixF input_backward = train_input_mini;
     // Initialize the network:
-    network.forward(train_input_mini);
+    network.create_input_port(train_input_mini, input_backward);
+    network.forward();
     // Optionally load saved parameters:
     if (false) {
       network.load_parameters("cifar_model_1");
@@ -865,11 +878,11 @@ namespace kumozu {
       cerr << ".";
       bool end_epoch = trainer.next(); // Get next training mini-batch
 
-      network.forward(train_input_mini);
-      train_loss_accumulator.accumulate(cost_func.forward(network.get_output(), train_output_mini));
-      train_accumulator.accumulate(error_count(network.get_output(), train_output_mini));
-      cost_func.back_propagate(network.get_output_deltas(), network.get_output(), train_output_mini);
-      network.back_propagate(input_deltas, train_input_mini);
+      network.forward();
+      train_loss_accumulator.accumulate(cost_func.forward(network.get_output_forward(), train_output_mini));
+      train_accumulator.accumulate(error_count(network.get_output_forward(), train_output_mini));
+      cost_func.back_propagate(network.get_output_backward(), network.get_output_forward(), train_output_mini);
+      network.back_propagate();
       weights_updater.update(W, W_grad);
       bias_updater.update(bias, bias_grad);
       if (end_epoch) {
@@ -885,20 +898,23 @@ namespace kumozu {
         test_accumulator.reset();
         test_loss_accumulator.reset();
         network.set_train_mode(false);
+	// Now connect the test input activations and deltas to the network.
+	network.create_input_port(test_input_mini, input_backward);
         bool done = false;
         while (!done) {
           done = tester.next(); // Get next test mini-batch
-
-          network.forward(test_input_mini);
-          test_loss_accumulator.accumulate(cost_func.forward(network.get_output(), test_output_mini));
-          test_accumulator.accumulate(error_count(network.get_output(), test_output_mini));
+          network.forward();
+          test_loss_accumulator.accumulate(cost_func.forward(network.get_output_forward(), test_output_mini));
+          test_accumulator.accumulate(error_count(network.get_output_forward(), test_output_mini));
         }
         cout << "Test error rate: " << test_accumulator.get_mean() << endl;
         cout << "Test loss/example: " << test_loss_accumulator.get_mean() << endl;
         cout << "Test examples: " << test_accumulator.get_counter() << endl;
         test_errors.push_back(test_accumulator.get_mean());
+	// Connect the input activations and deltas to the network.
+	network.create_input_port(train_input_mini, input_backward);
 
-
+	// Display plots?
         if (true) {
 
           // Update plot:
@@ -918,69 +934,69 @@ namespace kumozu {
 
           //
           //for (int n = 1; n <= 13; ++n) {
-          //MatrixF images = select(network.get_layer(n).get_output(), 0, image_index);
+          //MatrixF images = select(network.get_layer(n).get_output_forward(), 0, image_index);
           //plot_images_greyscale_3dim(plot_activations, images, network.get_layer(n).get_name());
           //}
 
           // Plot conv layer 1 output:
-          MatrixF images_conv_layer_1_out = select(conv_layer1.get_output(), 0, image_index);
+          MatrixF images_conv_layer_1_out = select(conv_layer1.get_output_forward(), 0, image_index);
           plot_images_greyscale_3dim(plot_activations, images_conv_layer_1_out, conv_layer1.get_name());
 
           // Plot conv layer 2 output:
-          MatrixF images_conv_layer_2_out = select(conv_layer2.get_output(), 0, image_index);
+          MatrixF images_conv_layer_2_out = select(conv_layer2.get_output_forward(), 0, image_index);
           plot_images_greyscale_3dim(plot_activations, images_conv_layer_2_out, conv_layer2.get_name());
 
           // Plot conv layer 3 output:
-          MatrixF images_conv_layer_3_out = select(conv_layer3.get_output(), 0, image_index);
+          MatrixF images_conv_layer_3_out = select(conv_layer3.get_output_forward(), 0, image_index);
           plot_images_greyscale_3dim(plot_activations, images_conv_layer_3_out, conv_layer3.get_name());
 
           // Plot conv layer 4 output:
-          MatrixF images_conv_layer_4_out = select(conv_layer4.get_output(), 0, image_index);
+          MatrixF images_conv_layer_4_out = select(conv_layer4.get_output_forward(), 0, image_index);
           plot_images_greyscale_3dim(plot_activations, images_conv_layer_4_out, conv_layer4.get_name());
 
           // Plot conv layer 5 output:
-          MatrixF images_conv_layer_5_out = select(conv_layer5.get_output(), 0, image_index);
+          MatrixF images_conv_layer_5_out = select(conv_layer5.get_output_forward(), 0, image_index);
           plot_images_greyscale_3dim(plot_activations, images_conv_layer_5_out, conv_layer5.get_name());
 
           // Plot conv layer 6 output:
-          MatrixF images_conv_layer_6_out = select(conv_layer6.get_output(), 0, image_index);
+          MatrixF images_conv_layer_6_out = select(conv_layer6.get_output_forward(), 0, image_index);
           plot_images_greyscale_3dim(plot_activations, images_conv_layer_6_out, conv_layer6.get_name());
 
           // Plot conv layer 7 output:
-          MatrixF images_conv_layer_7_out = select(conv_layer7.get_output(), 0, image_index);
+          MatrixF images_conv_layer_7_out = select(conv_layer7.get_output_forward(), 0, image_index);
           plot_images_greyscale_3dim(plot_activations, images_conv_layer_7_out, conv_layer7.get_name());
 
           // Plot conv layer 8 output:
-          MatrixF images_conv_layer_8_out = select(conv_layer8.get_output(), 0, image_index);
+          MatrixF images_conv_layer_8_out = select(conv_layer8.get_output_forward(), 0, image_index);
           plot_images_greyscale_3dim(plot_activations, images_conv_layer_8_out, conv_layer8.get_name());
 
           // Plot conv layer 9 output:
-          MatrixF images_conv_layer_9_out = select(conv_layer9.get_output(), 0, image_index);
+          MatrixF images_conv_layer_9_out = select(conv_layer9.get_output_forward(), 0, image_index);
           plot_images_greyscale_3dim(plot_activations, images_conv_layer_9_out, conv_layer9.get_name());
 
           // Plot conv layer 10 output:
-          MatrixF images_conv_layer_10_out = select(conv_layer10.get_output(), 0, image_index);
+          MatrixF images_conv_layer_10_out = select(conv_layer10.get_output_forward(), 0, image_index);
           plot_images_greyscale_3dim(plot_activations, images_conv_layer_10_out, conv_layer10.get_name());
 
           // Plot conv layer 11 output:
-          MatrixF images_conv_layer_11_out = select(conv_layer11.get_output(), 0, image_index);
+          MatrixF images_conv_layer_11_out = select(conv_layer11.get_output_forward(), 0, image_index);
           plot_images_greyscale_3dim(plot_activations, images_conv_layer_11_out, conv_layer11.get_name());
 
           // Plot conv layer 12 output:
-          MatrixF images_conv_layer_12_out = select(conv_layer12.get_output(), 0, image_index);
+          MatrixF images_conv_layer_12_out = select(conv_layer12.get_output_forward(), 0, image_index);
           plot_images_greyscale_3dim(plot_activations, images_conv_layer_12_out, conv_layer12.get_name());
 
           // Plot conv layer 13 output:
-          MatrixF images_conv_layer_13_out = select(conv_layer13.get_output(), 0, image_index);
+          MatrixF images_conv_layer_13_out = select(conv_layer13.get_output_forward(), 0, image_index);
           plot_images_greyscale_3dim(plot_activations, images_conv_layer_13_out, conv_layer13.get_name());
 
 
           // Plot linear layer 1:
-          MatrixF linear_laye1_out = select(linear_laye1.get_output(), 1, image_index);
+          MatrixF linear_laye1_out = select(linear_laye1.get_output_forward(), 1, image_index);
           plot_image_greyscale(plot_activations, linear_laye1_out, linear_laye1.get_name());
 
           // Plot linear layer 2:
-          MatrixF linear_laye2_out = select(linear_laye2.get_output(), 1, image_index);
+          MatrixF linear_laye2_out = select(linear_laye2.get_output_forward(), 1, image_index);
           plot_image_greyscale(plot_activations, linear_laye2_out, linear_laye2.get_name());
 
           //

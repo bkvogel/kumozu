@@ -48,14 +48,35 @@ using namespace std;
 
 namespace kumozu {
 
+  /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+  //
+  // Error-related
+
+  void error_exit(std::string reason) {
+    std::cerr << reason << std::endl;
+    exit(1); // Set a break-point here to debug. Can then see the stack trace.
+  }
+
+
+  void resized() {
+#ifdef KUMOZU_DEBUG
+    cout << "Resized." << endl;
+#endif
+  }
+
+  ////////////////////////////////////////////////////////////////////////////////////////////
+  // Matrix Utilities
 
   void mat_multiply_naive(MatrixF& A, const MatrixF &B, const MatrixF &C) {
-    int rowsOut = B.extent(0);
-    int innerDim = B.extent(1);
-    int colsOut = C.extent(1);
-    if ((A.extent(0) != rowsOut) || (A.extent(1) != C.extent(1)) || (B.extent(1) != C.extent(0))) {
-      std::cerr << "Error: Inconsistent matrix dimensions! Exiting." << std::endl;
-      exit(1);
+    const int rowsOut = B.extent(0);
+    const int innerDim = B.extent(1);
+    const int colsOut = C.extent(1);
+    if (B.extent(1) != C.extent(0)) {
+      error_exit("Error: Inconsistent matrix dimensions! Exiting.");
+    }
+    if ((A.extent(0) != rowsOut) || (A.extent(1) != C.extent(1))) {
+      A.resize(rowsOut, colsOut);
+      resized();
     }
     float sum;
     // For each row of B
@@ -90,10 +111,12 @@ namespace kumozu {
   }
 
   void mat_multiply_blas(MatrixF& A, const MatrixF &B, const MatrixF &C, float alpha, float beta) {
-    // Compute A = alpha*B*C + beta*A
-    if ((A.extent(0) != B.extent(0)) || (A.extent(1) != C.extent(1)) || (B.extent(1) != C.extent(0))) {
-      std::cerr << "Error: Inconsistent matrix dimensions! Exiting." << std::endl;
-      exit(1);
+    if (B.extent(1) != C.extent(0)) {
+      error_exit("Error: Inconsistent matrix dimensions! Exiting.");
+    }
+    if ((A.extent(0) != B.extent(0)) || (A.extent(1) != C.extent(1))) {
+      A.resize(B.extent(0), C.extent(1));
+      resized();
     }
 
     float* backingArrayA = A.get_backing_data();
@@ -178,7 +201,13 @@ namespace kumozu {
 
   void mat_multiply_left_transpose(MatrixF& A, const MatrixF& B, const MatrixF& C) {
     // Compute A = B^T * C
-    check_dimensions_a_eq_b_tran_times_c(A, B, C);
+    if (B.extent(0) != C.extent(0)) {
+      error_exit("Error: Inconsistent matrix dimensions! Exiting.");
+    }
+    if ((A.extent(0) != B.extent(1)) || (A.extent(1) != C.extent(1))) {
+      A.resize(B.extent(1), C.extent(1));
+      resized();
+    }
     float* backingArrayA = A.get_backing_data();
     const float* backingArrayB = B.get_backing_data();
     const float* backingArrayC = C.get_backing_data();
@@ -190,7 +219,13 @@ namespace kumozu {
 
   void mat_multiply_left_transpose_naive(MatrixF& A, const MatrixF& B, const MatrixF& C) {
     // Compute A = B^T * C
-    check_dimensions_a_eq_b_tran_times_c(A, B, C);
+    if (B.extent(0) != C.extent(0)) {
+      error_exit("Error: Inconsistent matrix dimensions! Exiting.");
+    }
+    if ((A.extent(0) != B.extent(1)) || (A.extent(1) != C.extent(1))) {
+      A.resize(B.extent(1), C.extent(1));
+      resized();
+    }
     float new_val_A;
     int row, col, cur_feature;
     int rows_A = A.extent(0);
@@ -207,11 +242,57 @@ namespace kumozu {
     }
   }
 
+  void mat_multiply_left_transpose_accumulate(MatrixF& A, const MatrixF& B, const MatrixF& C) {
+    // Compute A = A + B^T * C
+    if (B.extent(0) != C.extent(0)) {
+      error_exit("Error: Inconsistent matrix dimensions! Exiting.");
+    }
+    if ((A.extent(0) != B.extent(1)) || (A.extent(1) != C.extent(1))) {
+      A.resize(B.extent(1), C.extent(1));
+      resized();
+    }
+    float* backingArrayA = A.get_backing_data();
+    const float* backingArrayB = B.get_backing_data();
+    const float* backingArrayC = C.get_backing_data();
+
+    cblas_sgemm(CblasRowMajor, CblasTrans, CblasNoTrans, A.extent(0), A.extent(1), B.extent(0), 1.0f,
+                backingArrayB, B.extent(1), backingArrayC, C.extent(1), 1.0f, backingArrayA, A.extent(1));
+
+  }
+
+  void mat_multiply_left_transpose_naive_accumulate(MatrixF& A, const MatrixF& B, const MatrixF& C) {
+    // Compute A = A + B^T * C
+    if (B.extent(0) != C.extent(0)) {
+      error_exit("Error: Inconsistent matrix dimensions! Exiting.");
+    }
+    if ((A.extent(0) != B.extent(1)) || (A.extent(1) != C.extent(1))) {
+      A.resize(B.extent(1), C.extent(1));
+      resized();
+    }
+    int rows_A = A.extent(0);
+    int cols_A = A.extent(1);
+#pragma omp parallel for
+    for (int col = 0; col < cols_A; col++) {
+      for (int row = 0; row < rows_A; row++) {
+        float new_val_A = 0.0f;
+        for (int cur_feature = 0; cur_feature < B.extent(0); cur_feature++) {
+          new_val_A += (B(cur_feature, row)) * (C(cur_feature, col));
+        }
+        A(row, col) += new_val_A;
+      }
+    }
+  }
+
 
   void mat_multiply_right_transpose(MatrixF& A, const MatrixF& B, const MatrixF& C) {
     // Compute A = B * C^T
-    check_dimensions_a_eq_b_times_c_tran(A, B, C);
-
+    if (B.extent(1) != C.extent(1)) {
+      error_exit("Error: Inconsistent matrix dimensions! Exiting.");
+    }
+    if ((A.extent(0) != B.extent(0)) || (A.extent(1) != C.extent(0))) {
+      A.resize(B.extent(0), C.extent(0));
+      resized();
+    }
     float* backingArrayA = A.get_backing_data();
     const float* backingArrayB = B.get_backing_data();
     const float* backingArrayC = C.get_backing_data();
@@ -223,22 +304,69 @@ namespace kumozu {
 
   void mat_multiply_right_transpose_naive(MatrixF& A, const MatrixF& B, const MatrixF& C)  {
     // Compute A = B * C^T
-    check_dimensions_a_eq_b_times_c_tran(A, B, C);
-    float new_val_A;
-    int row, col, cur_feature;
+    if (B.extent(1) != C.extent(1)) {
+      error_exit("Error: Inconsistent matrix dimensions! Exiting.");
+    }
+    if ((A.extent(0) != B.extent(0)) || (A.extent(1) != C.extent(0))) {
+      A.resize(B.extent(0), C.extent(0));
+      resized();
+    }
     int rows_A = A.extent(0);
     int cols_A = A.extent(1);
-#pragma omp parallel for private(row, col, cur_feature, new_val_A)
-    for (col = 0; col < cols_A; col++) {
-      for (row = 0; row < rows_A; row++) {
-        new_val_A = 0.0f;
-        for (cur_feature = 0; cur_feature < static_cast<int>(B.extent(1)); cur_feature++) {
+#pragma omp parallel for
+    for (int col = 0; col < cols_A; col++) {
+      for (int row = 0; row < rows_A; row++) {
+        float new_val_A = 0.0f;
+        for (int cur_feature = 0; cur_feature < B.extent(1); cur_feature++) {
           new_val_A += (B(row, cur_feature)) * (C(col, cur_feature));
         }
         A(row, col) = new_val_A;
       }
     }
   }
+
+
+  void mat_multiply_right_transpose_accumulate(MatrixF& A, const MatrixF& B, const MatrixF& C) {
+    // Compute A = B * C^T + A
+    if (B.extent(1) != C.extent(1)) {
+      error_exit("Error: Inconsistent matrix dimensions! Exiting.");
+    }
+    if ((A.extent(0) != B.extent(0)) || (A.extent(1) != C.extent(0))) {
+      A.resize(B.extent(0), C.extent(0));
+      resized();
+    }
+    float* backingArrayA = A.get_backing_data();
+    const float* backingArrayB = B.get_backing_data();
+    const float* backingArrayC = C.get_backing_data();
+
+    cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasTrans, B.extent(0), C.extent(0), B.extent(1), 1.0f,
+                backingArrayB, B.extent(1), backingArrayC, C.extent(1), 1.0f, backingArrayA, A.extent(1));
+
+  }
+
+  void mat_multiply_right_transpose_accumulate_naive(MatrixF& A, const MatrixF& B, const MatrixF& C)  {
+    // Compute A = B * C^T + A
+    if (B.extent(1) != C.extent(1)) {
+      error_exit("Error: Inconsistent matrix dimensions! Exiting.");
+    }
+    if ((A.extent(0) != B.extent(0)) || (A.extent(1) != C.extent(0))) {
+      A.resize(B.extent(0), C.extent(0));
+      resized();
+    }
+    int rows_A = A.extent(0);
+    int cols_A = A.extent(1);
+#pragma omp parallel for
+    for (int col = 0; col < cols_A; col++) {
+      for (int row = 0; row < rows_A; row++) {
+        float new_val_A = 0.0f;
+        for (int cur_feature = 0; cur_feature < static_cast<int>(B.extent(1)); cur_feature++) {
+          new_val_A += (B(row, cur_feature)) * (C(col, cur_feature));
+        }
+        A(row, col) += new_val_A;
+      }
+    }
+  }
+
 
   int error_count(const MatrixF& network_output, const Matrix<int> target_labels) {
     const int num_classes = network_output.extent(0);
@@ -311,17 +439,17 @@ namespace kumozu {
   }
 
 
-  void compute_reverse_maxout(MatrixF& input_deltas, const MatrixF& output_deltas, const Matrix<int>& state) {
-    int cols = input_deltas.extent(1);
-    if (cols != output_deltas.extent(1)) {
+  void compute_reverse_maxout(MatrixF& input_backward, const MatrixF& output_backward, const Matrix<int>& state, bool accumulate) {
+    int cols = input_backward.extent(1);
+    if (cols != output_backward.extent(1)) {
       cerr << "Inconsistent dimensions. Exiting." << endl;
       exit(1);
     }
-    if (output_deltas.extent(0) != state.extent(0)) {
+    if (output_backward.extent(0) != state.extent(0)) {
       cerr << "Inconsistent dimensions. Exiting." << endl;
       exit(1);
     }
-    int in_rows = input_deltas.extent(0);
+    int in_rows = input_backward.extent(0);
     int out_rows = state.extent(0);
     if (in_rows < out_rows) {
       cerr << "Inconsistent dimensions. Exiting." << endl;
@@ -331,28 +459,33 @@ namespace kumozu {
       cerr << "Inconsistent dimensions. Exiting." << endl;
       exit(1);
     }
-    set_value(input_deltas, 0.0f);
+    set_value(input_backward, 0.0f);
+    // todo: parallelize
     for (int r = 0; r != out_rows; ++r) {
       for (int c = 0; c != cols; ++c) {
         int in_row = state(r, c);
-        float val = output_deltas(r, c);
-        input_deltas(in_row, c) = val;
+        float val = output_backward(r, c);
+	if (accumulate) {
+	  input_backward(in_row, c) += val;
+	} else {
+	  input_backward(in_row, c) = val;
+	}
       }
     }
   }
 
-  void compute_reverse_maxout_decay_unused(MatrixF& input_deltas, const MatrixF& input, const MatrixF& output_deltas,
+  void compute_reverse_maxout_decay_unused(MatrixF& input_backward, const MatrixF& input, const MatrixF& output_backward,
                                            const Matrix<int>& state, float decay_val) {
-    int cols = input_deltas.extent(1);
-    if (cols != output_deltas.extent(1)) {
+    int cols = input_backward.extent(1);
+    if (cols != output_backward.extent(1)) {
       cerr << "Inconsistent dimensions. Exiting." << endl;
       exit(1);
     }
-    if (output_deltas.extent(0) != state.extent(0)) {
+    if (output_backward.extent(0) != state.extent(0)) {
       cerr << "Inconsistent dimensions. Exiting." << endl;
       exit(1);
     }
-    int in_rows = input_deltas.extent(0);
+    int in_rows = input_backward.extent(0);
     int out_rows = state.extent(0);
     if (in_rows < out_rows) {
       cerr << "Inconsistent dimensions. Exiting." << endl;
@@ -362,13 +495,13 @@ namespace kumozu {
       cerr << "Inconsistent dimensions. Exiting." << endl;
       exit(1);
     }
-    copy_matrix(input_deltas, input);
-    scale(input_deltas, input_deltas, decay_val);
+    copy_matrix(input_backward, input);
+    scale(input_backward, input_backward, decay_val);
     for (int r = 0; r != out_rows; ++r) {
       for (int c = 0; c != cols; ++c) {
         int in_row = state(r, c);
-        float val = output_deltas(r, c);
-        input_deltas(in_row, c) = val;
+        float val = output_backward(r, c);
+        input_backward(in_row, c) = val;
       }
     }
   }
@@ -583,14 +716,14 @@ namespace kumozu {
     }
   }
 
-  void compute_reverse_kmax_decay_unused(MatrixF& input_deltas, const MatrixF& inputs, const MatrixF& output_deltas, const Matrix<int>& state,
+  void compute_reverse_kmax_decay_unused(MatrixF& input_backward, const MatrixF& inputs, const MatrixF& output_backward, const Matrix<int>& state,
                                          int partition_count, int k, float decay_val) {
     // Implementation note: Each sub-partition of a column can be executed in parallel.
     // Check dimensions.
-    check_dimensions(input_deltas, output_deltas);
-    check_dimensions(input_deltas, state);
-    int M = input_deltas.extent(0);
-    int N = input_deltas.extent(1);
+    check_dimensions(input_backward, output_backward);
+    check_dimensions(input_backward, state);
+    int M = input_backward.extent(0);
+    int N = input_backward.extent(1);
     if ((M % partition_count) != 0) {
       cerr << "compute_forward_kmax_v3(): Inconsistent parameters. Exiting." << endl;
       exit(1);
@@ -601,20 +734,20 @@ namespace kumozu {
       exit(1);
     }
 
-    set_value(input_deltas, 0.0f);
+    set_value(input_backward, 0.0f);
     for (int row = 0; row != M; ++row) {
       for (int col = 0; col != N; ++col) {
         if (state(row, col) == 1) {
           // This activation was chosen as one of the k-max during the forward pass, so its gradient
           // is the same as the corresponding output error.
-          input_deltas(row, col) = output_deltas(row, col);
+          input_backward(row, col) = output_backward(row, col);
         } else {
           // This activation was NOT chosen as one of the k-max during the forward pass, so its gradient
           // is chosen to be equal to the value of the corresponding activation from the forward pass.
           // This is its error because this is the amount by which it differs from zero, which is the ideal
           // value. That is, if the network were perfectly efficient, only the k-max activations would be non-zero
           // and all other activations would be very close to zero.
-          input_deltas(row, col) = decay_val*inputs(row, col);
+          input_backward(row, col) = decay_val*inputs(row, col);
         }
       }
     }
@@ -706,32 +839,32 @@ namespace kumozu {
 
   }
 
-  void reverse_3d_kmax(MatrixF& input_deltas, const MatrixF& output_deltas, const Matrix<int>& state) {
-    // input_deltas: (minibatch_size x depth x height x width) matrix containing the input values.
-    check_dimensions(input_deltas, output_deltas);
-    check_dimensions(input_deltas, state);
-    set_value(input_deltas, 0.0f);
+  void reverse_3d_kmax(MatrixF& input_backward, const MatrixF& output_backward, const Matrix<int>& state) {
+    // input_backward: (minibatch_size x depth x height x width) matrix containing the input values.
+    check_dimensions(input_backward, output_backward);
+    check_dimensions(input_backward, state);
+    set_value(input_backward, 0.0f);
 #pragma omp parallel for
-    for (int n = 0; n < input_deltas.size(); ++n) {
+    for (int n = 0; n < input_backward.size(); ++n) {
       if (1 == state[n]) {
-        input_deltas[n] = output_deltas[n];
+        input_backward[n] = output_backward[n];
       }
     }
 
   }
 
-  void reverse_3d_kmax_decay_unused(MatrixF& input_deltas, const MatrixF& input, const MatrixF& output_deltas,
+  void reverse_3d_kmax_decay_unused(MatrixF& input_backward, const MatrixF& input, const MatrixF& output_backward,
                                     const Matrix<int>& state, float decay_val)  {
-    // input_deltas: (minibatch_size x depth x height x width) matrix containing the input values.
-    check_dimensions(input_deltas, output_deltas);
-    check_dimensions(input_deltas, state);
-    //set_value(input_deltas, 0.0f);
+    // input_backward: (minibatch_size x depth x height x width) matrix containing the input values.
+    check_dimensions(input_backward, output_backward);
+    check_dimensions(input_backward, state);
+    //set_value(input_backward, 0.0f);
 #pragma omp parallel for
-    for (int n = 0; n < input_deltas.size(); ++n) {
+    for (int n = 0; n < input_backward.size(); ++n) {
       if (1 == state[n]) {
-        input_deltas[n] = output_deltas[n];
+        input_backward[n] = output_backward[n];
       } else {
-        input_deltas[n] = decay_val*input[n];
+        input_backward[n] = decay_val*input[n];
       }
     }
 
@@ -772,7 +905,59 @@ namespace kumozu {
     }
   }
 
-  // For debug.
+  void compute_forward_tanh(const MatrixF& input, MatrixF& output) {
+    if (input.get_extents() != output.get_extents()) {
+      output.resize(input.get_extents());
+      resized();
+    }
+    #pragma omp parallel for
+    for (int n = 0; n < input.size(); ++n) {
+      output[n] = std::tanh(input[n]);
+    }
+  }
+
+  void compute_reverse_tanh(MatrixF& input_backward, const MatrixF& output_forward, const MatrixF& output_backward, bool accumulate) {
+    if (input_backward.get_extents() != output_forward.get_extents()) {
+      input_backward.resize(output_forward.get_extents());
+      resized();
+    }
+    #pragma omp parallel for
+    for (int n = 0; n < output_forward.size(); ++n) {
+      if (accumulate) {
+	input_backward[n] += (1.0f - output_forward[n]*output_forward[n])*output_backward[n];
+      } else {
+	input_backward[n] = (1.0f - output_forward[n]*output_forward[n])*output_backward[n];
+      }
+    }
+  }
+
+  void compute_forward_sigmoid(const MatrixF& input, MatrixF& output) {
+    if (input.get_extents() != output.get_extents()) {
+      output.resize(input.get_extents());
+      resized();
+    }
+    #pragma omp parallel for
+    for (int n = 0; n < input.size(); ++n) {
+      output[n] = 1.0f/(1.0f + std::exp(-input[n]));
+    }
+  }
+
+  void compute_reverse_sigmoid(MatrixF& input_backward, const MatrixF& output_forward, const MatrixF& output_backward, bool accumulate) {
+    if (input_backward.get_extents() != output_forward.get_extents()) {
+      input_backward.resize(output_forward.get_extents());
+      resized();
+    }
+    #pragma omp parallel for
+    for (int n = 0; n < output_forward.size(); ++n) {
+      if (accumulate) {
+	input_backward[n] += (output_forward[n]*(1.0f - output_forward[n]))*output_backward[n];
+      } else {
+	input_backward[n] = (output_forward[n]*(1.0f - output_forward[n]))*output_backward[n];
+      }
+    }
+  }
+
+
   void compute_forward_identity_activation(const MatrixF& in_vals, MatrixF& out_vals, Matrix<int>& out_indices) {
     check_dimensions(in_vals, out_vals);
     check_dimensions(in_vals, out_indices);
@@ -781,13 +966,6 @@ namespace kumozu {
 #pragma omp parallel for
     for (int n = 0; n < in_vals.size(); ++n) {
       double temp = in_vals[n];
-      /*
-        if (temp > 0.0f) {
-        out_vals[n] = temp;
-        out_indices[n] = 1;
-        }
-      */
-      //if (temp > 0.0f) {
       if (true) {
         out_vals[n] = temp;
         out_indices[n] = 1;
@@ -795,74 +973,82 @@ namespace kumozu {
     }
   }
 
-  // For debug.
-  void compute_reverse_identity_activation(MatrixF& in_vals, const MatrixF& out_vals, const Matrix<int>& out_indices) {
+
+  void compute_reverse_identity_activation(MatrixF& in_vals, const MatrixF& out_vals, const Matrix<int>& out_indices, bool accumulate) {
     check_dimensions(in_vals, out_vals);
     check_dimensions(in_vals, out_indices);
     set_value(in_vals, 0.0f);
 #pragma omp parallel for
     for (int n = 0; n < in_vals.size(); ++n) {
-      //int temp = out_indices[n];
-      /*
-        if (temp == 1) {
-        in_vals[n] = out_vals[n];
-        }
-      */
-      //if (temp == 1) {
       if (true) {
-        in_vals[n] = out_vals[n];
+	if (accumulate) {
+	  in_vals[n] += out_vals[n];
+	} else {
+	  in_vals[n] = out_vals[n];
+	}
       }
     }
   }
 
-  void compute_reverse_relu(MatrixF& input_deltas, const MatrixF& output_deltas, const Matrix<int>& state) {
-    check_dimensions(input_deltas, output_deltas);
-    check_dimensions(input_deltas, state);
-    set_value(input_deltas, 0.0f);
+  void compute_reverse_relu(MatrixF& input_backward, const MatrixF& output_backward, const Matrix<int>& state, bool accumulate) {
+    check_dimensions(input_backward, output_backward);
+    check_dimensions(input_backward, state);
+    set_value(input_backward, 0.0f);
 #pragma omp parallel for
-    for (int n = 0; n < input_deltas.size(); ++n) {
+    for (int n = 0; n < input_backward.size(); ++n) {
       if (1 == state[n]) {
-        input_deltas[n] = output_deltas[n];
+        if (accumulate) {
+          input_backward[n] += output_backward[n];
+        } else {
+          input_backward[n] = output_backward[n];
+        }
       }
     }
   }
 
-  void compute_reverse_relu_decay_unused(MatrixF& input_deltas, const MatrixF& input, const MatrixF& output_deltas,
+  void compute_reverse_relu_decay_unused(MatrixF& input_backward, const MatrixF& input, const MatrixF& output_backward,
                                          const Matrix<int>& state, float decay_val)  {
-    check_dimensions(input_deltas, output_deltas);
-    check_dimensions(input_deltas, state);
-    check_dimensions(input_deltas, input);
+    check_dimensions(input_backward, output_backward);
+    check_dimensions(input_backward, state);
+    check_dimensions(input_backward, input);
 #pragma omp parallel for
-    for (int n = 0; n < input_deltas.size(); ++n) {
+    for (int n = 0; n < input_backward.size(); ++n) {
       //int temp = state[n];
       if (1 == state[n]) {
-        input_deltas[n] = output_deltas[n];
+        input_backward[n] = output_backward[n];
       } else {
         // This element was set to 0 during the forward pass, and so was unused. Ideally it should
         // therefore be 0. Therefore, the error is equal to its value during the forward pass.
-        input_deltas[n] = decay_val*input[n];
+        input_backward[n] = decay_val*input[n];
       }
     }
   }
 
-  void compute_reverse_leaky_relu(MatrixF& in_vals, const MatrixF& out_vals, const Matrix<int>& out_indices) {
+  void compute_reverse_leaky_relu(MatrixF& in_vals, const MatrixF& out_vals, const Matrix<int>& out_indices, bool accumulate) {
     check_dimensions(in_vals, out_vals);
     check_dimensions(in_vals, out_indices);
     set_value(in_vals, 0.0f);
     //const float leakiness = 0.01f; // Normal leaky
     const float leakiness = 0.33f; // Very leaky
+    if (accumulate) {
 #pragma omp parallel for
-    for (int n = 0; n < in_vals.size(); ++n) {
-      int temp = out_indices[n];
-      /*
+      for (int n = 0; n < in_vals.size(); ++n) {
+        int temp = out_indices[n];
         if (temp == 1) {
-        in_vals[n] = out_vals[n];
+          in_vals[n] += out_vals[n];
+        } else if (temp == -1) {
+          in_vals[n] += leakiness*out_vals[n];
         }
-      */
-      if (temp == 1) {
-        in_vals[n] = out_vals[n];
-      } else if (temp == -1) {
-        in_vals[n] = leakiness*out_vals[n];
+      }
+    } else {
+#pragma omp parallel for
+      for (int n = 0; n < in_vals.size(); ++n) {
+        int temp = out_indices[n];
+        if (temp == 1) {
+          in_vals[n] = out_vals[n];
+        } else if (temp == -1) {
+          in_vals[n] = leakiness*out_vals[n];
+        }
       }
     }
   }
@@ -873,11 +1059,16 @@ namespace kumozu {
 
 
 
-  //This computes grad_W = X_error*H^T.
+  //This computes grad_W = X_error*H^T or
+  // grad_W += X_error*H^T
   // To get mean gradient, you should do element-wise divide by the mini-batch size.
-  void compute_weight_grad_sgd_minibatch(const MatrixF& X_error, MatrixF& W_grad, const MatrixF& H) {
+  void compute_weight_grad_sgd_minibatch(const MatrixF& X_error, MatrixF& W_grad, const MatrixF& H, bool accumulate) {
     check_matrix_factorization_dimensions(X_error, W_grad, H);
-    mat_multiply_right_transpose(W_grad, X_error, H);
+    if (accumulate) {
+      mat_multiply_right_transpose_accumulate(W_grad, X_error, H);
+    } else {
+      mat_multiply_right_transpose(W_grad, X_error, H);
+    }
   }
 
 
@@ -1014,12 +1205,13 @@ namespace kumozu {
 
 
 
-  void do_backprop_update_sgd_minibatch(const MatrixF& X_error, const MatrixF& W, MatrixF& H_error) {
-    check_matrix_factorization_dimensions(X_error, W, H_error);
+  void do_backprop_update_sgd_minibatch(const MatrixF& X_error, const MatrixF& W, MatrixF& H_error, bool accumulate) {
     // We compute H_error = W^T * X_error
-    mat_multiply_left_transpose(H_error, W, X_error);
-    //mat_multiply_left_transpose_naive(H_error, W, X_error);
-
+    if (accumulate) {
+      mat_multiply_left_transpose_accumulate(H_error, W, X_error);
+    } else {
+      mat_multiply_left_transpose(H_error, W, X_error);
+    }
   }
 
   void do_bias_update_sgd_minibatch(const MatrixF& X_error, const MatrixF& W, const MatrixF& H, std::vector<float>& b,
@@ -1061,36 +1253,23 @@ namespace kumozu {
 
 
   // To get average gradient, scale by 1/minibatch_size.
-  void compute_bias_grad_sgd_minibatch(const MatrixF& X_error, MatrixF& b_grad) {
-    int minibatch_size = X_error.extent(1);
-    float avg_grad_w, cur_error;
-    //float minibatch_size_f = static_cast<float>(minibatch_size);
-    for (int row_b = 0; row_b != b_grad.size(); ++row_b) {
-      // Note: maximum number of threads = b.size() = number of rows in W.
+  void compute_bias_grad_sgd_minibatch(const MatrixF& X_error, MatrixF& b_grad, bool accumulate) {
+    const int minibatch_size = X_error.extent(1);
 
+#pragma omp parallel for
+    for (int row_b = 0; row_b < b_grad.size(); ++row_b) {
       // For each element b[row_W], loop over all columns in the mini-batch region of X_error, H to update.
-      avg_grad_w = 0.0f; // Will contain the gradient for W(row_W, col_W).
-
+      float avg_grad_w = 0.0f; // Will contain the gradient for W(row_W, col_W).
       for (int col_X_error = 0; col_X_error < minibatch_size; ++col_X_error) {
-        cur_error = X_error(row_b, col_X_error);
-        avg_grad_w += cur_error;
+        avg_grad_w += X_error(row_b, col_X_error);
       }
-      //avg_grad_w /= minibatch_size_f;
-      b_grad[row_b] = avg_grad_w;
+      if (accumulate) {
+        b_grad[row_b] += avg_grad_w;
+      } else {
+        b_grad[row_b] = avg_grad_w;
+      }
     }
-
   }
-
-
-
-
-
-
-
-
-
-
-
 
   void do_product_update_naive(MatrixF& X, const MatrixF& W, const MatrixF& H, float update_weight) {
     check_matrix_factorization_dimensions(X, W, H);
@@ -1851,7 +2030,7 @@ namespace kumozu {
   }
 
 
-  void compute_3d_weight_grad_convolutive_minibatch(MatrixF& grad_W, const MatrixF& deltas_Z2, const MatrixF& A1)  {
+  void compute_3d_weight_grad_convolutive_minibatch(MatrixF& grad_W, const MatrixF& deltas_Z2, const MatrixF& A1, bool accumulate)  {
     // convolutive model:  Z2 = W (convolve with) A1
     const int R = grad_W.extent(0);
     const int D = grad_W.extent(1);
@@ -1882,7 +2061,6 @@ namespace kumozu {
     }
     const int M = deltas_Z2.extent(2);
     const int N = deltas_Z2.extent(3);
-    //#pragma omp parallel for private(r,c,k,i,j,sum)
     const int minibatch_size = A1.extent(0);
 #pragma omp parallel for collapse(3)
     for (int r = 0; r < P; ++r) {
@@ -1901,7 +2079,11 @@ namespace kumozu {
                 }
               }
             }
-            grad_W(k, d, r,c) = sum;
+            if (accumulate) {
+              grad_W(k, d, r,c) += sum;
+            } else {
+              grad_W(k, d, r,c) = sum;
+            }
           }
         }
       }
@@ -2018,7 +2200,7 @@ namespace kumozu {
 
   void compute_3d_weight_grad_convolutive_minibatch_optimized(MatrixF& grad_W, const MatrixF& deltas_Z2, const MatrixF& A1,
                                                               MatrixF& temp_deltas_Z2, MatrixF& temp_A1,
-                                                              MatrixF& temp_grad_W)   {
+                                                              MatrixF& temp_grad_W, bool accumulate)   {
     // convolutive model:  Z2 = W (convolve with) A1
     const int R = grad_W.extent(0);
     const int D = grad_W.extent(1);
@@ -2121,32 +2303,40 @@ namespace kumozu {
     // Each column of temp_W will contain the unrolled version of one of the R convolutional filters, plus the
     // corresponding bias value at the bottom (i.e., last row).
 
-
+    if (accumulate) {
 #pragma omp parallel for collapse(3)
-    for (int k = 0; k < R; ++k) {
-      // For each of the R convolutional filters:
-      for (int d = 0; d < D; ++d) {
-        for (int i = 0; i < P; ++i) {
-          for (int j = 0; j < Q; ++j) {
-            grad_W(k, d, i,j) = temp_grad_W(d*P*Q + i*Q + j, k);
+      for (int k = 0; k < R; ++k) {
+        // For each of the R convolutional filters:
+        for (int d = 0; d < D; ++d) {
+          for (int i = 0; i < P; ++i) {
+            for (int j = 0; j < Q; ++j) {
+              grad_W(k, d, i,j) += temp_grad_W(d*P*Q + i*Q + j, k);
+            }
+          }
+        }
+      }
+    } else {
+#pragma omp parallel for collapse(3)
+      for (int k = 0; k < R; ++k) {
+        // For each of the R convolutional filters:
+        for (int d = 0; d < D; ++d) {
+          for (int i = 0; i < P; ++i) {
+            for (int j = 0; j < Q; ++j) {
+              grad_W(k, d, i,j) = temp_grad_W(d*P*Q + i*Q + j, k);
+            }
           }
         }
       }
     }
+
   }
 
 
 
-  void compute_bias_grad_convolutive_minibatch(MatrixF& grad_bias, const MatrixF& deltas_Z2) {
-
-    // bias is R x 1 (same as 1-dimensional vector<float> of size R)
-    if (grad_bias.order() != 1) {
-      cerr << "convolve_2d_filter_with_bias(): grad_bias vector has wrong order." << endl;
-      exit(1);
-    }
-    if (grad_bias.size() != deltas_Z2.extent(1)) {
-      cerr << "compute_weight_grad_convolutive(): wrong dimensions." << endl;
-      exit(1);
+  void compute_bias_grad_convolutive_minibatch(MatrixF& grad_bias, const MatrixF& deltas_Z2, bool accumulate) {
+    if ((grad_bias.order() != 1) || (grad_bias.size() != deltas_Z2.extent(1))) {
+      grad_bias.resize(deltas_Z2.extent(1));
+      resized();
     }
     const int M = deltas_Z2.extent(2);
     const int N = deltas_Z2.extent(3);
@@ -2158,14 +2348,16 @@ namespace kumozu {
       for (int cur_batch = 0; cur_batch < minibatch_size; ++cur_batch) {
         for (int r = 0; r < M; ++r) {
           for (int c = 0; c < N; ++c) {
-            //sum += deltas_Z2(cur_batch, r, c, k);
             sum += deltas_Z2(cur_batch, k, r, c);
           }
         }
       }
-      grad_bias[k] = sum;
+      if (accumulate) {
+        grad_bias[k] += sum;
+      } else {
+        grad_bias[k] = sum;
+      }
     }
-
   }
 
   /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -2225,8 +2417,6 @@ namespace kumozu {
       X[i] = min(X[i], max_val);
     }
   }
-
-
 
 
 

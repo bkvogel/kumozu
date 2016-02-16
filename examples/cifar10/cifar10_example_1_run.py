@@ -82,21 +82,21 @@ def load_cifar():
 
     # Keep only a subset of the data for quick tests or use all data:
 
-    train_keep = 50000 # Keep all data
+    #train_keep = 50000 # Keep all data
     #train_keep = 10000
     #train_keep = 5000 
     #train_keep = 49920 # batch size up to 256.
     #train_keep = 9984 # batch size up to 256 quick tests.   
     #train_keep = 9728 # batch size up to 512 quick tests.  
     #train_keep = 1024
-    #train_keep = 1000
+    train_keep = 1000
 
-    test_keep = 10000 # Keep all data
+    #test_keep = 10000 # Keep all data
     #test_keep = 9984 # batch size up to 256 quick tests.   
     #test_keep = 9728 # batch size up to 512 quick tests.  
     #test_keep = 1024
     #test_keep = 5000
-    #test_keep = 1000
+    test_keep = 1000
 
     train_images_net_format = train_images_net_format[0:train_keep,:,:,:]
     labels_train = labels_train[0:train_keep]

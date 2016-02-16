@@ -28,7 +28,7 @@
  *
  */
 
-#include "MSECostFunction.h"
+#include "SubtractorNode.h"
 #include "Utilities.h"
 
 
@@ -36,25 +36,6 @@ using namespace std;
 
 namespace kumozu {
 
-  void MSECostFunction::reinitialize(std::vector<int> input_extents) {
-    m_minibatch_size =  input_extents.at(1);
-
-    m_temp_input_error.resize(input_extents);
-    m_temp_size_input.resize(input_extents);
-  }
-
-  float MSECostFunction::forward_propagate(const MatrixF& input_activations, const MatrixF& target_activations) {
-    element_wise_difference(m_temp_input_error, input_activations, target_activations);
-    copy_matrix(m_temp_size_input, m_temp_input_error);
-    apply(m_temp_size_input, [] (float a) {
-        return a*a;
-      });
-    return 0.5*sum(m_temp_size_input);
-  }
-
-  void MSECostFunction::back_propagate(MatrixF& input_error, const MatrixF& input_activations,
-                                       const MatrixF& true_output_forward) {
-    copy_matrix(input_error, m_temp_input_error);
-  }
-
+  
+  
 }

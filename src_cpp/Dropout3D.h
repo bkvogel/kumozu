@@ -57,9 +57,9 @@ namespace kumozu {
    * to the output matrices.
    *
    * It should be noted that this class corresponds to two output matrices of the same size: "output" and
-   * "output_deltas." These two matrices are member variables of the class instance that are allocated
+   * "output_backward." These two matrices are member variables of the class instance that are allocated
    * by the constructor. A forward dropout call will compute "output" as a function of the supplied
-   * "input" matrix. A reverse dropout call will compute "input" as a function of the member "output_deltas"
+   * "input" matrix. A reverse dropout call will compute "input" as a function of the member "output_backward"
    * matrix, which is intended to be called as part of the back-propagation procedure.
    */
   class Dropout3D : public Layer {
@@ -93,7 +93,7 @@ namespace kumozu {
        * This method is typically used during the back-propigation step to back-propagate
        * deltas (errors) through the reverse dropout function.
        */
-      virtual void back_propagate_deltas(MatrixF& input_error);
+      virtual void back_propagate_deltas(MatrixF& input_backward, const MatrixF& input_forward);
 
       /*
        * Set the probability of keeping any given element.
@@ -109,7 +109,7 @@ namespace kumozu {
        *
        * The dropout function of the supplied input activations is computed.
        * The results are stored in the output activations member variable, which
-       * can be obtained by calling get_output().
+       * can be obtained by calling get_output_forward().
        *
        */
       virtual void forward_propagate(const MatrixF& input_activations);
@@ -132,8 +132,6 @@ namespace kumozu {
       int       m_depth;
       int       m_height;
       int       m_width;
-      MatrixF m_output;
-      MatrixF m_output_deltas;
       float m_prob_keep;
       Matrix<int> m_dropout_mask;
       std::random_device m_rand_dev;

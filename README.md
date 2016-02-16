@@ -6,6 +6,8 @@ Kumozu is research software for deep learning and matrix factorization algorithm
 
 * Includes a multi-dimensional matrix class, various utility functions, and layer classes such as fully-connected, convolutional, batch normalization, dropout, etc. for constructing deep convolutional networks.
 
+* New! Experimental support for general computation graphs using the base graph `Node` class. A node can have an arbitrary number of named input and output ports and can itself contain a subgraph of other Node instances, enabling expressive network architectures. The node connections in the DAG are computed and cached dynamically during the forward data pass so that there should be negligible performance overhead. For an example of using the computation graph API to construct a recurrent neural network, see the RNN example (`test_simple_rnn()` in the unit tests).
+
 * The user only needs to specify the sizes of the input activations for the first layer in a deep network. All other layers will automatically determine their required input sizes as the network is initialized during the first forward pass of the back-propagation procedure. This makes it easy to create and modify very deep networks without needing to manually determine the required dimensions for the input activations at each layer. For example, the removal of a max-pooling layer from the middle of a deep network will cause the activation sizes to change for all downstream layers. In this framework, such a layer can often be removed by just commenting out a single line of code since the downstream layers will automatically determine their required activation sizes at runtime.
 
 * Data visualization using Gnuplot. Activations, layer weights, and various statistics can be plotted and refreshed as frequently as desired during network training.
@@ -14,13 +16,14 @@ Kumozu is research software for deep learning and matrix factorization algorithm
 
 * Uses OpenBLAS sgemm to perform the matrix multiplications and optimized convolutions using the method described [here](http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.137.482&rep=rep1&type=pdf). This method can use a bit more memory than the naive method but is often much faster. This makes it fast enough to experiment with datasets such as MNIST and CIFAR in a reasonable amount of time (if you have a fast CPU).
 
-* Any layer in a network (including the whole network) can use the Jacobian checker that is included in the base `Layer` class. This makes it easy to verify that a network or newly-created layer is computing its gradients correctly.
+* Any node/layer in a network (including the whole network) can use the Jacobian checker that is included in the base `Node` class. This makes it easy to verify that a network or newly-created node is computing its gradients correctly.
+
 
 
 
 #### Limitations
 
-* No GPU support.
+* No GPU support. A design goal is to keep the code base as simple, efficient, and as platform agnostic as possible (ideally only requiring a compiler with C++11 support and a BLAS-optimized sgemm function), which currently seems to be at odds with adding GPU support.
 
 * Limited file IO capability. Currently, only a few C++ and Python functions are provided to load/save float-type multi-dimensional arrays to disk. This makes it possible to easily move multi-dimensional array data between Python scripts and the C++ code. No support for csv/text-formated files yet.
 
@@ -196,4 +199,8 @@ Add more MF/NMF examples.
 
 Add deconvolutional layers and examples.
 
-Add GPU support at some point.
+Add RNN/LSTM examples. Add a general class to automatically replicate a time slice node into an RNN.
+
+Improve documentation.
+
+Add GPU support at some point if it can be done without violating the "keep it simple and platform agnostic" design principle.

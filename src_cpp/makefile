@@ -1,7 +1,7 @@
 
-OBJS= Matrix.o MatrixIO.o Matrix_list.o Utilities.o UnitTests.o LinearLayer.o BatchNormalization1D.o BatchNormalization3D.o ImageToColumnLayer.o Layer.o ConvLayer3D.o ColumnActivationFunction.o Dropout1D.o Dropout3D.o BoxActivationFunction.o PoolingLayer.o SequentialNetwork.o ExamplesNeuralNet.o ExamplesRecSystem.o NetflixRecSystem.o MinibatchTrainer.o Updater.o PlotUtilities.o CostFunction.o MSECostFunction.o CrossEntropyCostFunction.o Accumulator.o ExamplesPlot.o ExamplesMatrix.o main.o
+OBJS= Matrix.o MatrixIO.o Matrix_list.o Utilities.o UnitTests.o LinearLayer.o BatchNormalization1D.o BatchNormalization3D.o ImageToColumnLayer.o Layer.o ConvLayer3D.o ColumnActivationFunction.o Dropout1D.o Dropout3D.o BoxActivationFunction.o PoolingLayer.o SequentialLayer.o ExamplesNeuralNet.o ExamplesRecSystem.o NetflixRecSystem.o MinibatchTrainer.o Updater.o PlotUtilities.o CostFunction.o MSECostFunction.o CrossEntropyCostFunction.o Accumulator.o ExamplesPlot.o ExamplesMatrix.o Node.o AdderNode.o SubtractorNode.o MultiplyerNode.o SplitterNode.o main.o
 
-OBJS_EXPERIMENTAL= Matrix.o MatrixIO.o Matrix_list.o Utilities.o UnitTests.o LinearLayer.o BatchNormalization1D.o BatchNormalization3D.o ImageToColumnLayer.o Layer.o ConvLayer3D.o ColumnActivationFunction.o Dropout1D.o Dropout3D.o BoxActivationFunction.o PoolingLayer.o SequentialNetwork.o ExamplesNeuralNet.o ExamplesRecSystem.o NetflixRecSystem.o MinibatchTrainer.o Updater.o PlotUtilities.o CostFunction.o MSECostFunction.o CrossEntropyCostFunction.o Accumulator.o main.o
+OBJS_EXPERIMENTAL= Matrix.o MatrixIO.o Matrix_list.o Utilities.o UnitTests.o LinearLayer.o BatchNormalization1D.o BatchNormalization3D.o ImageToColumnLayer.o Layer.o ConvLayer3D.o ColumnActivationFunction.o Dropout1D.o Dropout3D.o BoxActivationFunction.o PoolingLayer.o SequentialLayer.o ExamplesNeuralNet.o ExamplesRecSystem.o NetflixRecSystem.o MinibatchTrainer.o Updater.o PlotUtilities.o CostFunction.o MSECostFunction.o CrossEntropyCostFunction.o Accumulator.o ExamplesPlot.o ExamplesMatrix.o Node.o AdderNode.o SubtractorNode.o MultiplyerNode.o ExamplesNeuralNetExperimental.o SplitterNode.o main.o
 #CC=g++
 # Requres at least g++ 4.9
 CC=g++-4.9
@@ -32,7 +32,8 @@ INCLUDES_PATH = -I /opt/OpenBLAS/include
 
 ##############################################################################3
 
-CCFLAGS = -Wall -fopenmp -std=c++11 -c $(DEBUG) $(OPTIMIZATION)
+#CCFLAGS = -Wall -fopenmp -std=c++11 -c $(DEBUG) $(OPTIMIZATION)
+CCFLAGS = -Wall -fopenmp -std=c++1y -c $(DEBUG) $(OPTIMIZATION)
 # This will complain about conversions from int to float etc...
 #CCFLAGS = -Wfloat-conversion -Wall -fopenmp -std=c++11 -c $(DEBUG) $(OPTIMIZATION)
 
@@ -41,6 +42,7 @@ CCFLAGS = -Wall -fopenmp -std=c++11 -c $(DEBUG) $(OPTIMIZATION)
 LINKER_LIBRARIES = -lgomp -lopenblas -lpthread -lboost_iostreams -lboost_filesystem -lboost_system
 
 all: main
+#all: main_experimental
 
 
 main_experimental : $(OBJS_EXPERIMENTAL)
@@ -97,8 +99,10 @@ BoxActivationFunction.o : BoxActivationFunction.h BoxActivationFunction.cpp Matr
 PoolingLayer.o : PoolingLayer.h PoolingLayer.cpp Matrix.h
 	$(CC) $(PROFILE) $(CCFLAGS) $(INCLUDES_PATH) PoolingLayer.cpp
 
-SequentialNetwork.o : SequentialNetwork.h SequentialNetwork.cpp Matrix.h
-	$(CC) $(PROFILE) $(CCFLAGS) $(INCLUDES_PATH) SequentialNetwork.cpp
+SequentialLayer.o : SequentialLayer.h SequentialLayer.cpp Matrix.h
+	$(CC) $(PROFILE) $(CCFLAGS) $(INCLUDES_PATH) SequentialLayer.cpp
+
+#
 
 ExamplesNeuralNet.o : ExamplesNeuralNet.h ExamplesNeuralNet.cpp
 	$(CC) $(PROFILE) $(CCFLAGS) $(INCLUDES_PATH) ExamplesNeuralNet.cpp
@@ -136,12 +140,31 @@ ExamplesPlot.o : ExamplesPlot.h ExamplesPlot.cpp
 ExamplesMatrix.o : ExamplesMatrix.h ExamplesMatrix.cpp
 	$(CC) $(PROFILE) $(CCFLAGS) $(INCLUDES_PATH) ExamplesMatrix.cpp
 
+Node.o : Node.h Node.cpp
+	$(CC) $(PROFILE) $(CCFLAGS) $(INCLUDES_PATH) Node.cpp
+
+AdderNode.o : AdderNode.h AdderNode.cpp Node.h
+	$(CC) $(PROFILE) $(CCFLAGS) $(INCLUDES_PATH) AdderNode.cpp
+
+SplitterNode.o : SplitterNode.h SplitterNode.cpp Node.h
+	$(CC) $(PROFILE) $(CCFLAGS) $(INCLUDES_PATH) SplitterNode.cpp
+
+SubtractorNode.o : SubtractorNode.h SubtractorNode.cpp Node.h
+	$(CC) $(PROFILE) $(CCFLAGS) $(INCLUDES_PATH) SubtractorNode.cpp
+
+MultiplyerNode.o : MultiplyerNode.h MultiplyerNode.cpp Node.h
+	$(CC) $(PROFILE) $(CCFLAGS) $(INCLUDES_PATH) MultiplyerNode.cpp
+
+ExamplesNeuralNetExperimental.o : ExamplesNeuralNetExperimental.h ExamplesNeuralNetExperimental.cpp
+	$(CC) $(PROFILE) $(CCFLAGS) $(INCLUDES_PATH) ExamplesNeuralNetExperimental.cpp
+#
+
 # 
-main.o : main.cpp Matrix.h MatrixIO.h Matrix_list.h LinearLayer.h BatchNormalization1D.h BatchNormalization3D.h ImageToColumnLayer.h Layer.h ConvLayer3D.h Utilities.h ColumnActivationFunction.h Dropout1D.h Dropout3D.h BoxActivationFunction.h PoolingLayer.h SequentialNetwork.h ExamplesNeuralNet.h ExamplesRecSystem.h NetflixRecSystem.h MinibatchTrainer.h Updater.h PlotUtilities.h CostFunction.h MSECostFunction.h CrossEntropyCostFunction.h Accumulator.h ExamplesPlot.h ExamplesMatrix.h
+main.o : main.cpp Matrix.h MatrixIO.h Matrix_list.h LinearLayer.h BatchNormalization1D.h BatchNormalization3D.h ImageToColumnLayer.h Layer.h ConvLayer3D.h Utilities.h ColumnActivationFunction.h Dropout1D.h Dropout3D.h BoxActivationFunction.h PoolingLayer.h SequentialLayer.h ExamplesNeuralNet.h ExamplesRecSystem.h NetflixRecSystem.h MinibatchTrainer.h Updater.h PlotUtilities.h CostFunction.h MSECostFunction.h CrossEntropyCostFunction.h Accumulator.h ExamplesPlot.h ExamplesMatrix.h Node.h AdderNode.h SubtractorNode.h MultiplyerNode.h SplitterNode.h
 	$(CC) $(PROFILE) $(CCFLAGS) $(INCLUDES_PATH) main.cpp
 
-main_experimental.o : main_experimental.cpp Matrix.h MatrixIO.h Matrix_list.h LinearLayer.h BatchNormalization1D.h BatchNormalization3D.h ImageToColumnLayer.h Layer.h ConvLayer3D.h Utilities.h ColumnActivationFunction.h Dropout1D.h Dropout3D.h BoxActivationFunction.h PoolingLayer.h SequentialNetwork.h ExamplesNeuralNet.h ExamplesRecSystem.h NetflixRecSystem.h MinibatchTrainer.h Updater.h PlotUtilities.h CostFunction.h MSECostFunction.h CrossEntropyCostFunction.h Accumulator.h
-	$(CC) $(PROFILE) $(CCFLAGS) $(INCLUDES_PATH) main_experimental.cpp
+main_experimental.o : main.cpp Matrix.h MatrixIO.h Matrix_list.h LinearLayer.h BatchNormalization1D.h BatchNormalization3D.h ImageToColumnLayer.h Layer.h ConvLayer3D.h Utilities.h ColumnActivationFunction.h Dropout1D.h Dropout3D.h BoxActivationFunction.h PoolingLayer.h SequentialLayer.h ExamplesNeuralNet.h ExamplesRecSystem.h NetflixRecSystem.h MinibatchTrainer.h Updater.h PlotUtilities.h CostFunction.h MSECostFunction.h CrossEntropyCostFunction.h Accumulator.h ExamplesPlot.h ExamplesMatrix.h Node.h AdderNode.h SubtractorNode.h MultiplyerNode.h SplitterNode.h ExamplesNeuralNetExperimental.h
+	$(CC) $(PROFILE) $(CCFLAGS) $(INCLUDES_PATH) main.cpp
 
 clean:
 	\rm *.o main

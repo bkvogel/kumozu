@@ -106,14 +106,14 @@ namespace kumozu {
 
 
         /*
-         * Back-propagate errors to compute new values for input_error.
+         * Back-propagate errors to compute new values for input_backward.
          *
          * The output error (that is, "output deltas") must have already been updated before
          * calling this method. Note that a reference to the output deltas can be obtained by
-         * calling get_output_deltas(). Otherwise, the error gradients will not be back-propagated
+         * calling get_output_backward(). Otherwise, the error gradients will not be back-propagated
          * correctly.
          */
-        virtual void back_propagate_deltas(MatrixF& input_error);
+        virtual void back_propagate_deltas(MatrixF& input_backward, const MatrixF& input_forward);
 
 
   private:
@@ -151,15 +151,15 @@ namespace kumozu {
          * Reverse-direction maxout.
          *
          * Performance optimization: We use the following trick to enable a fast parallel implementation. Note that each delta
-         * must be added to the corresponding element of input_deltas (i.e., where the maximum element in the 3D box occured
+         * must be added to the corresponding element of input_backward (i.e., where the maximum element in the 3D box occured
          * during the forward pass). Assume that the step sizes
          * are such that the 3D boxes overlap at most 50%. It then follows that it is not possible for the even-numbered indexes
-         * in output_deltas to point to the same element in input_deltas. Likewise for the odd-number indexes in output_deltas.
+         * in output_backward to point to the same element in input_backward. Likewise for the odd-number indexes in output_backward.
          * We can therefore perform the back propagation of deltas in two steps. First perform the operation in parrallel
          * over the even-numbered indexes. When this completes, we can perform the operation in parrellel over the
          * odd-numbered indexes.
          */
-        void reverse_maxout_3d(MatrixF& input_deltas, const MatrixF& output_deltas, Matrix<int>& state,
+        void reverse_maxout_3d(MatrixF& input_backward, const MatrixF& output_backward, Matrix<int>& state,
                                const std::vector<int>& pooling_region_extents, const std::vector<int>& pooling_region_step_sizes);
 
   protected:
@@ -167,7 +167,7 @@ namespace kumozu {
         /*
          * Compute the output activations as a function of input activations.
          *
-         * The output activations can then be obtained by calling get_output().
+         * The output activations can then be obtained by calling get_output_forward().
          *
          */
         virtual void forward_propagate(const MatrixF& input_activations);

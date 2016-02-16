@@ -45,6 +45,11 @@
 #include "ExamplesPlot.h"
 #include "ExamplesMatrix.h"
 
+// Comment these out before updloading to github!
+//#include "ExamplesNeuralNetExperimental.h" // Do not check this in!
+//#include "PositiveFactorNetworkExamples.h" // Do not check this in!
+//#include "RNNExamples.h" // Do not check this in!
+
 using namespace std;
 using namespace kumozu;
 
@@ -92,7 +97,17 @@ int main(int argc, char* argv[]) {
       }
       else if (methodName == "netflix_prize_example_1") {
         netflix_prize_example_1();
-      }
+      } 
+      //else if (methodName == "rnn_example_1") {
+      //  rnn_example_1();
+      //} 
+      //else if (methodName == "lstm_example_1") {
+      //  lstm_example_1();
+      //} 
+      //else if (methodName == "gru_example_1") {
+      //  gru_example_1();
+      //} 
+      //
     }
   }
   catch (out_of_range) {

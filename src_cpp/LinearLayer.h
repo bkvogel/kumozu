@@ -41,35 +41,35 @@
 
 namespace kumozu {
 
-  /*
+  /**
    * An instance of this class represents a fully-connected linear layer in a neural network. This layer
    * computes the following function:
    *
-   * output_activations(m) = W*input_activations(m) + bias for each m in 1...minibatch_size
+   * output_forward(m) = W*input_forward(m) + bias for each m in 1...minibatch_size
    *
-   * where output_activations = [output_activations(0), output_activations(1), ..., output_activations(minibatch_size-1)] and
-   * input_activations = [input_activations(0), input_activations(1), ..., input_activations(minibatch_size-1)].
+   * where output_forward = [output_forward(0), output_forward(1), ..., output_forward(minibatch_size-1)] and
+   * input_forward = [input_forward(0), input_forward(1), ..., input_forward(minibatch_size-1)].
    *
-   * That is, the input to this class consists of "input_activations" which consists of all input
-   * activations for a mini-batch containing "minibatch_size" data samples. Likewise, output_activations
+   * That is, the input to this class consists of "input_forward" which consists of all input
+   * activations for a mini-batch containing "minibatch_size" data samples. Likewise, output_forward
    * contains the corresponding output activations for the mini-batch.
    *
-   * The m'th example in a mini-batch corresponds to the m'th column of the input_activations and output_activations matrices.
+   * The m'th example in a mini-batch corresponds to the m'th column of the input_forward and output_forward matrices.
    *
    */
   class LinearLayer : public Layer {
 
   public:
 
-    /*
+    /**
      * Create a new instance.
      *
      * Parameters:
      *
-     * dim_output: Number of units in the output layer. Note that the dimensions of the output activations
+     * @param dim_output: Number of units in the output layer. Note that the dimensions of the output activations
      *             will be (dim_output, minibatch_size) where minibatch_size can change at runtime.
      *
-     * name: A descriptive name.
+     * @param name: A descriptive name.
      *
      */
   LinearLayer(int dim_output, std::string name) :
@@ -101,27 +101,30 @@ namespace kumozu {
 
 
 
-      /*
+      /**
        * Compute the gradients for W and bias.
        *
-       * This updates m_W_grad and m_bias_grad.
+       * This updates parameter matrices in get_weight_gradient() and get_bias_gradient(). The gradients
+       * are accumulated into these matrices and so it is important that these parameters be 0-valued after
+       * the forward data pass.
        *
-       * The output error (that is, "output deltas") must have already been updated before
-       * calling this method. Note that a reference to the output deltas can be obtained by
-       * calling get_output_deltas(). Otherwise, the error gradients will not be back-propagated
+       * The output error (that is, "output backward") must have already been updated before
+       * calling this method. Note that a reference to "output backward" can be obtained by
+       * calling get_output_backward(). Otherwise, the error gradients will not be back-propagated
        * correctly.
        */
-      virtual void back_propagate_paramater_gradients(const MatrixF& input_activations);
+      virtual void back_propagate_paramater_gradients(const MatrixF& input_forward);
 
-      /*
-       * Back-propagate errors to compute new values for input_error.
+      /**
+       * Back-propagate errors to compute new values for input_backward.
        *
        * The output error (that is, "output deltas") must have already been updated before
        * calling this method. Note that a reference to the output deltas can be obtained by
-       * calling get_output_deltas(). Otherwise, the error gradients will not be back-propagated
+       * calling get_output_backward(). Otherwise, the error gradients will not be back-propagated
        * correctly.
+       *
        */
-      virtual void back_propagate_deltas(MatrixF& input_error);
+      virtual void back_propagate_deltas(MatrixF& input_backward, const MatrixF& input_forward);
 
 
   private:
@@ -131,7 +134,7 @@ namespace kumozu {
       int m_minibatch_size;
       MatrixF m_temp_size_W;
       MatrixF m_temp_size_bias;
-      Matrix<int> m_output_activations_indices;
+      Matrix<int> m_output_forward_indices;
       MatrixF m_W_fixed_random;
       bool m_use_fixed_random_back_prop;
 
@@ -140,10 +143,10 @@ namespace kumozu {
       /*
        * Compute the output activations as a function of input activations.
        *
-       * The output activations can then be obtained by calling get_output().
+       * The output activations can then be obtained by calling get_output_forward().
        *
        */
-      virtual void forward_propagate(const MatrixF& input_activations);
+      virtual void forward_propagate(const MatrixF& input_forward);
 
       /*
        * Reinitialize the layer based on the supplied new input extent values.

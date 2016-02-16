@@ -43,7 +43,11 @@ namespace kumozu {
 
   void test_mat_multiply_left_transpose();
 
+  void test_mat_multiply_left_transpose_accumulate();
+
   void test_mat_multiply_right_transpose();
+
+  void test_mat_multiply_right_transpose_accumulate();
 
   void benchmark_mat_multiply_right_transpose();
 
@@ -153,6 +157,14 @@ namespace kumozu {
    * computed correctly.
    *
    */
+  void test_jacobian_LinearLayer_Node();
+
+  /*
+   * Numercally compute Jacobian with respect to both paramaters and
+   * input activations to verify that that the gradients are being
+   * computed correctly.
+   *
+   */
   void test_jacobian_ConvLayer3D();
 
 
@@ -161,10 +173,13 @@ namespace kumozu {
   void test_select();
 
 
-  void test_SequentialNetwork();
 
-  void test_SequentialNetwork2();
+  void test_SequentialLayer();
 
+
+  void test_SequentialLayer2();
+
+  void test_SequentialLayer_shared_parameters();
 
   void test_jacobian_ImageToColumnLayer();
 
@@ -188,5 +203,24 @@ namespace kumozu {
   void test_BatchNormalization1D();
 
   void test_BatchNormalization3D();
+  
+  void test_Node_shared_parameters();
+
+  void test_Node_shared_parameters2();
+
+  void test_multi_port_node();
+
+  void test_AdderNode();
+
+  void test_SubtractorNode();
+
+  void test_MultiplyerNode();
+
+  void test_SplitterNode();
+
+  void test_rnn_slice();
+
+  void test_simple_rnn();
+
 }
 #endif  /* _UNITTESTS_H */

@@ -43,15 +43,20 @@
 
 namespace kumozu {
 
-  /*
+  /**
    * A Utility class to train a network in mini-batches.
    *
-   * An instance of this class is supplied with a full training or test set of examples network input and output activations.
-   * Functions can then be called on this instance to obtain small chunks of examples (called a mini-batch) for the purpose
-   * of training and/or testing a network. This class can be configured so that consecutive calles to obtain another
-   * "mini-batch" of examples can either iterate sequentially through the full set or alternately iterate through a
-   * shuffled (i.e., randomly permuted) set.
+   * An instance of this class is supplied with a set of example network input and output activations, corresponding to
+   * the network input activations and the corresponding desired network output activations. Such a set of examples will
+   * typically correspond to either the training set, validation set, or test set.
    *
+   * When training a network using SGD or evaluating a network, it is common to supply small batches (called a mini-batch) 
+   * of examples at a time. This class provides functions that can be called to obtain these mini-batches of
+   * examples.
+   *
+   * This class can be configured so that consecutive calles to obtain another
+   * "mini-batch" of examples will either iterate sequentially through the full set or iterate through a
+   * shuffled (i.e., randomly permuted) set.
    *
    * Usage:
    *
@@ -59,7 +64,7 @@ namespace kumozu {
    * desired mini-batch size. We allow the input and output types to differ since it is common for the output
    * type to be int when the output example represents a class label, or a float when it is used for a regression problem.
    *
-   * Optionally call various methods to configure aspects of how the instance will iterate through the examples.
+   * Then, optionally call various functions to configure aspects of how the instance will iterate through the examples.
    *
    * Call get_input_batch() and get_output_batch() to obtain a reference to the corresponding input and output
    * mini-batch matrices. These functions only need to be called once because new data will be copied into the same
@@ -76,29 +81,26 @@ namespace kumozu {
 
   public:
 
-    /*
+    /**
      * Create a new instance that will be associated with the supplied network.
      *
-     * Parameters:
+     * Currently, the number of examples must be an integer multiple of the mini-batch size. Othersie,
+     * the program will exit with an error. This limiation may be removed in the future.
      *
-     * network: an instance of a derived class of Network.
+     * @param input_full A matrix that represents a full training or test set of examples.
      *
-     * input_full: A matrix that represents a full training or test set of examples where minibatch_index_input
-     *        specifies the extent that is used to index a particular example.
+     * @param example_index_dimension_input The dimension of input_full that is used to index the examples.
      *
-     * example_index_dimension_input: The dimension of input_full that is used to index the examples.
+     * @param output_full A matrix that represents a full training or test set of examples.
      *
-     * output_full: A matrix that represents a full training or test set of examples where minibatch_index_output
-     *        specifies the extent that is used to index a particular example.
+     * @param example_index_dimension_output The dimension of output_full that is used to index the examples.
      *
-     * example_index_dimension_output: The dimension of output_full that is used to index the examples.
-     *
-     * minibatch_size: The desired size of one mini-batch of examples that should be returned by the
+     * @param minibatch_size The desired size of one mini-batch of examples that should be returned by the
      *                 get_input_batch()/get_output_batch() functions.
      *
      */
   MinibatchTrainer(const Matrix<T1>& input_full, int example_index_dimension_input,
-                   const Matrix<T2>& output_full, int example_index_dimension_output, int minibatch_size): // todo: make templated?
+                   const Matrix<T2>& output_full, int example_index_dimension_output, int minibatch_size): 
     m_minibatch_size {minibatch_size},
       m_input_full {input_full},
         m_output_full {output_full},
@@ -123,18 +125,7 @@ namespace kumozu {
                         std::cout << "MinibatchTrainer:" << std::endl;
                         std::cout << "Number of examples in set = " << m_example_count << std::endl;
                         std::cout << "Using mini-batch size = " << m_minibatch_size << std::endl;
-                        /*
-                          std::cout << "MinibatchTrainer:" << std::endl;
-                          std::cout << "m_input_activations_mini.size() = " << m_input_activations_mini.size() << std::endl;
-                          std::cout << "m_input_activations_mini.order() = " << m_input_activations_mini.order() << std::endl;
-                          std::cout << "m_input_activations_mini.extent(0) = " << m_input_activations_mini.extent(0) << std::endl;
-                          std::vector<int> x = network.get_input_extents();
-                          std::cout << "x.size() = " << x.size() << std::endl;
-                          std::cout << "x.at(0) = " << x.at(0) << std::endl;
-                          std::cout << "x.at(1) = " << x.at(1) << std::endl;
-                          std::cout << "x.at(2) = " << x.at(2) << std::endl;
-                          exit(1);
-                        */
+                        
                         m_input_mini = narrow(m_input_full, m_example_index_dimension_input, 0, m_minibatch_size);
                         m_output_mini = narrow(m_output_full, m_example_index_dimension_output, 0, m_minibatch_size);
                         // Optional: only allow a minibatch size that evenly divides into the number of examples.
@@ -149,11 +140,9 @@ namespace kumozu {
                         // m_example_indices[n] contains the index to the example to use at the n-th example in the epoch.
                         // We will randomly permute these so that the index will change after iterating through an epoch of examples.
                         //shuffle_examples();
-
-
                       }
 
-                      /*
+                      /**
                        * Get a reference to the MatrixF that will be populated with one mini-batch of new input examples
                        * after each call to next().
                        *
@@ -163,7 +152,7 @@ namespace kumozu {
                         return m_input_mini;
                       }
 
-                      /*
+                      /**
                        * Get a reference to the MatrixF that will be populated with one mini-batch of new output examples
                        * after each call to next().
                        *
@@ -174,11 +163,11 @@ namespace kumozu {
                       }
 
 
-                      /*
+                      /**
                        * Obtain a new mini-batch of input and output examples from the full data set and copy into
                        * the matrices that were obtained from get_input_batch() and get_output_batch().
                        *
-                       * Return true if calling this function returns the last mini-batch in the examples set. Otherwise,
+                       * @return true if calling this function returns the last mini-batch in the examples set. Otherwise,
                        * return false.
                        */
                       bool next() {
@@ -227,7 +216,6 @@ namespace kumozu {
                        */
                       void shuffle_examples() {
                         //std::cout << "Shuffling..." << std::endl;
-                        // m_example_indices
                         static std::random_device rand_dev;
                         static std::mt19937 mersenne_twister_engine(rand_dev());
                         std::shuffle(m_example_indices.begin(), m_example_indices.end(), mersenne_twister_engine);

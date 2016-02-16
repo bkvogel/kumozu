@@ -39,8 +39,8 @@ namespace kumozu {
     m_depth =  input_extents.at(1);
     m_height = input_extents.at(2);
     m_width = input_extents.at(3);
-    m_output_activations.resize(m_minibatch_size, m_depth, m_height, m_width);
-    m_output_error.resize(m_minibatch_size, m_depth, m_height, m_width);
+    m_output_forward.resize(m_minibatch_size, m_depth, m_height, m_width);
+    m_output_backward.resize(m_minibatch_size, m_depth, m_height, m_width);
 
     if (m_mode == 0) {
       m_dropout_mask.resize(m_depth, m_height, m_width);
@@ -52,10 +52,10 @@ namespace kumozu {
   void Dropout3D::forward_propagate(const MatrixF& input_activations) {
     //reinitialize(input_activations.get_extents());
     float prob_keep_current = 1.0f;
-    if (m_is_train) {
+    if (is_train_mode()) {
       prob_keep_current = m_prob_keep;
     }
-    check_dimensions(input_activations, m_output_activations);
+    check_dimensions(input_activations, m_output_forward);
     // Compute a new random dropout mask to use on each column in the mini-batch.
     std::uniform_real_distribution<float> uni(0.0f, 1.0f);
 
@@ -78,9 +78,9 @@ namespace kumozu {
           for (int h = 0; h < m_height; ++h) {
             for (int w = 0; w < m_width; ++w) {
               if (m_dropout_mask(d, h, w) == 1) {
-                m_output_activations(m, d, h, w) = input_activations(m, d, h, w)/prob_keep_current; // inverted dropout
+                m_output_forward(m, d, h, w) = input_activations(m, d, h, w)/prob_keep_current; // inverted dropout
               } else {
-                m_output_activations(m, d, h, w) = 0.0f;
+                m_output_forward(m, d, h, w) = 0.0f;
               }
 
             }
@@ -92,18 +92,18 @@ namespace kumozu {
 #pragma omp parallel for
       for (int n = 0; n < m_dropout_mask.size(); ++n) {
         if (m_dropout_mask[n] == 1) {
-          //m_output_activations[n] = input_activations[n]/prob_keep_current; // inverted dropout
-          m_output_activations[n] = input_activations[n]*scale; // inverted dropout
+          //m_output_forward[n] = input_activations[n]/prob_keep_current; // inverted dropout
+          m_output_forward[n] = input_activations[n]*scale; // inverted dropout
         } else {
-          m_output_activations[n] = 0.0f;
+          m_output_forward[n] = 0.0f;
         }
       }
     }
   }
 
-  void Dropout3D::back_propagate_deltas(MatrixF& input_error) {
+  void Dropout3D::back_propagate_deltas(MatrixF& input_backward, const MatrixF& input_forward) {
     float prob_keep_current = 1.0f;
-    if (m_is_train) {
+    if (is_train_mode()) {
       prob_keep_current = m_prob_keep;
     }
     if (m_mode == 0) {
@@ -113,9 +113,9 @@ namespace kumozu {
           for (int h = 0; h < m_height; ++h) {
             for (int w = 0; w < m_width; ++w) {
               if (m_dropout_mask(d, h, w) == 1) {
-                input_error(m, d, h, w) = m_output_error(m, d, h, w)/prob_keep_current;
+                input_backward(m, d, h, w) = m_output_backward(m, d, h, w)/prob_keep_current;
               } else {
-                input_error(m, d, h, w) = 0.0f;
+                input_backward(m, d, h, w) = 0.0f;
               }
 
             }
@@ -127,9 +127,9 @@ namespace kumozu {
 #pragma omp parallel for
       for (int n = 0; n < m_dropout_mask.size(); ++n) {
         if (m_dropout_mask[n] == 1) {
-          input_error[n] = m_output_error[n]*scale; // inverted dropout
+          input_backward[n] = m_output_backward[n]*scale; // inverted dropout
         } else {
-          input_error[n] = 0.0f;
+          input_backward[n] = 0.0f;
         }
       }
     }
