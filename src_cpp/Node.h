@@ -68,7 +68,16 @@ namespace kumozu {
    * corresponding to a single time slice. Then create as many copies of "slice" as desired, calling set_shared("slice") on each copy.
    * This will cause the parameters in each of the copies to refer to the parameters in "slice.". 
    *
-   * Todo: more documentation.
+   * Fan out:
+   *
+   * Many (most) nodes support output ports with a fan out greater than 1. This is posssible as long as all nodes in the network accumulate into
+   * their "input backward" activations during the backpropagation step. That is, in order for output ports with multiple fan out to function 
+   * correctly, all "input backward" matrices should be set to 0 during the final part of the forward() call, which already is implemented
+   * in this class. However, it is also necessary for each sub-class of Node in the network to accumulate rather than overwrite during the
+   * backpropagation call.
+   *
+   * For nodes that do not accumulate into their "input backward" matrices during the backpropagation call, an explicit SplitterNode may be
+   * used to acheive the same effect as multiple fan out.
    *
    */
   class Node {
@@ -789,10 +798,11 @@ In		     *
                     virtual void load_parameters(std::string name);
 
 
-                    /*
+                    /**
                      * Check that the Jacobian computed using the finite differences method agrees with
                      * the Jacobian computed using the gradient back-propagation member functions.
                      *
+		     * @param input_port_extents_map fixme
                      */
                     void check_jacobian_weights(std::map<std::string, std::vector<int>> input_port_extents_map); // fixme: reference type
 
@@ -936,23 +946,12 @@ In		     *
                     const MatrixF& get_input_port_backward() const;
 
                     /**
-                     *
                      * Compute the output activations as a function of input activations.
                      *
-                     * The output activations can then be obtained by calling get_output_forward().
+                     * The output activations that are updated by this function can be obtained by calling get_output_forward().
                      *
-                     * If this is the first time calling this function, the network will be initialized using
-                     * the extents of the supplied input activations. The network will also be reinitialized
-                     * any time that the extents of the supplied input activations change (although it is
-                     * uncommon and bad for performance for this to occur frequently at runtime).
-                     *
-                     * Implementation note:
-                     * This function will first check to see if the most recent input extents (i.e., sizes of
-                     * the input activation dimensions from the previous call) match the
-                     * supplied matrix. If they differ, various internal state matrices will be reinitialized
-                     * to be consistent with the extents of the supplied input activations. The parameter
-                     * matrices, if any, will only be reinitialized when they are required to change size.
-                     * subclasses are advised to implement this behavior.
+		     * If this is a coposite node, this function will call forward() on each of the contained nodes in the
+		     * order that they were added to this node.
                      */
                     virtual void forward_propagate();
 

@@ -39,7 +39,7 @@
 #include "Utilities.h"
 #include <random>
 #include <algorithm>
-
+// todo: consider renaming to MinibatchGetter.
 
 namespace kumozu {
 
@@ -82,7 +82,7 @@ namespace kumozu {
   public:
 
     /**
-     * Create a new instance that will be associated with the supplied network.
+     * Create a new instance using the supplied matrices.
      *
      * Currently, the number of examples must be an integer multiple of the mini-batch size. Othersie,
      * the program will exit with an error. This limiation may be removed in the future.

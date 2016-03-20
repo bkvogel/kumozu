@@ -72,7 +72,7 @@ namespace kumozu {
     /**
      * Set output forward activations to the sum over all input forward activations.
      */
-    virtual void forward_propagate() {
+    virtual void forward_propagate() override {
       set_value(m_output_forward, 0.0f);
       for_each_input_port_forward([&] (const MatrixF& mat) {
 	  element_wise_sum(m_output_forward, m_output_forward, mat);
@@ -82,7 +82,7 @@ namespace kumozu {
     /**
      * Copy the "output backward" values into each "input backward" matrix.
      */
-    virtual void back_propagate_deltas() {
+    virtual void back_propagate_deltas() override {
       MatrixF& deltas = get_output_backward();
       for_each_input_port_backward([&] (MatrixF& mat) {
 	  copy_matrix(mat, deltas);
@@ -92,7 +92,7 @@ namespace kumozu {
     /**
      * Check that all input ports are the same size.
      */
-    virtual void reinitialize() {
+    virtual void reinitialize() override {
       // First verify that all input ports are associated with matrices of the same dimensions.
       m_input_extents.clear();
       for_each_input_port_forward([&] (const MatrixF& mat) {

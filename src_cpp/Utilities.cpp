@@ -368,6 +368,14 @@ namespace kumozu {
   }
 
 
+  int sample_multinomial_distribution(const MatrixF& pdf) {
+    static std::random_device rand_dev;
+    static std::mt19937 mersenne_twister_engine(rand_dev());
+    const vector<float>& pdf_vec = pdf.get_backing_vector();
+    std::discrete_distribution<> dist(pdf_vec.begin(), pdf_vec.end());
+    return dist(mersenne_twister_engine);
+  }
+
   int error_count(const MatrixF& network_output, const Matrix<int> target_labels) {
     const int num_classes = network_output.extent(0);
     const int test_data_count = network_output.extent(1);

@@ -68,7 +68,7 @@ namespace kumozu {
      * to their index: "0", "1", "2", ..., "output_port_count-1".
      */
   SplitterNode(int output_port_count, std::string name) :
-    Node(name) {
+    Node{name} {
       for (int i = 0; i < output_port_count; ++i) {
 	m_output_ports_forward.push_back(std::move(std::make_unique<MatrixF>()));
 	m_output_ports_backward.push_back(std::move(std::make_unique<MatrixF>()));
@@ -79,7 +79,7 @@ namespace kumozu {
     /**
      * Set output forward activations to the sum over all input forward activations.
      */
-    virtual void forward_propagate() {
+    virtual void forward_propagate() override {
       const MatrixF& input_forward_mat = get_input_port_forward();
       for (size_t i = 0; i < m_output_ports_forward.size(); ++i) {
 	MatrixF& out_forward_mat = *m_output_ports_forward.at(i);
@@ -90,7 +90,7 @@ namespace kumozu {
     /**
      * 
      */
-    virtual void back_propagate_deltas() {
+    virtual void back_propagate_deltas() override {
       MatrixF& input_backward_mat = get_input_port_backward();
       set_value(input_backward_mat, 0.0f);
       for (size_t i = 0; i < m_output_ports_backward.size(); ++i) {
@@ -100,9 +100,9 @@ namespace kumozu {
     }
 
     /**
-     * Check that all input ports are the same size.
+     * Resize output ports to be same size as the input port.
      */
-    virtual void reinitialize() {
+    virtual void reinitialize() override {
       std::vector<int> input_extents = get_input_port_forward().get_extents();
       // Set output matrices to have same extents as input matrix.
       for (size_t i = 0; i < m_output_ports_forward.size(); ++i) {

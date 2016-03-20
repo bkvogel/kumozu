@@ -1,5 +1,5 @@
-#ifndef _SEQUENTIAL_LAYER_H
-#define _SEQUENTIAL_LAYER_H
+#ifndef _EXAMPLESNEURALNET_EXPERIMENTAL_H
+#define _EXAMPLESNEURALNET_EXPERIMENTAL_H
 /*
  * Copyright (c) 2005-2015, Brian K. Vogel
  * All rights reserved.
@@ -30,64 +30,18 @@
  *
  */
 
-#include "Matrix.h"
-#include <string>
-#include <iostream>
-#include "PlotUtilities.h"
-#include "Node.h"
-#include <functional>
-
 namespace kumozu {
 
-  /**
-   * This is a Node that is a container for a sequence of Layer nodes.
-   *
-   * This class corresponds to a composite node with 1 input port and 1 output port in which one or more 
-   * contained layers are connected serially to form a feed-forward graph.
-   * 
-   * It is possible to nest instances of this class, such that one or more of the contained nodes may also
-   * be an instance of SequentialLayer.
-   *
-   * Usage:
-   *
-   * Create an instance of this class and add layers using the add_layer() function.
-   *
-   *
+  ////////////////////////////////////////////////////////////////////////////////
+  // Experimental neural network examples.
+
+  /*
+   * char-rnn model for character prediction in text.
+   * Uses LSTM.
+   * 1 or 2-layer LSTM.
    */
-  class SequentialLayer : public Node {
-
-  public:
-
-  SequentialLayer(std::string name) :
-    Node(name)
-    {
-
-    }
-
-    /*
-     * Add a node to the sequence of contained nodes.
-     *
-     * Nodes are connected in series in the
-     * order that they were added. 
-     *
-     * The supplied node must already have exactly 1 output port. This function
-     * will give it 1 input port as it is connected inside this node.
-     */
-    void add_layer(Node& contained_node);
-
-  protected:
-
-    /*
-     * This does nothing.
-     */
-    virtual void reinitialize() override {}
-
-  private:
-
-
-  };
+  void lstm_example();
 
 }
 
-
-#endif /* _SEQUENTIAL_LAYER_H */
+#endif  /* _EXAMPLESNEURALNET_EXPERIMENTAL_H */

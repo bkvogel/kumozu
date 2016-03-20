@@ -35,32 +35,33 @@ using namespace std;
 namespace kumozu {
 
   void ColumnActivationFunction::reinitialize(std::vector<int> input_extents) {
-
-    std::cout << "ColumnActivationFunction:" << std::endl;
-    if (m_activation_type == ACTIVATION_TYPE::ReLU) {
-      std::cout << "Using ReLU activation:" << std::endl;
-    } else if (m_activation_type == ACTIVATION_TYPE::leakyReLU) {
-      std::cout << "Using leakyReLU activation:" << std::endl;
-    } else if (m_activation_type == ACTIVATION_TYPE::identity) {
-      std::cout << "Using identity activation:" << std::endl;
-    } else if (m_activation_type == ACTIVATION_TYPE::maxout) {
-      std::cout << "Using maxout activation:" << std::endl;
-    } else if (m_activation_type == ACTIVATION_TYPE::kmax) {
-      std::cout << "Using kmax activation:" << std::endl;
-    } else if (m_activation_type == ACTIVATION_TYPE::tanh) {
-      std::cout << "Using tanh activation:" << std::endl;
-    } else if (m_activation_type == ACTIVATION_TYPE::sigmoid) {
-      std::cout << "Using sigmoid activation:" << std::endl;
+    if (VERBOSE_MODE) {
+      std::cout << "ColumnActivationFunction:" << std::endl;
+      if (m_activation_type == ACTIVATION_TYPE::ReLU) {
+        std::cout << "Using ReLU activation:" << std::endl;
+      } else if (m_activation_type == ACTIVATION_TYPE::leakyReLU) {
+        std::cout << "Using leakyReLU activation:" << std::endl;
+      } else if (m_activation_type == ACTIVATION_TYPE::identity) {
+        std::cout << "Using identity activation:" << std::endl;
+      } else if (m_activation_type == ACTIVATION_TYPE::maxout) {
+        std::cout << "Using maxout activation:" << std::endl;
+      } else if (m_activation_type == ACTIVATION_TYPE::kmax) {
+        std::cout << "Using kmax activation:" << std::endl;
+      } else if (m_activation_type == ACTIVATION_TYPE::tanh) {
+        std::cout << "Using tanh activation:" << std::endl;
+      } else if (m_activation_type == ACTIVATION_TYPE::sigmoid) {
+        std::cout << "Using sigmoid activation:" << std::endl;
+      }
     }
-
     const int dim_output = input_extents.at(0)/m_maxout_factor;
     m_output_forward.resize(dim_output, input_extents.at(1));
     m_output_backward.resize(dim_output, input_extents.at(1));
     m_state.resize(dim_output, input_extents.at(1));
-
-    std::cout << "dim_input = " << input_extents.at(0) << std::endl;
-    std::cout << "mini-batch size = " << input_extents.at(1) << std::endl;
-    std::cout << "dim_output = " << dim_output << std::endl;
+    if (VERBOSE_MODE) {
+      std::cout << "dim_input = " << input_extents.at(0) << std::endl;
+      std::cout << "mini-batch size = " << input_extents.at(1) << std::endl;
+      std::cout << "dim_output = " << dim_output << std::endl;
+    }
   }
 
   void ColumnActivationFunction::forward_propagate(const MatrixF& input_forward) {

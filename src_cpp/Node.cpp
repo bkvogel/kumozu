@@ -60,7 +60,9 @@ namespace kumozu {
       }
     }
     if (extents_changed || (is_initialized() == false))  {
-      std::cout << std::endl << "Initializing " << get_name() << ":" << std::endl;
+      if (VERBOSE_MODE) {
+	std::cout << std::endl << "Initializing " << get_name() << ":" << std::endl;
+      }
       // Re-connect input ports to internal nodes, if any.
       make_internal_input_port_connections();
       // Other re-initialization stuff (for subclasses).
@@ -138,7 +140,9 @@ namespace kumozu {
   }
 
   void Node::create_input_port(const MatrixF& input_forward, MatrixF& input_backward, std::string input_name) {
-    cout << get_name() << " : create_input_port(): with input port name: " << input_name << endl;
+    if (VERBOSE_MODE) {
+      cout << get_name() << " : create_input_port(): with input port name: " << input_name << endl;
+    }
     if (m_input_port_forward_map.find(input_name) != m_input_port_forward_map.end()) {
       m_input_port_forward_map.erase(input_name);
     }
@@ -714,6 +718,9 @@ namespace kumozu {
     // Size will be total_output_dim x total_input_dim =
     // (dim_output*minibatch_size) x total_input_dim
     const int total_output_dim = output_forward_flat.size();
+    if (total_output_dim == 0) {
+      error_exit(get_name() + ": Checking Jacobian for input error gradients: total_output_dim is 0!");
+    }
     const int total_input_dim = input_forward_flat.size();
     // This will contain the Jacobian computed using finite differences method.
     MatrixF numerical_jacobian_input(total_output_dim, total_input_dim);
@@ -775,6 +782,9 @@ namespace kumozu {
     std::cout << "check_jacobian_input_backward(): relative error = " << relative_error_score << std::endl;
     //cout << "numerical_jacobian_input = " << endl << numerical_jacobian_input << endl;
     //cout << "backprop_jacobian_input = " << endl << backprop_jacobian_input << endl;
+    if (relative_error_score == 0) {
+      error_exit("check_jacobian_input_backward(): Error: relative error must be greater than 0.");
+    }
     assert_almost_equal(relative_error_score, 0.0f, m_pass_relative_error);
     delete_all_input_ports();
     cout << "PASSED" << endl;
@@ -831,7 +841,9 @@ namespace kumozu {
     }
     // If the element count is different the size of the current flat_mat, then exit with error.
     if (total_size != flat_output_forward.size()) {
-      std::cout << "Resizing flat_mat to size = " << total_size << std::endl;
+      if (VERBOSE_MODE) {
+	std::cout << "Resizing flat_mat to size = " << total_size << std::endl;
+      }
       flat_output_forward.resize(total_size);
     }
     int cur_pos = 0;
@@ -861,7 +873,9 @@ namespace kumozu {
     // If this parameter count is different the size of the current m_W, then reinitialize.
     if (total_size != get_weights().size()) {
       // Create 1-dim matrix of size total_size.
-      cout << get_name() << ": Resizing weights matrix to size = " << total_size << endl;
+      if (VERBOSE_MODE) {
+	cout << get_name() << ": Resizing weights matrix to size = " << total_size << endl;
+      }
       get_weights().resize(total_size);
     }
     // Now do another pass through all layers, this time copying the parameters into m_W.
@@ -911,7 +925,9 @@ namespace kumozu {
     // If this parameter count is different the size of the current m_W_grad, then reinitialize.
     if (total_size != m_W_grad.size()) {
       // Create 1-dim matrix of size total_size.
-      cout << get_name() << ": Resizing weight gradients to size = " << total_size << endl;
+      if (VERBOSE_MODE) {
+	cout << get_name() << ": Resizing weight gradients to size = " << total_size << endl;
+      }
       get_weight_gradient().resize(total_size);
     }
     // Now do another pass through all layers, this time copying the parameters into m_W_grad.
@@ -944,7 +960,9 @@ namespace kumozu {
     // If this parameter count is different the size of the current m_bias, then reinitialize.
     if (total_size != m_bias.size()) {
       // Create 1-dim matrix of size total_size.
-      cout << get_name() << ": Resizing m_bias to size = " << total_size << endl;
+      if (VERBOSE_MODE) {
+	cout << get_name() << ": Resizing m_bias to size = " << total_size << endl;
+      }
       m_bias.resize(total_size);
     }
     // Now do another pass through all layers, this time copying the parameters into m_bias.
@@ -992,7 +1010,9 @@ namespace kumozu {
     // If this parameter count is different the size of the current m_bias_grad, then reinitialize.
     if (total_size != m_bias_grad.size()) {
       // Create 1-dim matrix of size total_size.
-      cout << get_name() << ": Resizing m_bias_grad of size = " << total_size << endl;
+      if (VERBOSE_MODE) {
+	cout << get_name() << ": Resizing m_bias_grad of size = " << total_size << endl;
+      }
       //m_bias_grad = MatrixF(total_size); // fixme: move to init()
       m_bias_grad.resize(total_size);
     }
@@ -1010,19 +1030,25 @@ namespace kumozu {
   }
 
   void Node::make_internal_input_port_connections() {
-    cout << "Connecting input ports of " << get_name() << " to internal nodes..." << endl;
+    if (VERBOSE_MODE) {
+      cout << "Connecting input ports of " << get_name() << " to internal nodes..." << endl;
+    }
     for (auto& connection : m_input_to_internal_connections) {
       string input_name = connection.get_input_name();
       Node& contained_node = connection.get_contained_node();
       string contained_input = connection.get_contained_input();
-      cout << "Connecting input port: " << input_name << " of " << get_name()  << " to input port: " 
-	   << contained_input << " of contained node: " << contained_node.get_name() << endl;
+      if (VERBOSE_MODE) {
+	cout << "Connecting input port: " << input_name << " of " << get_name()  << " to input port: " 
+	     << contained_input << " of contained node: " << contained_node.get_name() << endl;
+      }
       const MatrixF& this_input_forward = get_input_port_forward(input_name); 
       MatrixF& this_input_backward = get_input_port_backward(input_name);
       contained_node.delete_input_port(contained_input);
       contained_node.create_input_port(this_input_forward, this_input_backward, contained_input); 
     }
-    cout << endl;
+    if (VERBOSE_MODE) {
+      cout << endl;
+    }
   }
 
 }

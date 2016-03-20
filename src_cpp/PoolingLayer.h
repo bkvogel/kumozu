@@ -43,7 +43,7 @@ namespace kumozu {
 
 
 
-  /*
+  /**
    * An instance of this class represents a pooling layer in a network.
    *
    * The input to the pooling layer is a mini-batch of 3D matrices of size (depth_in x height_in x width_in).
@@ -64,17 +64,17 @@ namespace kumozu {
   public:
 
 
-    /*
+    /**
      * Create an instance of an pooling function that operates on a mini-batch of
      * data at a time.
      *
      * Parameters:
      *
      *
-     * pooling_region_extents: Extents that specify the size of each pooling region. This must correspond to a 3-D matrix of
+     * @param pooling_region_extents: Extents that specify the size of each pooling region. This must correspond to a 3-D matrix of
      *                         size (pooling_size_depth, pooling_size_height, pooling_size_width).
      *
-     * pooling_region_step_sizes: The i'th element of this vector contains the step size for the i'th region.
+     * @param pooling_region_step_sizes: The i'th element of this vector contains the step size for the i'th region.
      *                         This must correspond to a 3-D matrix of
      *                         size (pooling_step_depth, pooling_step_height, pooling_step_width). Note that if the
      *                         step size is chosen to be the same as the region size, then the regions will have no overlap.
@@ -103,8 +103,6 @@ namespace kumozu {
           m_decay_unused_penalty = decay_penalty;
         }
 
-
-
         /*
          * Back-propagate errors to compute new values for input_backward.
          *
@@ -113,7 +111,7 @@ namespace kumozu {
          * calling get_output_backward(). Otherwise, the error gradients will not be back-propagated
          * correctly.
          */
-        virtual void back_propagate_deltas(MatrixF& input_backward, const MatrixF& input_forward);
+        virtual void back_propagate_deltas(MatrixF& input_backward, const MatrixF& input_forward) override;
 
 
   private:
@@ -170,7 +168,7 @@ namespace kumozu {
          * The output activations can then be obtained by calling get_output_forward().
          *
          */
-        virtual void forward_propagate(const MatrixF& input_activations);
+        virtual void forward_propagate(const MatrixF& input_activations) override;
 
         /*
          * Reinitialize the layer based on the supplied new input extent values.
@@ -184,7 +182,7 @@ namespace kumozu {
          * input_extents: Dimensions of the input activations, which are
          *                (minibatch_size, depth_in, height_in, width_in)
          */
-        virtual void reinitialize(std::vector<int> input_extents);
+        virtual void reinitialize(std::vector<int> input_extents) override;
 
   };
 

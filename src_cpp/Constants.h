@@ -35,20 +35,23 @@
 // Various useful constants.
 namespace kumozu {
 
-// A small value that will often be added in a computation to prevent denormalized values.
-const float EPSILON_DENORMAL{ 1e-9f };
+  // A small value that will often be added in a computation to prevent denormalized values.
+  const float EPSILON_DENORMAL{ 1e-9f };
 
-// Small negative random value for initializing network weights.
-const float RAND_INIT_NEG { -0.01f }; // -0.01
+  // Small negative random value for initializing network weights.
+  const float RAND_INIT_NEG { -0.01f }; // -0.01
 
-// Small positive random value for initializing network weights.
-const float RAND_INIT_POS { 0.01f }; // 0.01
+  // Small positive random value for initializing network weights.
+  const float RAND_INIT_POS { 0.01f }; // 0.01
 
-// Default name for the input port name of a Node with only a single port.
-const std::string DEFAULT_INPUT_PORT_NAME = "0";
+  // Default name for the input port name of a Node with only a single port.
+  const std::string DEFAULT_INPUT_PORT_NAME = "0";
 
-// Default name for the output port name of a Node with only a single port.
-const std::string DEFAULT_OUTPUT_PORT_NAME = "0";
+  // Default name for the output port name of a Node with only a single port.
+  const std::string DEFAULT_OUTPUT_PORT_NAME = "0";
+
+  // If true, print extra information to stdout.
+  const bool VERBOSE_MODE = false;
 
 }
 

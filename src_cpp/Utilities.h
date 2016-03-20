@@ -395,7 +395,7 @@ namespace kumozu {
   }
 
   /**
-   * Return a MatrixF in "submat" that is the sub-matrix in "fullmat" where "dimension"
+   * Return a Matrix in "submat" that is the sub-matrix in "fullmat" where "dimension"
    * has its extent narrowed to "size." The elements corresponding to the "size"
    * possible index values in "dimension" of "submat" correspond to the same
    * "size" values obtained by selecting "index" to "index" + size -1 in "fullmat."
@@ -410,11 +410,11 @@ namespace kumozu {
    * [5 6]
    * [7 8]
    *
-   * Then narrow(fullmat, 0, 1, 2) will return a 2 x 2 "submat" of:
+   * Then narrow(submat, fullmat, 0, 1, 2) will return a 2 x 2 "submat" of:
    * [3 4]
    * [5 6]
    *
-   * And narrow(fullmat, 1, 0, 1) will return a 4 x 1 "submat" of:
+   * And narrow(submat, fullmat, 1, 0, 1) will return a 4 x 1 "submat" of:
    * [1]
    * [3]
    * [5]
@@ -784,6 +784,65 @@ namespace kumozu {
   }
 
 
+  /**
+   * Copy the contents of the supplied submatrix into a larger matrix at the specified offset.
+   *
+   * The contents of "submat" will be copied into "fullmat" such that the location of the upper-left
+   * corner of "submat" inside "fullmat" will be (row_offset, col_offset).
+   * 
+   * Both "submat" and "fullmat" must be 2-dimensional. Otherwise the program will exit with an error message.
+   *
+   * @param submat A 2-dim submatrix of fullmat.
+   * @param fullmat A 2-dim matrix such that the supplied submat at the specified offset will fit inside.
+   * @param row_offset The upper-left corner of submat will be placed at this row offset inside fullmat.
+   * @param col_offset The upper-left corner of submat will be placed at this column offset inside fullmat.
+   */
+  template <typename T>
+    void copy_from_submatrix(const Matrix<T>& submat, Matrix<T>& fullmat, int row_offset, int col_offset) {
+    if (submat.order() != 2) {
+      error_exit("copy_from_submatrix(): Error: submat is not 2-dimensional.");
+    }
+    if (fullmat.order() != 2) {
+      error_exit("copy_from_submatrix(): Error: fullmat is not 2-dimensional.");
+    }
+#pragma omp parallel for
+    for (int r = 0; r < submat.extent(0); ++r) {
+      for (int c = 0; c < submat.extent(1); ++ c) {
+	fullmat(row_offset + r, col_offset + c) = submat(r,c);
+      }
+    }
+  }
+
+  /**
+   * Copy a submatrix of the supplied larger matrix in the supplied output matrix.
+   *
+   * A submatrix will be copied from "fullmat" into "submat" such that the upper-left corner of the
+   * extracted submatrix is at (row_offset, col_offset).
+   * 
+   * Both "submat" and "fullmat" must be 2-dimensional. Otherwise the program will exit with an error message.
+   *
+   * @param submat A 2-dim submatrix of fullmat.
+   * @param fullmat A 2-dim matrix such that the supplied submat at the specified offset will fit inside.
+   * @param row_offset The upper-left corner of submat will be placed at this row offset inside fullmat.
+   * @param col_offset The upper-left corner of submat will be placed at this column offset inside fullmat.
+   */
+  template <typename T>
+    void copy_to_submatrix(Matrix<T>& submat, const Matrix<T>& fullmat, int row_offset, int col_offset) {
+    if (submat.order() != 2) {
+      error_exit("copy_to_submatrix(): Error: submat is not 2-dimensional.");
+    }
+    if (fullmat.order() != 2) {
+      error_exit("copy_to_submatrix(): Error: fullmat is not 2-dimensional.");
+    }
+#pragma omp parallel for
+    for (int r = 0; r < submat.extent(0); ++r) {
+      for (int c = 0; c < submat.extent(1); ++ c) {
+	submat(r,c) = fullmat(row_offset + r, col_offset + c);
+      }
+    }
+  }
+
+
   /*
    * Apply the function to each element of the supplied matrix X.
    *
@@ -1142,13 +1201,57 @@ namespace kumozu {
   }
 
   /**
+   * Compute the element-wise natural log and then place the result in A.
+   *
+   * Matrices A and B must have the same number of elements.
+   * It is allowed for A
+   * and B to refer to the same object.
+   *
+   * @param A Output matrix, which will be resized to the same dimensions as
+   * matrix B if it does not already have the same number of elements.
+   * @param B Input matrix which is not modified.
+   */
+  template <typename T>
+    void element_wise_ln(Matrix<T>& A, const Matrix<T>& B) {
+    if (A.size() != B.size()) {
+      A.resize(B.get_extents());
+      resized();
+    }
+    map1(A, B, [] (T b) {
+        return std::log(b);
+      });
+  }
+
+  /**
+   * Compute the element-wise natural exponential and then place the result in A.
+   *
+   * Matrices A and B must have the same number of elements.
+   * It is allowed for A
+   * and B to refer to the same object.
+   *
+   * @param A Output matrix, which will be resized to the same dimensions as
+   * matrix B if it does not already have the same number of elements.
+   * @param B Input matrix which is not modified.
+   */
+  template <typename T>
+    void element_wise_exp(Matrix<T>& A, const Matrix<T>& B) {
+    if (A.size() != B.size()) {
+      A.resize(B.get_extents());
+      resized();
+    }
+    map1(A, B, [] (T b) {
+        return std::exp(b);
+      });
+  }
+
+  /**
    * Compute the sum of all elements in <i>A</i> and return it.
    *
    * @param A The input matrix.
    * @return The sum of all elements in A
    */
   template <typename T>
-    T sum(Matrix<T>& A) {
+    T sum(const Matrix<T>& A) {
     T sum = 0;
     for (int i = 0; i != A.size(); ++i) {
       sum += A[i];
@@ -1521,6 +1624,20 @@ namespace kumozu {
       cur_pos += temp.size();
     }
   }
+
+  /**
+   * Sample from a multinomial distribution.
+   *
+   * Given a vector (Matrix) of pdf values, sample from this distribution and return
+   * the index that was chosen. The values in pdf must sum to 1.
+   *
+   * @parm pdf 1-dim Matrix (i.e., vector) containing the probability distribution
+   * function (pdf) to sample from.
+   *
+   * @return The index of the entry in pdf that was chosen in the random sample.
+   * The returned value is in the range [0, length_of_pdf).
+   */
+  int sample_multinomial_distribution(const MatrixF& pdf);
 
 
   ////////////////////////////////////////////////////////////////////////////////////////////
@@ -2289,12 +2406,33 @@ namespace kumozu {
   /*
    * For each element x_i of X, set x_i = max(x_i, min_val).
    */
+  // todo: make templated
   void threshold_lower(MatrixF& X, float min_val);
 
   /*
    * For each element x_i of X, set x_i = min(x_i, min_val).
    */
+  // todo: make templated
   void threshold_upper(MatrixF& X, float max_val);
+
+  /**
+   * Clip the entries in the supplied matrix to have the specified range.
+   *
+   * @param min_val The minimum value. Any smaller values will be clipped to this value.
+   * @param max_val The maximum value. Any larger values will be clipped to this value.
+   */
+  template <typename T>
+    void clip_to_range(Matrix<T>& A, T min_val, T max_val) {
+    map1(A, A, [=](T x){
+	if (x > max_val) {
+	  return max_val;
+	} else if (x < min_val) {
+	  return min_val;
+	} else {
+	  return x;
+	}
+      });
+  }
 
 
   /*

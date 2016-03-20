@@ -41,7 +41,7 @@
 
 namespace kumozu {
 
-  /*
+  /**
    * This layer converts between two different formats for a mini-batch of data. It is intended to
    * be inserted into network to convert an image-formatted input activations matrix into a
    * fully-connected-formatted output activations matrix.
@@ -62,10 +62,10 @@ namespace kumozu {
 
   public:
 
-    /*
+    /**
      * Create a new instance.
      *
-     * name: A descriptive name.
+     * @param name: A descriptive name.
      *
      */
   ImageToColumnLayer(std::string name) :
@@ -73,12 +73,6 @@ namespace kumozu {
     {
 
     }
-
-
-
-
-
-
 
     /*
      * Back-propagate errors to compute new values for input_backward.
@@ -88,9 +82,7 @@ namespace kumozu {
      * calling get_output_backward(). Otherwise, the error gradients will not be back-propagated
      * correctly.
      */
-    virtual void back_propagate_deltas(MatrixF& input_backward, const MatrixF& input_forward);
-
-
+    virtual void back_propagate_deltas(MatrixF& input_backward, const MatrixF& input_forward) override;
 
   private:
 
@@ -127,7 +119,7 @@ namespace kumozu {
      * The output activations can then be obtained by calling get_output_forward().
      *
      */
-    virtual void forward_propagate(const MatrixF& input_activations);
+    virtual void forward_propagate(const MatrixF& input_activations) override;
 
     /*
      * Set the extents of the input activations. This must be called before the layer can be used.
@@ -138,7 +130,7 @@ namespace kumozu {
      * input_extents: Dimensions of the input activations, which are
      *                (dim_input, minibatch_size)
      */
-    virtual void reinitialize(std::vector<int> input_extents);
+    virtual void reinitialize(std::vector<int> input_extents) override;
 
 
   };

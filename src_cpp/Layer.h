@@ -78,7 +78,7 @@ namespace kumozu {
    * of a parent Node and automatically creates a corresponding input port with default name DEFAULT_INPUT_PORT_NAME. Alternatively, a user can
    * also choose to give the input port any desired name. To summarize, a Layer will have either 0 or 1 inputs ports and 1 output port.
    * The input port, if it exists will either have the default name DEFAULT_INPUT_PORT_NAME or a user-defined name. The output port will always
-   * have the default name DEFAULT_OUTPUT_PORT_NAME. // todo: make it required to always have 1 input port and remove deprecated old api.
+   * have the default name DEFAULT_OUTPUT_PORT_NAME.
    *
    * Correctness checking:
    *
@@ -135,151 +135,154 @@ namespace kumozu {
    * it is expected that most layers will at least want to use their output activations and so initializing them
    * to some nonzero size is recommended.
    */
-   class Layer : public Node {
+  class Layer : public Node {
 
   public:
 
   Layer(std::string name) :
     Node(name)
-          {
-	    // Create the 1 output port.
-	    if (get_output_port_count() == 0) {
-	      // Create the output port with default name.
-	      create_output_port(m_output_forward, m_output_backward, DEFAULT_OUTPUT_PORT_NAME); 
-	    }
-          }
+    {
+      // Create the 1 output port.
+      if (get_output_port_count() == 0) {
+        // Create the output port with default name.
+        create_output_port(m_output_forward, m_output_backward, DEFAULT_OUTPUT_PORT_NAME);
+      }
+    }
 
-          
-          /**
-           * Compute the gradients for the paramaters (i.e.,  weights and bias).
-           *
-           * The convention is that this function should be called after back_propagate_deltas(). However,
-           * it is normally not recommended to call this function directly since it will be called by
-           * back_propagate().
-           *
-           * This function has a default implementation that does nothing because not every subclass
-           * of Layer will contain parameters. If a subclass contains parameters, it should overrid
-           * this function it back-propagate the parameter gradients.
-           *
-           * The output error (that is, "output deltas") must have already been updated before
-           * calling this method. Note that a reference to the output deltas can be obtained by
-           * calling get_output_backward(). Otherwise, the error gradients will not be back-propagated
-           * correctly.
-           *
-           * The weights gradients will typically correspond to m_W_grad and the bias gradients
-           * will typically correspond to m_bias_grad. However, a subclass is free to use
-           * different member variables, if desired.
-           *
-	   * Layer subclasses should override this function.
-           */
-          virtual void back_propagate_paramater_gradients(const MatrixF& input_forward) {}
 
-	  /**
-	   * Subclasses should not override this function.
-	   */
-	  virtual void back_propagate_paramater_gradients() {
-	    back_propagate_paramater_gradients(get_input_port_forward());
-	  }
+    /**
+     * Compute the gradients for the paramaters (i.e.,  weights and bias).
+     *
+     * The convention is that this function should be called after back_propagate_deltas(). However,
+     * it is normally not recommended to call this function directly since it will be called by
+     * back_propagate().
+     *
+     * This function has a default implementation that does nothing because not every subclass
+     * of Layer will contain parameters. If a subclass contains parameters, it should overrid
+     * this function it back-propagate the parameter gradients.
+     *
+     * The output error (that is, "output deltas") must have already been updated before
+     * calling this method. Note that a reference to the output deltas can be obtained by
+     * calling get_output_backward(). Otherwise, the error gradients will not be back-propagated
+     * correctly.
+     *
+     * The weights gradients will typically correspond to m_W_grad and the bias gradients
+     * will typically correspond to m_bias_grad. However, a subclass is free to use
+     * different member variables, if desired.
+     *
+     * Layer subclasses should override this function.
+     */
+    virtual void back_propagate_paramater_gradients(const MatrixF& input_forward) {}
 
-	  /**
-	   * Subclasses should not override this function.
-	   */
-          virtual void back_propagate_deltas() {
-	    // Get input deltas and forward to the function the subclasses will override.
-            back_propagate_deltas(get_input_port_backward(), get_input_port_forward());
-          }
+    /**
+     * Subclasses should not override this function.
+     */
+    virtual void back_propagate_paramater_gradients() override {
+      back_propagate_paramater_gradients(get_input_port_forward());
+    }
 
-          /**
-           * Back-propagate errors to compute new values for input_backward.
-           *
-           * The convention is that this function should be called before back_propagate_paramater_gradients().
-           * This function can also be called without calling back_propagate_paramater_gradients() if it is
-           * only desired to back-propagate the error deltas from the network output to its inputs. However,
-           * it is normally not recommended to call this function directly since it will be called by
-           * back_propagate().
-           *
-           * The output error (that is, "output deltas") must have already been updated before
-           * calling this method. Note that a reference to the output deltas can be obtained by
-           * calling get_output_backward(). Otherwise, the error gradients will not be back-propagated
-           * correctly.
-           *
-           * subclasses must implement this function.
-           */
-          virtual void back_propagate_deltas(MatrixF& input_backward, const MatrixF& input_forward) = 0;
+    /**
+     * Subclasses should not override this function.
+     */
+    virtual void back_propagate_deltas() override {
+      // Get input deltas and forward to the function the subclasses will override.
+      back_propagate_deltas(get_input_port_backward(), get_input_port_forward());
+    }
 
-         
-          
-   protected: // fixme: remove protected?
+    /**
+     * Back-propagate errors to compute new values for input_backward.
+     *
+     * The convention is that this function should be called before back_propagate_paramater_gradients().
+     * This function can also be called without calling back_propagate_paramater_gradients() if it is
+     * only desired to back-propagate the error deltas from the network output to its inputs. However,
+     * it is normally not recommended to call this function directly since it will be called by
+     * back_propagate().
+     *
+     * The output error (that is, "output deltas") must have already been updated before
+     * calling this method. Note that a reference to the output deltas can be obtained by
+     * calling get_output_backward(). Otherwise, the error gradients will not be back-propagated
+     * correctly.
+     *
+     * subclasses must implement this function.
+     */
+    virtual void back_propagate_deltas(MatrixF& input_backward, const MatrixF& input_forward) = 0;
 
-          /**
-           *
-           * Compute the output activations as a function of input activations.
-           *
-           * The output activations can then be obtained by calling get_output_forward().
-           *
-           * If this is the first time calling this function, the network will be initialized using
-           * the extents of the supplied input activations. The network will also be reinitialized
-           * any time that the extents of the supplied input activations change (although it is
-           * uncommon and bad for performance for this to occur frequently at runtime).
-           *
-           * Implementation note:
-           * This function will first check to see if the most recent input extents (i.e., sizes of
-           * the input activation dimensions from the previous call) match the
-           * supplied matrix. If they differ, various internal state matrices will be reinitialized
-           * to be consistent with the extents of the supplied input activations. The parameter
-           * matrices, if any, will only be reinitialized when they are required to change size.
-           * subclasses are advised to implement this behavior.
-           */
-          virtual void forward_propagate(const MatrixF& input_forward) = 0;
+    /**
+     * Note: subclasses of Layer should not override this function but instead should
+     * implement the other forward_propagate() that takes an argument.
+     */
+    virtual void forward_propagate() override {
+      // Just forward to input activations from the inport port.
+      // Because of this, a subclass only needs to implement the forward_propagate() that takes an argument.
+      forward_propagate(get_input_port_forward());
+    }
 
-	  /**
-	   * Note: subclasses of Layer should not override this function but instead should
-	   * implement the other forward_propagate() that takes an argument.
-	   */
-          virtual void forward_propagate() {
-            // Just forward to input activations from the inport port.
-	    // Because of this, a subclass only needs to implement the forward_propagate() that takes an argument.
-	    forward_propagate(get_input_port_forward());
-          }
+    /**
+     * Reinitialize the Layer.
+     *
+     * If this Layer does not already have an output port, create an output port with
+     * the default name that will be associated with the output activations and output errors matrices.
+     *
+     * Note: subclasses should not override this version of reinitialize() but should instead implement
+     * the other version that takes an input_extents argument.
+     */
+    virtual void reinitialize() override {
+      // Just forward the input extents from the input port.
+      reinitialize(get_input_port_forward().get_extents());
+    }
 
-          /*
-           * Reinitialize the layer based on the supplied new input extent values.
-           * This must be called before the layer can be used and must also be called whenever the
-           * input extents change during runtime.
-           *
-           * Every subclass must provide an implementation for this function.
-           *
-           * Note that a call to this function can be somewhat expensive since several matrices (such
-           * as the output activations and possibly the parameters as well) might need to
-           * be reallocated and initialized. As a general convention, parameter matrices should only
-           * be reallocated and/or reinitialized if their size changes.
-           *
-           * By default the weights (m_W), weight gradient (m_W_grad), bias (m_bias), bias gradient (m_bias_grad),
-           * output activations (m_output_forward), and output error (m_output_backward) will be initialized
-           * by this base class to have size 0. Thus, a subclass should use this function to realocate
-           * and initialize any of these matrices that is wishes to use.
-           */
-          virtual void reinitialize(std::vector<int> input_extents) = 0;
+  protected: // fixme: remove protected?
 
-	  /**
-	   * Reinitialize the Layer.
-	   *
-	   * If this Layer does not already have an output port, create an output port with
-	   * the default name that will be associated with the output activations and output errors matrices.
-	   *
-	   * Note: subclasses should not override this version of reinitialize() but should instead implement
-	   * the other version that takes an input_extents argument.
-	   */
-          virtual void reinitialize() {
-            // Just forward the input extents from the input port.
-	    reinitialize(get_input_port_forward().get_extents());
-          }
+    /**
+     *
+     * Compute the output activations as a function of input activations.
+     *
+     * The output activations can then be obtained by calling get_output_forward().
+     *
+     * If this is the first time calling this function, the network will be initialized using
+     * the extents of the supplied input activations. The network will also be reinitialized
+     * any time that the extents of the supplied input activations change (although it is
+     * uncommon and bad for performance for this to occur frequently at runtime).
+     *
+     * Implementation note:
+     * This function will first check to see if the most recent input extents (i.e., sizes of
+     * the input activation dimensions from the previous call) match the
+     * supplied matrix. If they differ, various internal state matrices will be reinitialized
+     * to be consistent with the extents of the supplied input activations. The parameter
+     * matrices, if any, will only be reinitialized when they are required to change size.
+     * subclasses are advised to implement this behavior.
+     */
+    virtual void forward_propagate(const MatrixF& input_forward) = 0;
 
-          MatrixF m_output_forward; // associated with the default output port
-          MatrixF m_output_backward; // associated with the default output port
 
-   private:
-	  std::vector<int> m_input_extents;
+
+    /*
+     * Reinitialize the layer based on the supplied new input extent values.
+     * This must be called before the layer can be used and must also be called whenever the
+     * input extents change during runtime.
+     *
+     * Every subclass must provide an implementation for this function.
+     *
+     * Note that a call to this function can be somewhat expensive since several matrices (such
+     * as the output activations and possibly the parameters as well) might need to
+     * be reallocated and initialized. As a general convention, parameter matrices should only
+     * be reallocated and/or reinitialized if their size changes.
+     *
+     * By default the weights (m_W), weight gradient (m_W_grad), bias (m_bias), bias gradient (m_bias_grad),
+     * output activations (m_output_forward), and output error (m_output_backward) will be initialized
+     * by this base class to have size 0. Thus, a subclass should use this function to realocate
+     * and initialize any of these matrices that is wishes to use.
+     */
+    virtual void reinitialize(std::vector<int> input_extents) = 0;
+
+    
+
+    MatrixF m_output_forward; // associated with the default output port
+    MatrixF m_output_backward; // associated with the default output port
+
+  private:
+
+    std::vector<int> m_input_extents;
 
   };
 

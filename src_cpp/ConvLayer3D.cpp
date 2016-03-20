@@ -59,17 +59,19 @@ namespace kumozu {
       //randomize_normal(m_W, 0.0f, std_dev_init);
 
       m_W_fixed_random = get_weights();
-      std::cout << indent << "Initialized weights with std dev = " << std_dev_init << std::endl;
+      if (VERBOSE_MODE) {
+        std::cout << indent << "Initialized weights with std dev = " << std_dev_init << std::endl;
+      }
     }
     m_temp_Z2.resize(m_image_height*m_image_width*m_minibatch_size, m_filter_count);
     m_temp_A1.resize(m_image_height*m_image_width*m_minibatch_size, m_image_depth*m_conv_filter_height*m_conv_filter_width + 1);
     m_temp_W.resize(m_image_depth*m_conv_filter_height*m_conv_filter_width + 1, m_filter_count);
-
-    std::cout << indent << "Image height = " << m_image_height << std::endl;
-    std::cout << indent << "Image width = " << m_image_width << std::endl;
-    std::cout << indent << "Image depth = " << m_image_depth << std::endl;
-    std::cout << indent << "Number of convolutional filters = " << m_filter_count << std::endl;
-
+    if (VERBOSE_MODE) {
+      std::cout << indent << "Image height = " << m_image_height << std::endl;
+      std::cout << indent << "Image width = " << m_image_width << std::endl;
+      std::cout << indent << "Image depth = " << m_image_depth << std::endl;
+      std::cout << indent << "Number of convolutional filters = " << m_filter_count << std::endl;
+    }
   }
 
 

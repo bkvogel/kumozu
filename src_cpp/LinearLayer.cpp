@@ -58,9 +58,11 @@ namespace kumozu {
       //const float std_dev_init = 2.0f*std::sqrt(2.0f)/std::sqrt(m_input_layer_units);
       //randomize_normal(m_W, 0.0f, std_dev_init);
       m_W_fixed_random = get_weights();
-      std::cout << indent << "Initialized weights with std dev = " << std_dev_init << std::endl;
-      std::cout << indent << "Input layer units = " << m_input_layer_units << std::endl;
-      std::cout << indent << "Output layer units = " << m_output_layer_units << std::endl;
+      if (VERBOSE_MODE) {
+        std::cout << indent << "Initialized weights with std dev = " << std_dev_init << std::endl;
+        std::cout << indent << "Input layer units = " << m_input_layer_units << std::endl;
+        std::cout << indent << "Output layer units = " << m_output_layer_units << std::endl;
+      }
     }
     m_output_forward_indices = Matrix<int>(m_dim_output, m_minibatch_size);
   }

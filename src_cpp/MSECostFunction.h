@@ -33,91 +33,124 @@
 #include "Matrix.h"
 #include <string>
 #include <iostream>
-#include "CostFunction.h"
+#include <functional>
+#include "Node.h"
+
 
 namespace kumozu {
 
-  /*
-   * This is an abstract base class for a cost function in a neural network.
+  /**
+   * This is a Mean Squared Error (MSE) cost function in a neural network.
    *
-   * A cost function is typically used during the training process to compare the output
-   * activations of a network to the corresponding "true" training output values. The degree to
+   * A cost function is typically used during the training or evaluation process to compare the output
+   * activations of a network to the "target" training output values. The degree to
    * which the outputs of the network differ from the true output values will be represented by
-   * the "cost" or "loss" value computed by a sub-class of this class.
+   * the "cost" or "loss" value.
    *
-   * This class is intended to model a cost function that has the following characteristics:
+   * Input and output ports:
    *
-   * - A notion of "input" activations. The input typically corresponds to one mini-batch of data. We use the convention
-   *   that the input activations are not considered an internal state of a Layer. That is, the input activations
-   *   can be thought of as existing in some toher "external" object, such as the output activations of another
-   *   Layer instance, for example.
-   * - A cost function value that is computed when forward_propagate() is called. Since this class operates on a
-   *   mini-batch of data at a time, the cost function values are returned in output_forward, which contains one
-   *   scalar cost function value for each batch index.
-   *
-   * - Gradients of the "input" activations with respect to the cost function can be computed by calling a
-   *   method of this class. This corresponds to the "back_propagate()" function.
-   *
-   * A function is also provided to check that the numerically-computed Jacobian roughly matches the gradients/Jacobian
-   * computed by the member functions.
+   * By default, this cost function will automatically create its own output port with the name DEFAULT_OUTPUT_PORT_NAME. 
+   * During the forward data pass, the cost function will be computed and stored in the "output forward" activations of
+   * the output port.
+   * The user should create excatly 1 input port (with any name) by connecting the output port of some other node to
+   * this node.
    *
    * Usage:
    *
-   * A sub-class should implement a specific cost function by overriding the member functions
+   * Assume that a node "C" contains the output activations for which we happen to have corresponding
+   * target activations containing the known correct values. In this case, node "C" should be made the
+   * parent of this cost function node. That is, the output port of node "C" should be connected to the
+   * input port of this node.
    *
-   * forward_propagate() and
-   * back_propagate().
+   * In order to compute the cost function, target activation values will be compared to the values in the
+   * "input forward" activations of the input port. These target activations are supplied to this cost function
+   * using the member function set_target_activations(), which must be called at least once before the first
+   * call to forward(). Calling forward() will then compute the cost function, which will be written into the
+   * "output forward" activations of the output port.
    *
-   * and also be sure to add a unit test that calls check_gradients() to verify that the implementation is correct.
+   * It is possible to switch the target activations to another matrix at any time by calling set_target_activations()
+   * again. Note that is not necessary to call set_target_activations() before each call to forward(). That is,
+   * set_target_activations() should only be called when it is desired to change the target activations to
+   * a different matrix.
+   *
+   * Gradient checking:
+   *
+   * It is possible to perform numerical gradient checking on the entire network, including the cost function.
+   * This can be accomplished by placing everything (all nodes, including the cost function(s)) inside
+   * a composite node. See the unit tests for an example.
    */
-  class MSECostFunction : public CostFunction {
+  class MSECostFunction : public Node {
 
   public:
 
   MSECostFunction(std::string name) :
-    CostFunction(name)
-    {
+    Node(name),
+      m_target_activations {m_empty_target},
+      m_has_target_activations {false}
+      {
+        if (VERBOSE_MODE) {
+          std::cout << get_name() << std::endl;
+        }
+        // Create the output port with default name.
+        create_output_port(m_output_forward, m_output_backward, DEFAULT_OUTPUT_PORT_NAME);
+      }
 
-    }
+      /**
+       * Supply the target activations.
+       *
+       * The target activations contain the target values (i.e., assumed true/correct values) corresponding
+       * to the input forward activations. That is, the input forward activations should contain the output
+       * of the network and the target activations are the corresponding desired values for these activations.
+       * 
+       * Note that both the input activations corresponding to the input port and the target activations contain
+       * one mini-batch of date, where the second dimension (column index) is the example index within the mini-batch.
+       *
+       * This function must be called before the first forward() call, since the target activations
+       * are needed by forward(). Otherwise, the program will exit with an error.
+       * This function may be called an arbitrary number of times to supply a different target activations
+       * matrix, if desired.
+       *
+       * @param target_activations Contains the target activations which must be the same size as
+       * the input forward activations: (unit_count x minibatch_size).
+       */
+      void set_target_activations(const MatrixF& target_activations) {
+        m_target_activations = std::cref(target_activations);
+        m_has_target_activations = true;
+      }
 
+      /**
+       * Compute the output activations as a function of input activations.
+       *
+       * The computed cost will be returned in the output forward activations.
+       *
+       * Before calling this function for the first time, set_target_activations() must
+       * be called to set the target activations. Otherwise, the program will exit with
+       * an error.
+       */
+      virtual void forward_propagate() override;
 
+      /**
+       * Back-propagate errors to compute new values for input_backward.
+       *
+       */
+      virtual void back_propagate_deltas() override;
 
-    /*
-     * Compute the cost function using the supplied input activations and target activations, which
-     * typically corresponds to one mini-batch of data.
-     *
-     * The input activations correspond to the "output" of the network which is connected to the
-     * "input" of this class. Thus, the supplied "input_activations" and "target"activations"
-     * must have the same dimensions. The cost function output (one scalar value per example) will
-     * be stored in the output activations, which can then be obtained by calling get_output_forward().
-     *
-     */
-    virtual float forward_propagate(const MatrixF& input_activations, const MatrixF& target_activations);
-
-
-
-
-    /*
-     * Compute the error gradients for the input layer, which correspond to the error gradients for
-     * the output layer of the network that is connected to this class.
-     *
-     */
-    virtual void back_propagate(MatrixF& input_error, const MatrixF& input_activations,
-                                const MatrixF& true_output_forward);
-
-
-  protected:
-    /*
-     * Set the extents of the input activations.
-     */
-    virtual void reinitialize(std::vector<int> input_extents);
-
+      /**
+       * Reinitialize this node.
+       *
+       */
+      virtual void reinitialize() override;
 
   private:
 
-    int m_minibatch_size;
-    MatrixF m_temp_size_input;
-    MatrixF m_temp_input_error;
+      int m_minibatch_size;
+      MatrixF m_temp_size_input;
+      MatrixF m_temp_input_error;
+      MatrixF m_empty_target;
+      std::reference_wrapper<const MatrixF> m_target_activations;
+      MatrixF m_output_forward; // associated with the default output port
+      MatrixF m_output_backward; // associated with the default output port (and ignored but required)
+      bool m_has_target_activations;
   };
 
 }

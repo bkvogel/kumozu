@@ -168,6 +168,8 @@ namespace kumozu {
                    */
                   void set_flag_weight_decay(float decay_val, bool enable_weight_decay);
 
+		  
+
   private:
 
                   MatrixF m_momentum_W;

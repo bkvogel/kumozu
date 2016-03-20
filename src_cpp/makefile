@@ -1,7 +1,7 @@
 
-OBJS= Matrix.o MatrixIO.o Matrix_list.o Utilities.o UnitTests.o LinearLayer.o BatchNormalization1D.o BatchNormalization3D.o ImageToColumnLayer.o Layer.o ConvLayer3D.o ColumnActivationFunction.o Dropout1D.o Dropout3D.o BoxActivationFunction.o PoolingLayer.o SequentialLayer.o ExamplesNeuralNet.o ExamplesRecSystem.o NetflixRecSystem.o MinibatchTrainer.o Updater.o PlotUtilities.o CostFunction.o MSECostFunction.o CrossEntropyCostFunction.o Accumulator.o ExamplesPlot.o ExamplesMatrix.o Node.o AdderNode.o SubtractorNode.o MultiplyerNode.o SplitterNode.o main.o
+OBJS= Matrix.o MatrixIO.o Matrix_list.o Utilities.o UnitTests.o LinearLayer.o BatchNormalization1D.o BatchNormalization3D.o ImageToColumnLayer.o Layer.o ConvLayer3D.o ColumnActivationFunction.o Dropout1D.o Dropout3D.o BoxActivationFunction.o PoolingLayer.o SequentialLayer.o ExamplesConvNet.o ExamplesRecSystem.o NetflixRecSystem.o MinibatchTrainer.o Updater.o PlotUtilities.o CostFunction.o MSECostFunction.o CrossEntropyCostFunction.o Accumulator.o ExamplesPlot.o ExamplesMatrix.o Node.o AdderNode.o ConcatNode.o ExtractorNode.o SubtractorNode.o MultiplyerNode.o ExamplesRNN.o SplitterNode.o CharRNNMinibatchGetter.o SliceUnroller.o main.o
 
-OBJS_EXPERIMENTAL= Matrix.o MatrixIO.o Matrix_list.o Utilities.o UnitTests.o LinearLayer.o BatchNormalization1D.o BatchNormalization3D.o ImageToColumnLayer.o Layer.o ConvLayer3D.o ColumnActivationFunction.o Dropout1D.o Dropout3D.o BoxActivationFunction.o PoolingLayer.o SequentialLayer.o ExamplesNeuralNet.o ExamplesRecSystem.o NetflixRecSystem.o MinibatchTrainer.o Updater.o PlotUtilities.o CostFunction.o MSECostFunction.o CrossEntropyCostFunction.o Accumulator.o ExamplesPlot.o ExamplesMatrix.o Node.o AdderNode.o SubtractorNode.o MultiplyerNode.o ExamplesNeuralNetExperimental.o SplitterNode.o main.o
+OBJS_EXPERIMENTAL= Matrix.o MatrixIO.o Matrix_list.o Utilities.o UnitTests.o LinearLayer.o BatchNormalization1D.o BatchNormalization3D.o ImageToColumnLayer.o Layer.o ConvLayer3D.o ColumnActivationFunction.o Dropout1D.o Dropout3D.o BoxActivationFunction.o PoolingLayer.o SequentialLayer.o ExamplesConvNet.o ExamplesRecSystem.o NetflixRecSystem.o MinibatchTrainer.o Updater.o PlotUtilities.o CostFunction.o MSECostFunction.o CrossEntropyCostFunction.o Accumulator.o ExamplesPlot.o ExamplesMatrix.o Node.o AdderNode.o ConcatNode.o ExtractorNode.o SubtractorNode.o MultiplyerNode.o ExamplesRNN.o SplitterNode.o CharRNNMinibatchGetter.o SliceUnroller.o main.o
 #CC=g++
 # Requres at least g++ 4.9
 CC=g++-4.9
@@ -102,10 +102,8 @@ PoolingLayer.o : PoolingLayer.h PoolingLayer.cpp Matrix.h
 SequentialLayer.o : SequentialLayer.h SequentialLayer.cpp Matrix.h
 	$(CC) $(PROFILE) $(CCFLAGS) $(INCLUDES_PATH) SequentialLayer.cpp
 
-#
-
-ExamplesNeuralNet.o : ExamplesNeuralNet.h ExamplesNeuralNet.cpp
-	$(CC) $(PROFILE) $(CCFLAGS) $(INCLUDES_PATH) ExamplesNeuralNet.cpp
+ExamplesConvNet.o : ExamplesConvNet.h ExamplesConvNet.cpp
+	$(CC) $(PROFILE) $(CCFLAGS) $(INCLUDES_PATH) ExamplesConvNet.cpp
 
 ExamplesRecSystem.o : ExamplesRecSystem.h ExamplesRecSystem.cpp
 	$(CC) $(PROFILE) $(CCFLAGS) $(INCLUDES_PATH) ExamplesRecSystem.cpp
@@ -115,6 +113,12 @@ NetflixRecSystem.o : NetflixRecSystem.h NetflixRecSystem.cpp
 
 MinibatchTrainer.o : MinibatchTrainer.h MinibatchTrainer.cpp
 	$(CC) $(PROFILE) $(CCFLAGS) $(INCLUDES_PATH) MinibatchTrainer.cpp
+
+CharRNNMinibatchGetter.o : CharRNNMinibatchGetter.h CharRNNMinibatchGetter.cpp
+	$(CC) $(PROFILE) $(CCFLAGS) $(INCLUDES_PATH) CharRNNMinibatchGetter.cpp
+
+SliceUnroller.o : SliceUnroller.h SliceUnroller.cpp
+	$(CC) $(PROFILE) $(CCFLAGS) $(INCLUDES_PATH) SliceUnroller.cpp
 
 Updater.o : Updater.h Updater.cpp
 	$(CC) $(PROFILE) $(CCFLAGS) $(INCLUDES_PATH) Updater.cpp
@@ -146,6 +150,12 @@ Node.o : Node.h Node.cpp
 AdderNode.o : AdderNode.h AdderNode.cpp Node.h
 	$(CC) $(PROFILE) $(CCFLAGS) $(INCLUDES_PATH) AdderNode.cpp
 
+ConcatNode.o : ConcatNode.h ConcatNode.cpp Node.h
+	$(CC) $(PROFILE) $(CCFLAGS) $(INCLUDES_PATH) ConcatNode.cpp
+
+ExtractorNode.o : ExtractorNode.h ExtractorNode.cpp Node.h
+	$(CC) $(PROFILE) $(CCFLAGS) $(INCLUDES_PATH) ExtractorNode.cpp
+
 SplitterNode.o : SplitterNode.h SplitterNode.cpp Node.h
 	$(CC) $(PROFILE) $(CCFLAGS) $(INCLUDES_PATH) SplitterNode.cpp
 
@@ -155,15 +165,14 @@ SubtractorNode.o : SubtractorNode.h SubtractorNode.cpp Node.h
 MultiplyerNode.o : MultiplyerNode.h MultiplyerNode.cpp Node.h
 	$(CC) $(PROFILE) $(CCFLAGS) $(INCLUDES_PATH) MultiplyerNode.cpp
 
-ExamplesNeuralNetExperimental.o : ExamplesNeuralNetExperimental.h ExamplesNeuralNetExperimental.cpp
-	$(CC) $(PROFILE) $(CCFLAGS) $(INCLUDES_PATH) ExamplesNeuralNetExperimental.cpp
-#
+ExamplesRNN.o : ExamplesRNN.h ExamplesRNN.cpp
+	$(CC) $(PROFILE) $(CCFLAGS) $(INCLUDES_PATH) ExamplesRNN.cpp
 
 # 
-main.o : main.cpp Matrix.h MatrixIO.h Matrix_list.h LinearLayer.h BatchNormalization1D.h BatchNormalization3D.h ImageToColumnLayer.h Layer.h ConvLayer3D.h Utilities.h ColumnActivationFunction.h Dropout1D.h Dropout3D.h BoxActivationFunction.h PoolingLayer.h SequentialLayer.h ExamplesNeuralNet.h ExamplesRecSystem.h NetflixRecSystem.h MinibatchTrainer.h Updater.h PlotUtilities.h CostFunction.h MSECostFunction.h CrossEntropyCostFunction.h Accumulator.h ExamplesPlot.h ExamplesMatrix.h Node.h AdderNode.h SubtractorNode.h MultiplyerNode.h SplitterNode.h
+main.o : main.cpp Matrix.h MatrixIO.h Matrix_list.h LinearLayer.h BatchNormalization1D.h BatchNormalization3D.h ImageToColumnLayer.h Layer.h ConvLayer3D.h Utilities.h ColumnActivationFunction.h Dropout1D.h Dropout3D.h BoxActivationFunction.h PoolingLayer.h SequentialLayer.h ExamplesConvNet.h ExamplesRecSystem.h NetflixRecSystem.h MinibatchTrainer.h CharRNNMinibatchGetter.h SliceUnroller.h Updater.h PlotUtilities.h CostFunction.h MSECostFunction.h CrossEntropyCostFunction.h Accumulator.h ExamplesPlot.h ExamplesMatrix.h Node.h AdderNode.h ConcatNode.h ExtractorNode.h SubtractorNode.h MultiplyerNode.h SplitterNode.h ExamplesRNN.h
 	$(CC) $(PROFILE) $(CCFLAGS) $(INCLUDES_PATH) main.cpp
 
-main_experimental.o : main.cpp Matrix.h MatrixIO.h Matrix_list.h LinearLayer.h BatchNormalization1D.h BatchNormalization3D.h ImageToColumnLayer.h Layer.h ConvLayer3D.h Utilities.h ColumnActivationFunction.h Dropout1D.h Dropout3D.h BoxActivationFunction.h PoolingLayer.h SequentialLayer.h ExamplesNeuralNet.h ExamplesRecSystem.h NetflixRecSystem.h MinibatchTrainer.h Updater.h PlotUtilities.h CostFunction.h MSECostFunction.h CrossEntropyCostFunction.h Accumulator.h ExamplesPlot.h ExamplesMatrix.h Node.h AdderNode.h SubtractorNode.h MultiplyerNode.h SplitterNode.h ExamplesNeuralNetExperimental.h
+main_experimental.o : main.cpp Matrix.h MatrixIO.h Matrix_list.h LinearLayer.h BatchNormalization1D.h BatchNormalization3D.h ImageToColumnLayer.h Layer.h ConvLayer3D.h Utilities.h ColumnActivationFunction.h Dropout1D.h Dropout3D.h BoxActivationFunction.h PoolingLayer.h SequentialLayer.h ExamplesConvNet.h ExamplesRecSystem.h NetflixRecSystem.h MinibatchTrainer.h CharRNNMinibatchGetter SliceUnroller.h Updater.h PlotUtilities.h CostFunction.h MSECostFunction.h CrossEntropyCostFunction.h Accumulator.h ExamplesPlot.h ExamplesMatrix.h Node.h AdderNode.h ConcatNode.h ExtractorNode.h SubtractorNode.h MultiplyerNode.h SplitterNode.h ExamplesRNN.h
 	$(CC) $(PROFILE) $(CCFLAGS) $(INCLUDES_PATH) main.cpp
 
 clean:

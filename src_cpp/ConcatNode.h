@@ -1,5 +1,5 @@
-#ifndef _MULTIPLYER_NODE_H
-#define _MULTIPLYER_NODE_H
+#ifndef _CONCAT_NODE_H
+#define _CONCAT_NODE_H
 /*
  * Copyright (c) 2005-2015, Brian K. Vogel
  * All rights reserved.
@@ -40,15 +40,23 @@
 namespace kumozu {
 
   /**
-   * A Node the computes the element-wise multiplication of all "input forward" matrices associated with its input ports.
+   * A Node the concatenates all of the "input forward" matrices associated with its input ports.
    *
-   * This node is allowed to have an arbitrary number of input ports. It will have 1 outptut port which will be given the default name.
+   * This node is allowed to have an arbitrary number of input ports. It will have 1 outptut port with the default name.
    * All matrices associated with
-   * the input ports must have the same dimensions. Arbitrary-dimensional matrices are supported. The matrices associated
-   * with the output port will have the same dimensions as those associated with the input.
+   * the input ports must be 2-dimensional with the same size for the second dimension (that is, the mini-batch size
+   * must be the same for all input matrices).
    *
-   * This node simply performs the element-wise multiplication of the "input forward" matrices over all of the input ports. The names
-   * of the input ports can be arbitrary.
+   * This node simply performs the concatenation of the "input forward" matrices over all of the input ports. The concatenation
+   * is performed along the first dimension (non-minibatch dimension). The size of the first dimension of the "output forward"
+   * matrix will be the sum of the sizes of the first dimension over all input ports.
+   * The names of the input ports can be arbitrary.
+   *
+   * Concatenation order:
+   *
+   * The order in which the inputs are concatenated is the same as their order in a lexicographical sort of the port names. Therefore,
+   * if you would like for the concatenation to be carried out in a certain order, just give the input ports names such that 
+   * their lexicographical ordering is the same as the desired concatenation ordering.
    *
    * Usage:
    *
@@ -56,85 +64,74 @@ namespace kumozu {
    * Although the port names can be arbitrary, the user is required to specify the port name when more than 1 input port is used.
    * If only 1 input port is created, this node will simply function as an identity function that will pass the input through unchanged.
    */
-  class MultiplyerNode : public Node {
+  class ConcatNode : public Node {
 
   public:
 
     /**
      * Create a new instance with the specified node name and create the output port with default name.
      */
-  MultiplyerNode(std::string name) :
+  ConcatNode(std::string name) :
     Node(name) {
       // Create the 1 output port.
       create_output_port(m_output_forward, m_output_backward, DEFAULT_OUTPUT_PORT_NAME); 
     }
 
     /**
-     * Set output forward activations to the element-wise multiplication over all input forward activations.
+     * Set output forward activations to the concatenation over all input forward activations.
      */
     virtual void forward_propagate() override {
-      set_value(m_output_forward, 1.0f);
+      set_value(m_output_forward, 0.0f);
+      int row_offset = 0;
       for_each_input_port_forward([&] (const MatrixF& mat) {
-	  element_wise_multiply(m_output_forward, m_output_forward, mat);
+	  copy_from_submatrix(mat, m_output_forward, row_offset, 0);
+	  row_offset += mat.extent(0);
 	});
     }
 
     /**
-     * 
+     * Copy a submatrix from the "output backward" values into each "input backward" matrix.
      */
     virtual void back_propagate_deltas() override {
       MatrixF& deltas = get_output_backward();
-      for (size_t i = 0; i < m_input_port_backward_matrices.size(); ++i) {
-	MatrixF& input_backward = m_input_port_backward_matrices[i].get();
-	copy_matrix(input_backward, deltas);
-	for (size_t j = 0; j < m_input_port_forward_matrices.size(); ++j) {
-	  if (i != j) {
-	    const MatrixF& other_mat = m_input_port_forward_matrices[j].get();
-	    element_wise_multiply(input_backward, input_backward, other_mat);
-	  }
-	}
-      }
+      int row_offset = 0;
+      for_each_input_port_backward([&] (MatrixF& mat) {
+	  copy_to_submatrix(mat, deltas, row_offset, 0);
+	  row_offset += mat.extent(0);
+	});
     }
 
     /**
-     * Check that all input ports are the same size.
+     * Check that all inputs have the same mini-batch size.
      */
     virtual void reinitialize() override {
       // First verify that all input ports are associated with matrices of the same dimensions.
-      m_input_extents.clear();
-
+      int out_rows = 0;
+      m_minibatch_size = 0;
       for_each_input_port_forward([&] (const MatrixF& mat) {
-	  //std::cout << "in_mat:" << std::endl << mat << std::endl;
-	  if (m_input_extents.size() == 0) {
-	    m_input_extents = mat.get_extents();
-	    m_output_forward.resize(m_input_extents);
-	    m_output_backward.resize(m_input_extents);
+	  if (mat.order() != 2) {
+	    error_exit(get_name() + ": Error: input matrix found that is not 2-dimensional.");
+	  }
+	  if (m_minibatch_size == 0) {
+	    m_minibatch_size = mat.extent(1);
 	  } else {
-	    if (m_input_extents != mat.get_extents()) {
-	      error_exit(get_name() + ": Error: Not all input matrices have the same extents.");
+	    if (m_minibatch_size != mat.extent(1)) {
+	      error_exit(get_name() + ": Error: Not all input matrices have the same mini-batch size.");
 	    }
 	  }
+	  out_rows += mat.extent(0);
 	});
-      m_input_port_backward_matrices.clear();
-      for_each_input_port_backward([&] (MatrixF& mat) {
-	  m_input_port_backward_matrices.push_back(std::ref(mat));
-	});
-      m_input_port_forward_matrices.clear();
-      for_each_input_port_forward([&] (const MatrixF& mat) {
-	  m_input_port_forward_matrices.push_back(std::cref(mat));
-	});
+      m_output_forward.resize(out_rows, m_minibatch_size);
+      m_output_backward.resize(out_rows, m_minibatch_size);
     }
 
   private:
 
-    std::vector<int> m_input_extents; // Extents of each input port matrix.
     MatrixF m_output_forward; // associated with the default output port
     MatrixF m_output_backward; // associated with the default output port
-    std::vector<std::reference_wrapper<MatrixF>> m_input_port_backward_matrices;
-    std::vector<std::reference_wrapper<const MatrixF>> m_input_port_forward_matrices;
-
+    int m_minibatch_size {0};
   };
 
 }
 
-#endif /* _MULTIPLYER_NODE_H */
+#endif /* _CONCAT_NODE_H */

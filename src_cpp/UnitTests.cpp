@@ -62,6 +62,9 @@
 #include "SubtractorNode.h"
 #include "MultiplyerNode.h"
 #include "SplitterNode.h"
+#include "CharRNNMinibatchGetter.h"
+#include "ConcatNode.h"
+#include "ExtractorNode.h"
 
 // Uncomment following line to disable assertion checking.
 // #define NDEBUG
@@ -595,7 +598,28 @@ void test_mat_multiply_right_transpose_accumulate() {
     cout << "PASSED" << endl;    
   }
 
-
+  void test_copy_to_from_submatrix() {
+    cout << "test_copy_to_from_submatrix()" << endl;
+    MatrixF fullmat(7,5);
+    MatrixF submat1(3,4);
+    randomize_uniform(submat1, 0.0f, 1.0f);
+    cout << "submat1 now:" << endl << submat1 << endl;
+    MatrixF submat2(4,4);
+    randomize_uniform(submat2, 0.0f, 1.0f);
+    cout << "submat2 now:" << endl << submat2 << endl;
+    copy_from_submatrix(submat1, fullmat, 0,1);
+    cout << "fullmat now: " << endl << fullmat << endl;
+    copy_from_submatrix(submat2, fullmat, 3, 0);
+    cout << "fullmat now: " << endl << fullmat << endl;
+    set_value(submat1, 0.0f);
+    cout << "submat1 now:" << endl << submat1 << endl;
+    copy_to_submatrix(submat1, fullmat, 0,1);
+    cout << "submat1 now:" << endl << submat1 << endl;
+    set_value(submat2, 0.0f);
+    cout << "submat2 now:" << endl << submat2 << endl;
+    copy_to_submatrix(submat2, fullmat, 3, 0);
+    cout << "submat2 now:" << endl << submat2 << endl;
+  }
 
   void test_compute_kmax() {
     cout << "test_compute_kmax()..." << endl;
@@ -1272,6 +1296,62 @@ void test_mat_multiply_right_transpose_accumulate() {
 
   }
 
+void test_SequentialLayer3() {
+    cout << "test_SequentialLayer3()..." << endl;
+    // Test a network of sequentially-connected layers that also includes the 
+    // MSE cost function.
+    const int minibatch_size = 4;
+    const int dim_input = 5;
+    const int dim_output = 7;
+
+    MatrixF target_activations(dim_output, minibatch_size);
+    randomize_uniform(target_activations, -1.0f, 1.0f);
+
+    SequentialLayer seq_net("sequential layer 1");
+    const vector<int> input_extents = {dim_input, minibatch_size};
+    LinearLayer lin_layer(dim_output, "Linear Layer 1");
+    seq_net.add_layer(lin_layer);
+    MSECostFunction cost_func("MSE Cost Function");
+    seq_net.add_layer(cost_func);
+
+    cost_func.set_target_activations(target_activations);
+
+    // Check weights gradients.
+    seq_net.check_jacobian_weights(input_extents);
+    // Now check bias gradients
+    seq_net.check_jacobian_bias(input_extents);
+    // Now check input error gradients
+    seq_net.check_jacobian_input_backward(input_extents);
+  }
+
+void test_SequentialLayer4() {
+    cout << "test_SequentialLayer4()..." << endl;
+    // Test a network of sequentially-connected layers that also includes the 
+    // MSE cost function.
+    const int minibatch_size = 4;
+    const int dim_input = 5;
+    const int dim_output = 7;
+
+    MatrixI target_activations(minibatch_size);
+
+    SequentialLayer seq_net("sequential layer 1");
+    const vector<int> input_extents = {dim_input, minibatch_size};
+    LinearLayer lin_layer(dim_output, "Linear Layer 1");
+    seq_net.add_layer(lin_layer);
+    CrossEntropyCostFunction cost_func("Cross Entropy Cost Function");
+    seq_net.add_layer(cost_func);
+
+    cost_func.set_target_activations(target_activations);
+
+    // Check weights gradients.
+    seq_net.check_jacobian_weights(input_extents);
+    // Now check bias gradients
+    seq_net.check_jacobian_bias(input_extents);
+    // Now check input error gradients
+    seq_net.check_jacobian_input_backward(input_extents);
+  }
+
+
     void test_SequentialLayer_shared_parameters() {
     cout << "test_SequentialLayer_shared_parameters()" << endl;
     const int minibatch_size = 4;
@@ -1488,11 +1568,10 @@ void test_mat_multiply_right_transpose_accumulate() {
     const int unit_count = 8;
     const int minibatch_size = 2;
     const vector<int> input_extents = {unit_count, minibatch_size};
-    //MatrixF input_activations(input_extents);
-    //randomize_uniform(input_activations, 0.0f, 1.0f);
-    //MatrixF target_activations(input_extents);
-    //randomize_uniform(target_activations, 0.0f, 1.0f);
-    cost_func.check_gradients(input_extents);
+    MatrixF target_activations(input_extents);
+    randomize_uniform(target_activations, -1.0f, 1.0f);
+    cost_func.set_target_activations(target_activations);
+    cost_func.check_jacobian_input_backward(input_extents);
   }
 
   void test_CrossEntropyCostFunction() {
@@ -1501,7 +1580,10 @@ void test_mat_multiply_right_transpose_accumulate() {
     const int unit_count = 8;
     const int minibatch_size = 2;
     const vector<int> input_extents = {unit_count, minibatch_size};
-    cost_func.check_gradients(input_extents);
+    MatrixI target_activations(minibatch_size);
+    
+    cost_func.set_target_activations(target_activations);
+    cost_func.check_jacobian_input_backward(input_extents);
   }
 
 
@@ -1910,6 +1992,42 @@ void test_mat_multiply_right_transpose_accumulate() {
     adder.check_jacobian_input_backward(input_port_extents_map);
   }
 
+  void test_ConcatNode() {
+    cout << "test_ConcatNode()" << endl;
+    const int dim1a = 3;
+    const int dim1b = 4;
+    const int minibatch_size = 2;
+    ConcatNode concat("Concat");
+    MatrixF input_forward1(dim1a, minibatch_size);
+    set_value(input_forward1, 1.0f);
+    cout << "Input 1: " << endl << input_forward1 << endl;
+    MatrixF input_backward1(input_forward1.get_extents());
+    concat.create_input_port(input_forward1, input_backward1, "in1");
+
+    MatrixF input_forward2(dim1b, minibatch_size);
+    set_value(input_forward2, 2.0f);
+    cout << "Input 2: " << endl << input_forward2 << endl;
+    MatrixF input_backward2(input_forward2.get_extents());
+    concat.create_input_port(input_forward2, input_backward2, "in2");
+
+    concat.forward();
+
+    cout << "Output: " << endl << concat.get_output_forward() << endl;
+    
+    // Check gradients:
+    std::map<std::string, std::vector<int>> input_port_extents_map;
+    input_port_extents_map["in1"] = input_forward1.get_extents();
+    input_port_extents_map["in2"] = input_forward2.get_extents();
+
+    // Check weights gradients.
+    concat.check_jacobian_weights(input_port_extents_map);
+    // Now check bias gradients
+    concat.check_jacobian_bias(input_port_extents_map);
+    // Now check input error gradients
+    concat.check_jacobian_input_backward(input_port_extents_map);
+  }
+
+
   void test_SubtractorNode() {
     cout << "test_SubtractorNode()" << endl;
     const int dim1 = 3;
@@ -2011,6 +2129,32 @@ void test_mat_multiply_right_transpose_accumulate() {
 
     // Now check input error gradients
     splitter.check_jacobian_input_backward(input_port_extents_map);
+  }
+
+  void test_ExtractorNode() {
+    cout << "test_ExtractorNode()" << endl;
+    const int minibatch_size = 2;
+    const vector<int> input_extents {9, minibatch_size};
+    MatrixF input_forward(input_extents);
+    const int output_port_count = 3;
+    vector<int> partition_sizes {2, 4, 3};
+    ExtractorNode extractor(partition_sizes, "Splitter");
+    randomize_uniform(input_forward, -1.0f, 1.0f);
+    cout << "Input: " << endl << input_forward << endl;
+    MatrixF input_backward(input_extents);
+    extractor.create_input_port(input_forward, input_backward);
+
+    extractor.forward();
+    
+    for (int i = 0; i < output_port_count; ++i) {
+      cout << "Output port: " << i << " " << endl << extractor.get_output_forward(to_string(i)) << endl;
+    }
+    // Check gradients:
+    std::map<std::string, std::vector<int>> input_port_extents_map;
+    input_port_extents_map[DEFAULT_INPUT_PORT_NAME] = input_extents;
+
+    // Now check input error gradients
+    extractor.check_jacobian_input_backward(input_port_extents_map);
   }
 
 
@@ -2294,6 +2438,61 @@ void test_mat_multiply_right_transpose_accumulate() {
 
   }
 
+  void test_char_rnn_minibatch_getter() {
+    cout << "test_char_rnn_minibatch_getter()" << endl;
+
+    //string text = "abcde";
+    //string text = "abcde abcde ";
+    string text = "This is an example input string.";
+
+    const int minibatch_size = 2;
+    const int num_slices = 6;
+    CharRNNMinibatchGetter getter(text, minibatch_size, num_slices);
+
+    // Create the character->index map for the input text:
+    map<char, int> char_to_idx = create_char_idx_map(text);
+
+    getter.set_char_to_idx_map(char_to_idx);
+
+    getter.next();
+
+    //for (int n = 0; n < num_slices; ++n) {
+    //const MatrixF& input_forward = getter.get_input_forward_batch(n);
+    //cout << "Slice: " << n << " : input_foward" << endl << input_forward << endl;
+
+    //const MatrixF& output_1_hot = getter.get_output_1_hot_batch(n);
+    //cout << "Slice: " << n << " : output_1_hot" << endl << output_1_hot << endl;
+
+    //const MatrixI& output_class_index = getter.get_output_class_index_batch(n);
+    //cout << "Slice: " << n << " : output_class_index" << endl << output_class_index << endl;
+    //cout << "--------------------" << endl;
+    //}
+    getter.print_current_minibatch();
+
+    getter.next();
+    cout << endl << "next " << endl << endl;
+    getter.print_current_minibatch();
+
+    getter.next();
+    cout << endl << "next " << endl << endl;
+    getter.print_current_minibatch();
+
+
+    //for (int n = 0; n < num_slices; ++n) {
+    //const MatrixF& input_forward = getter.get_input_forward_batch(n);
+    //cout << "Slice: " << n << " : input_foward" << endl << input_forward << endl;
+
+    //const MatrixF& output_1_hot = getter.get_output_1_hot_batch(n);
+    //cout << "Slice: " << n << " : output_1_hot" << endl << output_1_hot << endl;
+
+    //const MatrixI& output_class_index = getter.get_output_class_index_batch(n);
+    //cout << "Slice: " << n << " : output_class_index" << endl << output_class_index << endl;
+    //cout << "--------------------" << endl;
+    //}
+
+
+  }
+
   void run_all_tests() {
     test_mat_mult();
     test_mat_multiply_left_transpose();
@@ -2307,6 +2506,7 @@ void test_mat_multiply_right_transpose_accumulate() {
     test_MatrixF5D();
     test_MatrixF6D();
     test_MatrixResize();
+    test_copy_to_from_submatrix();
     test_compute_kmax();
     test_compute_kmax_v2();
     test_relu();
@@ -2326,6 +2526,8 @@ void test_mat_multiply_right_transpose_accumulate() {
     test_jacobian_ConvLayer3D();
     test_SequentialLayer();
     test_SequentialLayer2();
+    test_SequentialLayer3();
+    test_SequentialLayer4();
     test_SequentialLayer_shared_parameters();
     test_jacobian_ImageToColumnLayer();
     test_jacobian_BoxActivationFunction();
@@ -2337,9 +2539,11 @@ void test_mat_multiply_right_transpose_accumulate() {
     test_Node_shared_parameters2();
     test_multi_port_node();
     test_AdderNode();
+    test_ConcatNode();
     test_SubtractorNode();
     test_MultiplyerNode();
     test_SplitterNode();
+    test_ExtractorNode();
     test_rnn_slice();
     test_simple_rnn();
   }

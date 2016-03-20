@@ -42,7 +42,7 @@ namespace kumozu {
 
 
 
-  /*
+  /**
    * An instance of this class represents an activation function that operates on a mini-batch
    * of input 3D (i.e., box-shaped) matrices and outputs a corresponding mini-batch of 3D
    * output matrices. Typically, the input corresponds to a mini-batch of activations from the
@@ -103,8 +103,6 @@ namespace kumozu {
                 m_k = k;
               }
 
-
-
               /*
                * Back-propagate errors to compute new values for input_backward.
                *
@@ -113,11 +111,7 @@ namespace kumozu {
                * calling get_output_backward(). Otherwise, the error gradients will not be back-propagated
                * correctly.
                */
-              virtual void back_propagate_deltas(MatrixF& input_backward, const MatrixF& input_forward);
-
-
-
-
+              virtual void back_propagate_deltas(MatrixF& input_backward, const MatrixF& input_forward) override;
 
   private:
 
@@ -147,7 +141,7 @@ namespace kumozu {
                *                (minibatch_size, depth, height, width).
                *
                */
-              virtual void forward_propagate(const MatrixF& input_activations);
+              virtual void forward_propagate(const MatrixF& input_activations) override;
 
 
               /*
@@ -162,7 +156,7 @@ namespace kumozu {
                * input_extents: Dimensions of the input activations, which are
                *                (minibatch_size, depth, height, width)
                */
-              virtual void reinitialize(std::vector<int> input_extents);
+              virtual void reinitialize(std::vector<int> input_extents) override;
 
   };
 

@@ -66,18 +66,18 @@ namespace kumozu {
 
   public:
 
-    /*
+    /**
      * Create a new instance.
      *
      * Parameters:
      *
-     * filter_count: Number of convolutional filters.
+     * @param filter_count: Number of convolutional filters.
      *
-     * conv_filter_height: Height of a convolutional filter.
+     * @param conv_filter_height: Height of a convolutional filter.
      *
-     * conv_filter_width: Width of a convolutional filter.
+     * @param conv_filter_width: Width of a convolutional filter.
      *
-     * name: A descriptive name.
+     * @param name: A descriptive name.
      *
      * Note that each convolutional filter also has depth image_depth but the filter is not convolved along
      * this dimension. That is, each filter corresponds to a 3D cube, but the convolution operation is
@@ -95,9 +95,6 @@ namespace kumozu {
 
 
           }
-
-
-
 
           /*
            * Set to true to enable using a fixed random weights matrix for back-propagation.
@@ -130,7 +127,7 @@ namespace kumozu {
            * correctly. Note that a reference to the output error can be obtained by
            * calling get_output_backward().
            */
-          virtual void back_propagate_paramater_gradients(const MatrixF& input_activations);
+          virtual void back_propagate_paramater_gradients(const MatrixF& input_activations) override;
 
           /*
            * Back-propagate errors to compute new values for input_backward.
@@ -140,7 +137,7 @@ namespace kumozu {
            * calling get_output_backward(). Otherwise, the error gradients will not be back-propagated
            * correctly.
            */
-          virtual void back_propagate_deltas(MatrixF& input_backward, const MatrixF& input_forward);
+          virtual void back_propagate_deltas(MatrixF& input_backward, const MatrixF& input_forward) override;
 
   private:
 
@@ -175,7 +172,7 @@ namespace kumozu {
            *                    dimensions are (minibatch_size, image_depth, image_height, image_width).
            *
            */
-          virtual void forward_propagate(const MatrixF& input_activations);
+          virtual void forward_propagate(const MatrixF& input_activations) override;
 
           /*
            * Set the extents of the input activations. This must be called before the layer can be used.
@@ -186,7 +183,7 @@ namespace kumozu {
            * input_extents: Dimensions of the input activations, which are
            *                (minibatch_size, image_depth, image_height, image_width)
            */
-          virtual void reinitialize(std::vector<int> input_extents);
+          virtual void reinitialize(std::vector<int> input_extents) override;
 
   };
 

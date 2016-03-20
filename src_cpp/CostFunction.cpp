@@ -37,42 +37,5 @@ using namespace std;
 namespace kumozu {
 
 
-  void CostFunction::check_gradients(std::vector<int> input_extents) {
-    // Create random input activations for the layer.
-    MatrixF input_activations(input_extents);
-    randomize_uniform(input_activations, 0.0f, 1.0f);
-    MatrixF input_backward(input_extents);
-    randomize_uniform(input_backward, 0.0f, 1.0f);
-    MatrixF target_activations(input_extents);
-    //randomize_uniform(target_activations, 0.0f, 1.0f);
-    randomize_uniform(target_activations, 0.0f, 1.0f);
-    float cost = forward(input_activations, target_activations);
-    back_propagate(input_backward, input_activations, target_activations);
-    cout << "Cost = " << cost << endl;
-
-    MatrixF gradients_numerical = input_backward; // Temp matrix to hold the numerical gradients.
-    set_value(gradients_numerical, 0.0f);
-    for (int n = 0; n != input_activations.size(); ++n) {
-      float orig = input_activations[n]; // backup
-      input_activations[n] += m_epsilon;
-      // Now compute J(theta_plus)
-      float J_plus = forward(input_activations, target_activations);
-      // Now compute J(theta_minus)
-      input_activations[n] = orig - m_epsilon;
-      float J_minus = forward(input_activations, target_activations);
-      // Put back original value.
-      input_activations[n] = orig;
-      gradients_numerical[n] = (J_plus - J_minus)/(2*m_epsilon);
-    }
-    const float relative_error_score = relative_error(input_backward, gradients_numerical);
-    std::cout << "numerical-back-prop gradients relative error = " << relative_error_score << std::endl;
-    std::cout << "input_backward = " << std::endl << input_backward << std::endl;
-    std::cout << "-----------------------------" << std::endl;
-    std::cout << "gradients_numerical = " << std::endl << gradients_numerical << std::endl;
-    assert_almost_equal(relative_error_score, 0.0f, m_pass_relative_error);
-
-  }
-
-
 
 }

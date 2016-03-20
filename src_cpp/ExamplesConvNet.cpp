@@ -28,7 +28,7 @@
  *
  */
 
-#include "ExamplesNeuralNet.h"
+#include "ExamplesConvNet.h"
 #include <cstdlib>
 #include <string.h>
 #include <cmath>
@@ -288,7 +288,7 @@ namespace kumozu {
     network.add_layer(linear_laye2);
 
     CrossEntropyCostFunction cost_func("Cross Entropy Cost Function");
-
+    network.add_layer(cost_func);
     // Set up learning rates.
     float learning_rate_weights = 1e-3f; // 1e-3
     float learning_rate_bias = 1e-3f; //
@@ -303,6 +303,7 @@ namespace kumozu {
 
     const MatrixF& train_input_mini = trainer.get_input_batch();
     const Matrix<int>& train_output_mini = trainer.get_output_batch();
+    cost_func.set_target_activations(train_output_mini);
     MatrixF input_backward = train_input_mini;
     // Connect the input activations and deltas to the network.
     network.create_input_port(train_input_mini, input_backward);
@@ -353,9 +354,11 @@ namespace kumozu {
 
       //network.forward(train_input_mini);
       network.forward();
-      train_loss_accumulator.accumulate(cost_func.forward(network.get_output_forward(), train_output_mini));
-      train_accumulator.accumulate(error_count(network.get_output_forward(), train_output_mini));
-      cost_func.back_propagate(network.get_output_backward(), network.get_output_forward(), train_output_mini);
+      //train_loss_accumulator.accumulate(cost_func.forward(network.get_output_forward(), train_output_mini));
+      //cost_func.forward();
+      train_loss_accumulator.accumulate(cost_func.get_output_forward()[0]);
+      train_accumulator.accumulate(error_count(linear_laye2.get_output_forward(), train_output_mini));
+      //cost_func.back_propagate(network.get_output_backward(), network.get_output_forward(), train_output_mini);
       //network.back_propagate(input_backward, train_input_mini);
       network.back_propagate();
       weights_updater.update(W, W_grad);
@@ -375,13 +378,16 @@ namespace kumozu {
         network.set_train_mode(false);
 	// Now connect the test input activations and deltas to the network.
 	network.create_input_port(test_input_mini, input_backward);
+	cost_func.set_target_activations(test_output_mini);
         bool done = false;
         while (!done) {
           done = tester.next(); // Get next test mini-batch
           //network.forward(test_input_mini);
 	  network.forward();
-          test_loss_accumulator.accumulate(cost_func.forward(network.get_output_forward(), test_output_mini));
-          test_accumulator.accumulate(error_count(network.get_output_forward(), test_output_mini));
+          //test_loss_accumulator.accumulate(cost_func.forward(network.get_output_forward(), test_output_mini));
+	  //cost_func.forward();
+	  test_loss_accumulator.accumulate(cost_func.get_output_forward()[0]);
+          test_accumulator.accumulate(error_count(linear_laye2.get_output_forward(), test_output_mini));
         }
         cout << "Test error rate: " << test_accumulator.get_mean() << endl;
         cout << "Test loss/example: " << test_loss_accumulator.get_mean() << endl;
@@ -389,7 +395,7 @@ namespace kumozu {
         test_errors.push_back(test_accumulator.get_mean());
 	// Connect the input activations and deltas to the network.
 	network.create_input_port(train_input_mini, input_backward);
-
+	cost_func.set_target_activations(train_output_mini);
 	// Display plots?
         if (true) {
 
@@ -815,7 +821,7 @@ namespace kumozu {
     network.add_layer(linear_laye2);
 
     CrossEntropyCostFunction cost_func("Cross Entropy Cost Function");
-
+    network.add_layer(cost_func);
     // Set up learning rates.
     float learning_rate_weights = 1e-3f; // 1e-3
     float learning_rate_bias = 1e-3f; //
@@ -833,6 +839,7 @@ namespace kumozu {
 
     const MatrixF& train_input_mini = trainer.get_input_batch();
     const Matrix<int>& train_output_mini = trainer.get_output_batch();
+    cost_func.set_target_activations(train_output_mini);
     MatrixF input_backward = train_input_mini;
     // Initialize the network:
     network.create_input_port(train_input_mini, input_backward);
@@ -879,9 +886,11 @@ namespace kumozu {
       bool end_epoch = trainer.next(); // Get next training mini-batch
 
       network.forward();
-      train_loss_accumulator.accumulate(cost_func.forward(network.get_output_forward(), train_output_mini));
-      train_accumulator.accumulate(error_count(network.get_output_forward(), train_output_mini));
-      cost_func.back_propagate(network.get_output_backward(), network.get_output_forward(), train_output_mini);
+      //train_loss_accumulator.accumulate(cost_func.forward(network.get_output_forward(), train_output_mini));
+      //cost_func.forward();
+      train_loss_accumulator.accumulate(cost_func.get_output_forward()[0]);
+      train_accumulator.accumulate(error_count(linear_laye2.get_output_forward(), train_output_mini));
+      //cost_func.back_propagate(network.get_output_backward(), network.get_output_forward(), train_output_mini);
       network.back_propagate();
       weights_updater.update(W, W_grad);
       bias_updater.update(bias, bias_grad);
@@ -900,12 +909,15 @@ namespace kumozu {
         network.set_train_mode(false);
 	// Now connect the test input activations and deltas to the network.
 	network.create_input_port(test_input_mini, input_backward);
+	cost_func.set_target_activations(test_output_mini);
         bool done = false;
         while (!done) {
           done = tester.next(); // Get next test mini-batch
           network.forward();
-          test_loss_accumulator.accumulate(cost_func.forward(network.get_output_forward(), test_output_mini));
-          test_accumulator.accumulate(error_count(network.get_output_forward(), test_output_mini));
+          //test_loss_accumulator.accumulate(cost_func.forward(network.get_output_forward(), test_output_mini));
+	  //cost_func.forward();
+	  test_loss_accumulator.accumulate(cost_func.get_output_forward()[0]);
+          test_accumulator.accumulate(error_count(linear_laye2.get_output_forward(), test_output_mini));
         }
         cout << "Test error rate: " << test_accumulator.get_mean() << endl;
         cout << "Test loss/example: " << test_loss_accumulator.get_mean() << endl;
@@ -913,7 +925,7 @@ namespace kumozu {
         test_errors.push_back(test_accumulator.get_mean());
 	// Connect the input activations and deltas to the network.
 	network.create_input_port(train_input_mini, input_backward);
-
+	cost_func.set_target_activations(train_output_mini);
 	// Display plots?
         if (true) {
 

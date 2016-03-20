@@ -72,7 +72,7 @@ namespace kumozu {
    */
   void test_gradients_ReLULayer();
 
-
+  void test_copy_to_from_submatrix();
 
   /*
    * Test compute_forward_kmax() and
@@ -179,6 +179,10 @@ namespace kumozu {
 
   void test_SequentialLayer2();
 
+  void test_SequentialLayer3();
+
+  void test_SequentialLayer4();
+
   void test_SequentialLayer_shared_parameters();
 
   void test_jacobian_ImageToColumnLayer();
@@ -212,15 +216,21 @@ namespace kumozu {
 
   void test_AdderNode();
 
+  void test_ConcatNode();
+
   void test_SubtractorNode();
 
   void test_MultiplyerNode();
 
   void test_SplitterNode();
 
+  void test_ExtractorNode();
+
   void test_rnn_slice();
 
   void test_simple_rnn();
+
+  void test_char_rnn_minibatch_getter();
 
 }
 #endif  /* _UNITTESTS_H */

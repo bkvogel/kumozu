@@ -41,7 +41,7 @@ namespace kumozu {
 
 
 
-  /*
+  /**
    * An instance of this class represents an activation function that operates on a mini-batch
    * of input column vectors and outputs a corresponding mini-batch of column vectors.
    *
@@ -107,9 +107,6 @@ namespace kumozu {
             void set_maxout_factor(int maxout_factor) {
               m_maxout_factor = maxout_factor;
             }
-            //
-
-
 
             /*
              * Back-propagate errors to compute new values for input_backward.
@@ -119,15 +116,12 @@ namespace kumozu {
              * calling get_output_backward(). Otherwise, the error gradients will not be back-propagated
              * correctly.
              */
-            virtual void back_propagate_deltas(MatrixF& input_backward, const MatrixF& input_forward);
-
+            virtual void back_propagate_deltas(MatrixF& input_backward, const MatrixF& input_forward) override;
 
   private:
 
-
             Matrix<int> m_state;
             ACTIVATION_TYPE m_activation_type;
-
             int m_maxout_factor;
             int m_partition_count; // fixme: let a method set this.
             int m_k; // fixme: let a method set this.
@@ -147,7 +141,7 @@ namespace kumozu {
              *                (minibatch_size x depth x height x width).
              *
              */
-            virtual void forward_propagate(const MatrixF& input_forward);
+            virtual void forward_propagate(const MatrixF& input_forward) override;
 
             /*
              * Set the extents of the input activations. This must be called before the layer can be used.
@@ -158,7 +152,7 @@ namespace kumozu {
              * input_extents: Dimensions of the input activations, which are
              *                (dim_input, minibatch_size)
              */
-            virtual void reinitialize(std::vector<int> input_extents);
+            virtual void reinitialize(std::vector<int> input_extents) override;
 
 
   };

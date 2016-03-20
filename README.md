@@ -6,7 +6,7 @@ Kumozu is research software for deep learning and matrix factorization algorithm
 
 * Includes a multi-dimensional matrix class, various utility functions, and layer classes such as fully-connected, convolutional, batch normalization, dropout, etc. for constructing deep convolutional networks.
 
-* New! Experimental support for general computation graphs using the base graph `Node` class. A node can have an arbitrary number of named input and output ports and can itself contain a subgraph of other Node instances, enabling expressive network architectures. The node connections in the DAG are computed and cached dynamically during the forward data pass so that there should be negligible performance overhead. For an example of using the computation graph API to construct a recurrent neural network, see the RNN example (`test_simple_rnn()` in the unit tests).
+* Support for general computation graphs using the base graph `Node` class. A node can have an arbitrary number of named input and output ports and can itself contain a subgraph of other Node instances, enabling expressive architectures such as recurrent neural networks. The node connections in the DAG are computed and cached dynamically during the forward data pass so that there should be negligible performance overhead.
 
 * The user only needs to specify the sizes of the input activations for the first layer in a deep network. All other layers will automatically determine their required input sizes as the network is initialized during the first forward pass of the back-propagation procedure. This makes it easy to create and modify very deep networks without needing to manually determine the required dimensions for the input activations at each layer. For example, the removal of a max-pooling layer from the middle of a deep network will cause the activation sizes to change for all downstream layers. In this framework, such a layer can often be removed by just commenting out a single line of code since the downstream layers will automatically determine their required activation sizes at runtime.
 
@@ -165,6 +165,18 @@ as well as a plot of the train/test errors.
 
 It should reach about 0.35% test error after 100 epochs or so.
 
+##### LSTM character-level language model
+
+This is an implementation of multilayer LSTMs for text character prediction that is based on Andrej Karpathy's `char-rnn` Torch example from [here](https://github.com/karpathy/char-rnn).
+
+To run the example, rename a text file to `input.txt` and place it in the `src_cpp` folder. Then from that folder, type:
+
+```
+./main lstm_example()
+```
+
+The model is defined in the file `ExamplesRNN.cpp`. The types of RNNs currently implemented are: vanilla RNN, 1-layer LSTM and 2-layer LSTM (with and without dropout). After reading and understanding this file, you will hopefully find it straightforward to quickly implement other types of RNNs and/or networks with additional layers.
+
 
 ##### Matrix factorization example 1: Simple recommendation system
 
@@ -198,8 +210,6 @@ FreeBSD license.
 Add more MF/NMF examples.
 
 Add deconvolutional layers and examples.
-
-Add RNN/LSTM examples. Add a general class to automatically replicate a time slice node into an RNN.
 
 Improve documentation.
 

@@ -36,16 +36,26 @@ using namespace std;
 
 namespace kumozu {
 
-  void CrossEntropyCostFunction::reinitialize(std::vector<int> input_extents) {
+  void CrossEntropyCostFunction::reinitialize() {
+    std::vector<int> input_extents = get_input_port_forward().get_extents();
     m_minibatch_size =  input_extents.at(1);
 
     m_temp_input_error.resize(input_extents);
     m_exp_input.resize(input_extents);
     m_mu.resize(input_extents);
     m_col_sums.resize(m_minibatch_size);
+
+    // The output activations will only contain 1 value: the cost
+    m_output_forward.resize(1);
+    m_output_backward.resize(1);
   }
 
-  float CrossEntropyCostFunction::forward_propagate(const MatrixF& input_activations, const Matrix<int>& target_activations) {
+  void CrossEntropyCostFunction::forward_propagate() {
+    if (!m_has_target_activations) {
+      error_exit("forward_propagate(): Error: set_target_activations() has not been called yet!");
+    }
+    const MatrixF& input_activations = get_input_port_forward();
+    const Matrix<int>& target_activations = m_target_activations;
     copy_matrix(m_exp_input, input_activations);
     const int unit_count = input_activations.extent(0);
     // Begin Optional: Compute max value alpha for each column independently and subtact. This helps prevent overflow:
@@ -97,59 +107,17 @@ namespace kumozu {
       int n = target_activations(m);
       cost -= std::log(m_mu(n, m));
     }
-    return cost;
+    m_output_forward[0] = cost;
+    // Only the gradient-checking functions should ever modify the output_backward activations, so
+    // this is probably safe.
+    set_value(m_output_backward, 1.0f);
   }
 
 
-  void CrossEntropyCostFunction::back_propagate(MatrixF& input_error, const MatrixF& input_activations,
-                                                const Matrix<int>& target_activations) {
-    copy_matrix(input_error, m_temp_input_error);
+  void CrossEntropyCostFunction::back_propagate_deltas() {
+    copy_matrix(get_input_port_backward(), m_temp_input_error);
+    const float out_back = m_output_backward[0];
+    scale(get_input_port_backward(), get_input_port_backward(), out_back);
   }
-
-
-  void CrossEntropyCostFunction::check_gradients(std::vector<int> input_extents) {
-    // Create random input activations for the layer.
-    MatrixF input_activations(input_extents);
-    randomize_uniform(input_activations, 0.0f, 1.0f);
-    MatrixF input_backward(input_extents);
-    randomize_uniform(input_backward, 0.0f, 1.0f);
-    const int minibatch_count = input_extents.at(1);
-    Matrix<int> target_activations(minibatch_count);
-    MatrixF temp_rand(minibatch_count);
-    randomize_uniform(temp_rand, 0.0f, input_extents.at(0));
-
-    for (int b = 0; b < minibatch_count; ++b) {
-      // Use random class lables.
-      target_activations(b) = static_cast<int>(temp_rand(b));
-    }
-    //randomize_uniform(target_activations, 0.0f, 1.0f);
-    //randomize_uniform(target_activations, 0.0f, 1.0f);
-    float cost = forward(input_activations, target_activations);
-    back_propagate(input_backward, input_activations, target_activations);
-    cout << "Cost = " << cost << endl;
-
-    MatrixF gradients_numerical = input_backward; // Temp matrix to hold the numerical gradients.
-    set_value(gradients_numerical, 0.0f);
-    for (int n = 0; n != input_activations.size(); ++n) {
-      float orig = input_activations[n]; // backup
-      input_activations[n] += m_epsilon;
-      // Now compute J(theta_plus)
-      float J_plus = forward(input_activations, target_activations);
-      // Now compute J(theta_minus)
-      input_activations[n] = orig - m_epsilon;
-      float J_minus = forward(input_activations, target_activations);
-      // Put back original value.
-      input_activations[n] = orig;
-      gradients_numerical[n] = (J_plus - J_minus)/(2*m_epsilon);
-    }
-    const float relative_error_score = relative_error(input_backward, gradients_numerical);
-    std::cout << "numerical-back-prop gradients relative error = " << relative_error_score << std::endl;
-    std::cout << "input_backward = " << std::endl << input_backward << std::endl;
-    std::cout << "-----------------------------" << std::endl;
-    std::cout << "gradients_numerical = " << std::endl << gradients_numerical << std::endl;
-    assert_almost_equal(relative_error_score, 0.0f, m_pass_relative_error);
-
-  }
-
 
 }

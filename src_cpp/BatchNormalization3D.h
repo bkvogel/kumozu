@@ -70,22 +70,22 @@ namespace kumozu {
 
   public:
 
-    /*
+    /**
      * Create a new instance.
      *
      * Parameters:
      *
-     * enable_gamma_beta: If true, enable the "scale and shift" using the gamma and
+     * @param enable_gamma_beta: If true, enable the "scale and shift" using the gamma and
      *                    beta parameters, which are learned. Otherwise, only perform
      *                    mean and variance normalization.
      *
-     * momentum: Fraction of current mini-batch mean and variance to use in the running average. This
+     * @param momentum: Fraction of current mini-batch mean and variance to use in the running average. This
      *           running average is computed when the network is in training mode but is only applied
      *           when the network is in test/evaluation mode. That is, when the network is in training
      *           mode, only the mini-batch mean and variance are actually used to normalize the activations.
      *           The default value is 0.05.
      *
-     * name: A descriptive name.
+     * @param name: A descriptive name.
      *
      */
   BatchNormalization3D(bool enable_gamma_beta, float momentum, std::string name) :
@@ -98,18 +98,18 @@ namespace kumozu {
 
           }
 
-          /*
+          /**
            * Create a new instance.
            *
            * Only mini-batch statistics are used in this version. No running averages are used.
            *
            * Parameters:
            *
-           * enable_gamma_beta: If true, enable the "scale and shift" using the gamma and
+           * @param enable_gamma_beta: If true, enable the "scale and shift" using the gamma and
            *                    beta parameters, which are learned. Otherwise, only perform
            *                    mean and variance normalization.
            *
-           * name: A descriptive name.
+           * @param name: A descriptive name.
            *
            * Notes: This version seems to work better than the version that uses momentum.
            */
@@ -133,11 +133,7 @@ namespace kumozu {
                  * calling get_output_backward(). Otherwise, the error gradients will not be back-propagated
                  * correctly.
                  */
-                virtual void back_propagate_paramater_gradients(const MatrixF& input_activations);
-
-
-
-
+                virtual void back_propagate_paramater_gradients(const MatrixF& input_activations) override;
 
                 /*
                  * Back-propagate errors to compute new values for input_backward.
@@ -147,15 +143,7 @@ namespace kumozu {
                  * calling get_output_backward(). Otherwise, the error gradients will not be back-propagated
                  * correctly.
                  */
-                virtual void back_propagate_deltas(MatrixF& input_backward, const MatrixF& input_forward);
-
-
-
-                /*
-                 * Save learned parameters, stats etc. to a file withe the prefix given
-                 * by the supplied name.
-                 */
-                void save_learning_info(std::string name) const;
+                virtual void back_propagate_deltas(MatrixF& input_backward, const MatrixF& input_forward) override;
 
                 /*
                  * Set the momentum parameter. This specifies the fraction of the mean and variance from the
@@ -180,11 +168,6 @@ namespace kumozu {
                 }
 
 
-
-
-
-
-                // Make private again after debug.
   private:
 
                 int m_minibatch_size;
@@ -216,16 +199,13 @@ namespace kumozu {
 
   protected:
 
-
-
-
                 /*
                  * Compute the output activations as a function of input activations.
                  *
                  * The output activations can then be obtained by calling get_output_forward().
                  *
                  */
-                virtual void forward_propagate(const MatrixF& input_activations);
+                virtual void forward_propagate(const MatrixF& input_activations) override;
 
                 /*
                  * Set the extents of the input activations. This must be called before the layer can be used.
@@ -236,7 +216,7 @@ namespace kumozu {
                  * input_extents: Dimensions of the input activations, which are
                  *                (minibatch_size, image_depth, image_height, image_width)
                  */
-                virtual void reinitialize(std::vector<int> input_extents);
+                virtual void reinitialize(std::vector<int> input_extents) override;
 
 
   };

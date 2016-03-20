@@ -33,6 +33,8 @@
 #include "Matrix.h"
 #include <string>
 #include <iostream>
+#include "Constants.h"
+#include "Node.h"
 
 namespace kumozu {
 
@@ -55,7 +57,7 @@ namespace kumozu {
    *   scalar cost function value for each batch index.
    *
    * - Gradients of the "input" activations with respect to the cost function can be computed by calling a
-   *   method of this class. This corresponds to the "back_propagate()" function.
+   *   member function of this class. This corresponds to the "back_propagate()" function.
    *
    * A function is also provided to check that the numerically-computed Jacobian roughly matches the gradients/Jacobian
    * computed by the member functions.
@@ -82,107 +84,96 @@ namespace kumozu {
    * as a contained node in a composite node). This would simplify the implementation and allow for gradient checking the
    * entire model.
    */
-  class CostFunction {
+  // fixme: delete this class and make each Xcostfunction class extend Node.
+  class CostFunction : public Node {
 
   public:
 
-  CostFunction(std::string name) : m_layer_name {name},
-      m_epsilon {1e-4f},
-        m_pass_relative_error {1e-2f}, // Minimum relative error needed to pass Jacobian checker.
-          m_is_initialized {false}
-          {
-
+  CostFunction(std::string name) :
+    Node(name),
+      //m_epsilon {1e-4f},
+      //m_pass_relative_error {1e-2f},
+        m_is_initialized {false}
+        {
+          if (VERBOSE_MODE) {
+            std::cout << get_name() << std::endl;
           }
-
-          virtual ~CostFunction(){}
-
-          /*
-           * Compute the cost function using the supplied input activations and target activations, which
-           * typically corresponds to one mini-batch of data.
-           *
-           * The input activations correspond to the "output" of the network which is connected to the
-           * "input" of this class. Thus, the supplied "input_activations" and "target"activations"
-           * must have the same dimensions. The cost function output (one scalar value per example) will
-           * be stored in the output activations, which can then be obtained by calling get_output_forward().
-           *
-           */
-          virtual float forward_propagate(const MatrixF& input_activations, const MatrixF& target_activations) {
-            return 0.0f;
+          // Create the 1 output port.
+          if (get_output_port_count() == 0) {
+            // Create the output port with default name.
+            create_output_port(m_output_forward, m_output_backward, DEFAULT_OUTPUT_PORT_NAME);
           }
+        }
 
-          virtual float forward_propagate(const MatrixF& input_activations, const Matrix<int>& target_activations) {
-            return 0.0f;
-          }
+        /*
+         * Compute the cost function using the supplied input activations and target activations, which
+         * typically corresponds to one mini-batch of data.
+         *
+         * The input activations correspond to the "output" of the network which is connected to the
+         * "input" of this class. Thus, the supplied "input_activations" and "target"activations"
+         * must have the same dimensions. The cost function output (one scalar value per example) will
+         * be stored in the output activations, which can then be obtained by calling get_output_forward().
+         *
+         */
+        // todo: it is too easy to accidentally call this function directly from an instance. This should not be possible.
+        // make it protected so that user can only call forward()?
+        virtual float forward_propagate(const MatrixF& input_activations, const MatrixF& target_activations) {
+          return 0.0f;
+        }
+
+        virtual float forward_propagate(const MatrixF& input_activations, const Matrix<int>& target_activations) {
+          return 0.0f;
+        }
 
 
-          float forward(const MatrixF& input_activations, const MatrixF& target_activations) {
-            if (input_activations.get_extents() != m_input_extents) {
-              std::cout << std::endl << "Initializing " << m_layer_name << ":" << std::endl;
-              m_input_extents = input_activations.get_extents();
-              reinitialize(input_activations.get_extents());
+        float forward(const MatrixF& input_activations, const MatrixF& target_activations) {
+          if (input_activations.get_extents() != m_input_extents) {
+            if (VERBOSE_MODE) {
+              std::cout << std::endl << "Initializing " << get_name() << ":" << std::endl;
             }
-            float val = forward_propagate(input_activations, target_activations);
-            m_is_initialized = true;
-            return val;
+            m_input_extents = input_activations.get_extents();
+            reinitialize(input_activations.get_extents());
           }
+          float val = forward_propagate(input_activations, target_activations);
+          m_is_initialized = true;
+          return val;
+        }
 
-          float forward(const MatrixF& input_activations, const Matrix<int>& target_activations) {
-            if (input_activations.get_extents() != m_input_extents) {
-              std::cout << std::endl << "Initializing " << m_layer_name << ":" << std::endl;
-              m_input_extents = input_activations.get_extents();
-              reinitialize(input_activations.get_extents());
+        float forward(const MatrixF& input_activations, const Matrix<int>& target_activations) {
+          if (input_activations.get_extents() != m_input_extents) {
+            if (VERBOSE_MODE) {
+              std::cout << std::endl << "Initializing " << get_name() << ":" << std::endl;
             }
-            float val = forward_propagate(input_activations, target_activations);
-            m_is_initialized = true;
-            return val;
+            m_input_extents = input_activations.get_extents();
+            reinitialize(input_activations.get_extents());
           }
+          float val = forward_propagate(input_activations, target_activations);
+          m_is_initialized = true;
+          return val;
+        }
 
 
-          /*
-           * Compute the error gradients for the input layer, which correspond to the error gradients for
-           * the output layer of the network that is connected to this class.
-           *
-           */
-          virtual void back_propagate(MatrixF& input_error, const MatrixF& input_activations,
-                                      const MatrixF& target_activations) = 0;
-
-
-
-          /*
-           * Check that the gradients computed using the finite differences method agrees with
-           * the gradients computed using the gradient back-propagation member function.
-           *
-           */
-          virtual void check_gradients(std::vector<int> input_extents);
-
-          std::string get_name() const {
-            return m_layer_name;
-          }
-
-          /*
-           * Return the cost for the current mini-batch.
-           *
-           * Be sure to call forward_propagate() before calling this function.
-           */
-          //virtual float get_cost() = 0;
-
+        /*
+         * Compute the error gradients for the input layer, which correspond to the error gradients for
+         * the output layer of the network that is connected to this class.
+         *
+         */
+        virtual void back_propagate(MatrixF& input_error, const MatrixF& input_activations,
+                                    const MatrixF& target_activations) = 0;
 
   protected:
-          /*
-           * Set the extents of the input activations.
-           */
-          virtual void reinitialize(std::vector<int> input_extents) = 0;
+        /*
+         * Set the extents of the input activations.
+         */
+        virtual void reinitialize(std::vector<int> input_extents) = 0;
 
-          std::string m_layer_name;
-          MatrixF m_output_forward;
-          std::vector<int> m_input_extents;
-
-          const float m_epsilon;
-          const float m_pass_relative_error;
+        MatrixF m_output_forward; // associated with the default output port
+        MatrixF m_output_backward; // associated with the default output port (and ignored but required)
+        std::vector<int> m_input_extents;
 
   private:
 
-          bool m_is_initialized;
+        bool m_is_initialized; // fixme: remove
 
   };
 

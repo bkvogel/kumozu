@@ -36,25 +36,39 @@ using namespace std;
 
 namespace kumozu {
 
-  void MSECostFunction::reinitialize(std::vector<int> input_extents) {
+  void MSECostFunction::reinitialize() {
+    std::vector<int> input_extents = get_input_port_forward().get_extents();
     m_minibatch_size =  input_extents.at(1);
 
     m_temp_input_error.resize(input_extents);
     m_temp_size_input.resize(input_extents);
+
+    // The output activations will only contain 1 value: the cost
+    m_output_forward.resize(1);
+    m_output_backward.resize(1);
   }
 
-  float MSECostFunction::forward_propagate(const MatrixF& input_activations, const MatrixF& target_activations) {
+  void MSECostFunction::forward_propagate() {
+    if (!m_has_target_activations) {
+      error_exit("forward_propagate(): Error: set_target_activations() has not been called yet!");
+    }
+    const MatrixF& input_activations = get_input_port_forward();
+    const MatrixF& target_activations = m_target_activations;
     element_wise_difference(m_temp_input_error, input_activations, target_activations);
     copy_matrix(m_temp_size_input, m_temp_input_error);
     apply(m_temp_size_input, [] (float a) {
         return a*a;
       });
-    return 0.5*sum(m_temp_size_input);
+    m_output_forward[0] = 0.5*sum(m_temp_size_input);
+    // Only the gradient-checking functions should ever modify the output_backward activations, so
+    // this is probably safe.
+    set_value(m_output_backward, 1.0f);
   }
 
-  void MSECostFunction::back_propagate(MatrixF& input_error, const MatrixF& input_activations,
-                                       const MatrixF& true_output_forward) {
-    copy_matrix(input_error, m_temp_input_error);
+  void MSECostFunction::back_propagate_deltas() {
+    copy_matrix(get_input_port_backward(), m_temp_input_error); // old way
+    const float out_back = m_output_backward[0];
+    scale(get_input_port_backward(), get_input_port_backward(), out_back);
   }
 
 }
