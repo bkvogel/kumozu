@@ -231,7 +231,7 @@ namespace kumozu {
       reinitialize(get_input_port_forward().get_extents());
     }
 
-  protected: // fixme: remove protected?
+  protected: // todo: remove protected?
 
     /**
      *

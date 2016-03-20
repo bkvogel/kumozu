@@ -33,7 +33,7 @@
 namespace kumozu {
 
   ////////////////////////////////////////////////////////////////////////////////
-  // Experimental neural network examples.
+  // RNN examples.
 
   /*
    * char-rnn model for character prediction in text.

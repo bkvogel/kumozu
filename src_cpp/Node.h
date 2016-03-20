@@ -802,46 +802,57 @@ In		     *
                      * Check that the Jacobian computed using the finite differences method agrees with
                      * the Jacobian computed using the gradient back-propagation member functions.
                      *
-		     * @param input_port_extents_map fixme
+		     * @param input_port_extents_map A map from input port name to dimensions (extents) of the matrices
+		     * associated with that input port.
                      */
-                    void check_jacobian_weights(std::map<std::string, std::vector<int>> input_port_extents_map); // fixme: reference type
+                    void check_jacobian_weights(std::map<std::string, std::vector<int>> input_port_extents_map); 
 
-                    /*
+                    /**
                      * Check that the Jacobian computed using the finite differences method agrees with
                      * the Jacobian computed using the gradient back-propagation member functions.
                      *
+		     * @param input_port_extents_map A map from input port name to dimensions (extents) of the matrices
+		     * associated with that input port.
                      */
                     void check_jacobian_bias(std::map<std::string, std::vector<int>> input_port_extents_map);
 
-                    /*
+                    /**
                      * Check that the Jacobian computed using the finite differences method agrees with
                      * the Jacobian computed using the gradient back-propagation member functions.
-                     *
+		     *
+		     * @param input_port_extents_map A map from input port name to dimensions (extents) of the matrices
+		     * associated with that input port.
                      */
                     void check_jacobian_input_backward(std::map<std::string, std::vector<int>> input_port_extents_map);
 
 
-                    /*
+                    /**
                      * Check that the Jacobian computed using the finite differences method agrees with
                      * the Jacobian computed using the gradient back-propagation member functions.
                      *
                      * This is a convinience function that can be used when the Node has only 1 input port.
+		     *
+		     * @param input_extents The extents (dimensions) for the input port.
                      */
                     void check_jacobian_weights(std::vector<int> input_extents);
 
-                    /*
+                    /**
                      * Check that the Jacobian computed using the finite differences method agrees with
                      * the Jacobian computed using the gradient back-propagation member functions.
                      *
                      * This is a convinience function that can be used when the Node has only 1 input port.
+		     *
+		     * @param input_extents The extents (dimensions) for the input port.
                      */
                     void check_jacobian_bias(std::vector<int> input_extents);
 
-                    /*
+                    /**
                      * Check that the Jacobian computed using the finite differences method agrees with
                      * the Jacobian computed using the gradient back-propagation member functions.
                      *
                      * This is a convinience function that can be used when the Node has only 1 input port.
+		     *
+		     * @param input_extents The extents (dimensions) for the input port.
                      */
                     void check_jacobian_input_backward(std::vector<int> input_extents);
 
