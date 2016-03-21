@@ -172,7 +172,7 @@ This is an implementation of multilayer LSTMs for text character prediction that
 To run the example, rename a text file to `input.txt` and place it in the `src_cpp` folder. Then from that folder, type:
 
 ```
-./main lstm_example()
+./main lstm_example
 ```
 
 The model is defined in the file `ExamplesRNN.cpp`. The types of RNNs currently implemented are: vanilla RNN, 1-layer LSTM and 2-layer LSTM (with and without dropout). After reading and understanding this file, you will hopefully find it straightforward to quickly implement other types of RNNs and/or networks with additional layers.

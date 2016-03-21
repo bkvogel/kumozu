@@ -1458,12 +1458,12 @@ namespace kumozu {
     ///////////////////////////////////////////////////////////////////////////
     // Use suggested parameters from "Visualizing and Understanding Recurrent Networks" by Karpathy et al:
     //
-    const int minibatch_size = 32;
+    const int minibatch_size = 64;
     const int num_slices = 100; // 10 Length of RNN.
     const int rnn_dim = 256; // good size 256 or greater
     // Set up learning rates.
     //float learning_rate_weights = 1e-2f; // 1e-3 -  1e-5
-    float rms_prop_rate_weights = 2e-3f;
+    float rms_prop_rate_weights = 2e-3f; //2e-3f
     //float learning_rate_bias = 1e-2f; //
     float rms_prop_rate_bias = 2e-3f;
     float weight_decay = 1e-5f; //
