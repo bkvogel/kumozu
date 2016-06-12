@@ -4,9 +4,11 @@ Kumozu is research software for deep learning and matrix factorization algorithm
 
 #### Features
 
-* Includes a multi-dimensional matrix class, various utility functions, and layer classes such as fully-connected, convolutional, batch normalization, dropout, etc. for constructing deep convolutional networks.
+* Includes a multi-dimensional matrix class template (`Matrix`), various utility functions in `Utilities.h`, and layer classes such as fully-connected, convolutional, batch normalization, dropout, etc. for constructing deep convolutional and feed-forward networks.
 
-* Support for general computation graphs using the base graph `Node` class. A node can have an arbitrary number of named input and output ports and can itself contain a subgraph of other Node instances, enabling expressive architectures such as recurrent neural networks. The node connections in the DAG are computed and cached dynamically during the forward data pass so that there should be negligible performance overhead.
+* Support for general computation graphs using the base graph `Node` class. A node can have an arbitrary number of named input and output ports and can itself contain a subgraph of other Node instances, enabling expressive architectures such as recurrent neural networks. Kumozu is different from other frameworks in that it supports descriptive string-valued port names, rather than positional or integer-valued names. This is intended to improve code readability and reduce the chance of user error when making port connections between nodes.
+
+* Recurrent neural networks (RNNs) are supported by two features: shared parameters (`set_shared()` member function of `Node` class) and the `SliceUnroller` class, which automatically unrolls the computation sub-graph for a single RNN time slice a specified number of times so that truncated backpropagation through time can be performed. See `ExamplesRNN.cpp` for examples.
 
 * The user only needs to specify the sizes of the input activations for the first layer in a deep network. All other layers will automatically determine their required input sizes as the network is initialized during the first forward pass of the back-propagation procedure. This makes it easy to create and modify very deep networks without needing to manually determine the required dimensions for the input activations at each layer. For example, the removal of a max-pooling layer from the middle of a deep network will cause the activation sizes to change for all downstream layers. In this framework, such a layer can often be removed by just commenting out a single line of code since the downstream layers will automatically determine their required activation sizes at runtime.
 
@@ -30,9 +32,9 @@ Kumozu is research software for deep learning and matrix factorization algorithm
 
 #### Requirements
 
-This software was developed under Ubuntu 14.04.
+This software was developed under Ubuntu 16.04.
 
-g++-4.9 or newer is required. The default 4.8 version used by Ubuntu 14.04 will not work.
+g++-4.9 or newer is required. Therefore, the default 4.8 version used by Ubuntu 14.04 will not work.
 
 Install OpenBLAS from source and add the library path to `LD_LIBRARY_PATH` environment variable. The makefile assumes the install location is `/opt/OpenBLAS/lib`. It is important to build OpenBLAS from source so that it can optimize itself to your specific CPU. Build with:
 
@@ -43,9 +45,9 @@ make USE_OPENMP=1
 sudo make install
 ```
 
-Python is used for loading the datasets for some of the examples. Either install a scientific python distribution such as [Anaconda](https://store.continuum.io/cshop/anaconda/) or manually install Python 2.7.x, Scipy, Numpy, Matplotlib, etc.
+Python is used only for loading the datasets for some of the examples. Either install a scientific python distribution such as [Anaconda](https://store.continuum.io/cshop/anaconda/) or manually install Python 2.7.x, Scipy, Numpy, Matplotlib, etc.
 
-Install Boost (optional, only needed if running the collaborative filtering matrix factorization example).
+Install Boost (optional, which is a dependency for Gnuplot.
 
 ```
 sudo apt-get install libboost-all-dev
@@ -93,11 +95,163 @@ The result should probably be in the 100s of GFLOPS for a recent CPU. On a Core 
 
 ##### Matrix examples
 
-To see some examples of how to use the Matrix class and some utility functions, type
+To see some examples of how to use the `Matrix` class and some utility functions from `Utilities.h`, type
 
 ```
 cd kumozu/src_cpp
 ./main matrix_examples
+```
+
+which will output:
+
+```c++
+// 3 x 4 matrix, initialized to 0.
+MatrixF X(3,4);
+cout << X << endl;
+0  0  0  0  
+0  0  0  0  
+0  0  0  0  
+
+// Create range of values in X.
+float i = 0;
+// Fill up X.
+apply_sequential(X, [&] (float a) {
+        // Ignore the value of a.
+        i += 0.1f;
+        return i;
+      });
+cout << X << endl;
+0.1  0.2  0.3  0.4  
+0.5  0.6  0.7  0.8  
+0.9  1  1.1  1.2  
+
+// Apply sqrt() to all elements in X.
+apply(X, [] (float a) {
+        return std::sqrt(a);
+      });
+cout << X << endl;
+0.316228  0.447214  0.547723  0.632456  
+0.707107  0.774597  0.83666  0.894427  
+0.948683  1  1.04881  1.09545  
+
+MatrixF Y(4,5);
+cout << Y << endl;
+0  0  0  0  0  
+0  0  0  0  0  
+0  0  0  0  0  
+0  0  0  0  0  
+
+i = 0;
+apply_sequential(Y, [&] (float a) {
+        // Ignore the value of a.
+        i += 1.0f;
+        return i;
+      });
+
+// map2() example:
+cout << Y << endl;
+1  2  3  4  5  
+6  7  8  9  10  
+11  12  13  14  15  
+16  17  18  19  20  
+
+MatrixF A = Y;
+cout << A << endl;
+1  2  3  4  5  
+6  7  8  9  10  
+11  12  13  14  15  
+16  17  18  19  20  
+
+MatrixF B = Y;
+cout << B << endl;
+1  2  3  4  5  
+6  7  8  9  10  
+11  12  13  14  15  
+16  17  18  19  20  
+
+// Apply map2():
+map2(Y, A, B, [] (float a, float b) {
+        return a + 2*b;
+      });
+
+cout << Y << endl;
+3  6  9  12  15  
+18  21  24  27  30  
+33  36  39  42  45  
+48  51  54  57  60  
+
+// narrow() example:
+apply_sequential(Y, [&] (float a) {
+        // Ignore the value of a.
+        i += 1.0f;
+        return i;
+      });
+cout << Y << endl;
+1  2  3  4  5  
+6  7  8  9  10  
+11  12  13  14  15  
+16  17  18  19  20  
+
+MatrixF D = narrow(Y, 1, 1, 2);
+cout << D << endl;
+2  3  
+7  8  
+12  13  
+17  18  
+
+// Now randomize D:
+randomize_normal(D, 1.0f, 1.0f);
+cout << D << endl;
+-0.129852  0.801642  
+0.867439  0.0679137  
+1.4003  -1.15137  
+-0.828092  -1.2349  
+
+// Now copy data from D back into same locations in Y:
+reverse_narrow(D, Y, 1, 1, 2);
+cout << Y << endl;
+1  -0.129852  0.801642  4  5  
+6  0.867439  0.0679137  9  10  
+11  1.4003  -1.15137  14  15  
+16  -0.828092  -1.2349  19  20  
+
+// Matrix multilication example:
+MatrixF U(3,4);
+cout << U << endl;
+0  0  0  0  
+0  0  0  0  
+0  0  0  0  
+
+randomize_uniform(U, -1.0f, 1.0f);
+cout << U << endl;
+0.447536  -0.00622427  0.536378  0.118789  
+0.48407  0.723935  0.730844  -0.566613  
+-0.784256  -0.58828  -0.336768  0.630088  
+
+MatrixF R(4,5);
+cout << R << endl;
+0  0  0  0  0  
+0  0  0  0  0  
+0  0  0  0  0  
+0  0  0  0  0  
+
+set_value(R, 1.0f);
+cout << R << endl;
+1  1  1  1  1  
+1  1  1  1  1  
+1  1  1  1  1  
+1  1  1  1  1  
+
+// Compute C = U*R:
+MatrixF C;
+// Note: C has not been initialized to the required output dimensions but will be
+// resized to the correct dimensions inside the matrix multiplication function.
+// Many of the matrix utility functions work like this (auto re-sizing of result).
+mat_multiply(C, U, R);
+cout << C << endl;
+1.09648  1.09648  1.09648  1.09648  1.09648  
+1.37224  1.37224  1.37224  1.37224  1.37224  
+-1.07922  -1.07922  -1.07922  -1.07922  -1.07922
 ```
 
 ##### Plotting examples
@@ -198,7 +352,7 @@ See the included examples, unit tests, and .h files.
 #### Notes
 
 A debugging mode can be enabled so that the Matrix class will perform bounds-checking. To enable, uncomment the `makefile` line that defines `KUMOZU_DEBUG`.
-
+When this mode is enabled, a message will also be printed to stdout whenever a Matrix is resized.
 
 #### License
 
@@ -207,7 +361,7 @@ FreeBSD license.
 #### Todo
 
 
-Add more MF/NMF examples.
+Add more MF/NMF examples (I have written several examples and optimizers that I will consider checking in once the code is cleaned up).
 
 Add deconvolutional layers and examples.
 

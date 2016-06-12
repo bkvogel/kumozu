@@ -66,7 +66,7 @@ namespace kumozu {
   }
 
   void MSECostFunction::back_propagate_deltas() {
-    copy_matrix(get_input_port_backward(), m_temp_input_error); // old way
+    copy_matrix(get_input_port_backward(), m_temp_input_error);
     const float out_back = m_output_backward[0];
     scale(get_input_port_backward(), get_input_port_backward(), out_back);
   }

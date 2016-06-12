@@ -315,21 +315,23 @@ namespace kumozu {
     if (false) {
       network.load_parameters("mnist_model_1");
     }
-    MatrixF& W = network.get_weights();
-    Updater weights_updater(W.get_extents(), "Weights Updater");
+    //MatrixF& W = network.get_weights();
+    //Updater weights_updater(W.get_extents(), "Weights Updater");
+    Updater weights_updater(network.get_weights_list(), network.get_weights_gradient_list(), "Weights Updater");
     //weights_updater.set_mode_rmsprop_momentum(rms_prop_rate_weights, 0.9f, 0.9f);
     //weights_updater.set_mode_rmsprop(rms_prop_rate_weights, 0.9f);
     weights_updater.set_mode_constant_learning_rate(learning_rate_weights); //
     weights_updater.set_flag_weight_decay(weight_decay, enable_weight_decay);
-    MatrixF& bias = network.get_bias();
-    Updater bias_updater(bias.get_extents(), "Bias Updater");
+    //MatrixF& bias = network.get_bias();
+    //Updater bias_updater(bias.get_extents(), "Bias Updater");
+    Updater bias_updater(network.get_bias_list(), network.get_bias_gradient_list(), "Bias Updater");
     //bias_updater.set_mode_rmsprop_momentum(rms_prop_rate_bias, 0.9f, 0.9f);
     //bias_updater.set_mode_rmsprop(rms_prop_rate_bias, 0.9f);
     bias_updater.set_mode_constant_learning_rate(learning_rate_bias); //
     bias_updater.set_flag_weight_decay(weight_decay, enable_weight_decay);
 
-    MatrixF& W_grad = network.get_weight_gradient();
-    MatrixF& bias_grad = network.get_bias_gradient();
+    //MatrixF& W_grad = network.get_weight_gradient();
+    //MatrixF& bias_grad = network.get_bias_gradient();
 
     // For testing:
     MinibatchTrainer<float, int> tester(full_test_images, 0, target_testing_labels, 0, minibatch_size);
@@ -361,8 +363,8 @@ namespace kumozu {
       //cost_func.back_propagate(network.get_output_backward(), network.get_output_forward(), train_output_mini);
       //network.back_propagate(input_backward, train_input_mini);
       network.back_propagate();
-      weights_updater.update(W, W_grad);
-      bias_updater.update(bias, bias_grad);
+      weights_updater.update();
+      bias_updater.update();
       if (end_epoch) {
         cout << endl << "---------------" << endl;
         //network.print_paramater_stats(); // enable for debugging info
@@ -848,21 +850,22 @@ namespace kumozu {
     if (false) {
       network.load_parameters("cifar_model_1");
     }
-    MatrixF& W = network.get_weights();
-    Updater weights_updater(W.get_extents(), "Weights Updater");
+    //MatrixF& W = network.get_weights();
+    //Updater weights_updater(W.get_extents(), "Weights Updater");
+    Updater weights_updater(network.get_weights_list(), network.get_weights_gradient_list(), "Weights Updater");
     //weights_updater.set_mode_rmsprop_momentum(rms_prop_rate_weights, 0.9f, 0.9f);
     //weights_updater.set_mode_rmsprop(rms_prop_rate_weights, 0.9f);
     weights_updater.set_mode_constant_learning_rate(learning_rate_weights); //
     weights_updater.set_flag_weight_decay(weight_decay, enable_weight_decay);
-    MatrixF& bias = network.get_bias();
-    Updater bias_updater(bias.get_extents(), "Bias Updater");
+    //MatrixF& bias = network.get_bias();
+    Updater bias_updater(network.get_bias_list(), network.get_bias_gradient_list(), "Bias Updater");
     //bias_updater.set_mode_rmsprop_momentum(rms_prop_rate_bias, 0.9f, 0.9f);
     //bias_updater.set_mode_rmsprop(rms_prop_rate_bias, 0.9f);
     bias_updater.set_mode_constant_learning_rate(learning_rate_bias); //
     bias_updater.set_flag_weight_decay(weight_decay, enable_weight_decay);
 
-    MatrixF& W_grad = network.get_weight_gradient();
-    MatrixF& bias_grad = network.get_bias_gradient();
+    //MatrixF& W_grad = network.get_weight_gradient();
+    //MatrixF& bias_grad = network.get_bias_gradient();
 
     // For testing:
     MinibatchTrainer<float, int> tester(full_test_images, 0, target_testing_labels, 0, minibatch_size);
@@ -892,8 +895,8 @@ namespace kumozu {
       train_accumulator.accumulate(error_count(linear_laye2.get_output_forward(), train_output_mini));
       //cost_func.back_propagate(network.get_output_backward(), network.get_output_forward(), train_output_mini);
       network.back_propagate();
-      weights_updater.update(W, W_grad);
-      bias_updater.update(bias, bias_grad);
+      weights_updater.update();
+      bias_updater.update();
       if (end_epoch) {
         cout << endl << "---------------" << endl;
         //network.print_paramater_stats(); // enable for debugging info

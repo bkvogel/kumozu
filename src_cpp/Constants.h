@@ -50,7 +50,7 @@ namespace kumozu {
   // Default name for the output port name of a Node with only a single port.
   const std::string DEFAULT_OUTPUT_PORT_NAME = "0";
 
-  // If true, print extra information to stdout.
+  // If true, print extra information to stdout. This is useful for debugging.
   const bool VERBOSE_MODE = false;
 
 }

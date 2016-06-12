@@ -423,15 +423,16 @@ namespace kumozu {
   template <typename T>
     void narrow(Matrix<T>& submat, const Matrix<T>& fullmat, int dimension, int index, int size) {
     if (dimension >= fullmat.order()) {
-      std::cerr << "narrow(): Invalid dimension." << std::endl;
-      exit(1);
+      error_exit("narrow(): Invalid dimension.");
     }
     const int order = fullmat.order();
     if (0 == order) {
-      std::cerr << "narrow(): order too small." << std::endl;
-      exit(1);
+      error_exit("narrow(): order too small.");
     }
-
+    if (index+size >= fullmat.extent(dimension)) {
+      error_exit("narrow(): Error: out of range in the specified dimension.");
+    }
+    
     std::vector<int> submat_extents = fullmat.get_extents();
     submat_extents.at(dimension) = size;
 
@@ -910,7 +911,7 @@ namespace kumozu {
     }
   }
 
-  /*
+  /**
    * Apply the function to each element of the supplied const matrices to compute a new
    * value for "outmat."
    *
@@ -923,13 +924,17 @@ namespace kumozu {
    * The function is applied in parallel and so the value of "func()" should
    * only depend on its input value. Otherwise, the results are not defined.
    *
-   * The number of elements in all supplied matrices must be the same but the dimensions may
-   * be different.
+   * The number of elements in "inmat1" and "inmat2" must be the same but the dimensions may
+   * be different. If the number of elements in "outmat" is not the same, it will be resized to the
+   * same size as "inmat1" and "inmat2."
    */
   template <typename T, typename Func>
     void map2(Matrix<T>& outmat, const Matrix<T>& inmat1, const Matrix<T>& inmat2, Func func) {
-    if ((outmat.size() != inmat1.size()) || (outmat.size() != inmat2.size())) {
-      error_exit("map2(): wrong matrix size.");
+    if (inmat1.size() != inmat2.size()) {
+      error_exit("map2(): inmat1 must have the same size as inmat2");
+    }
+    if (outmat.size() != inmat2.size()) {
+      outmat.resize(inmat2.get_extents());
     }
 #pragma omp parallel for
     for (int i = 0; i < outmat.size(); i++) {
@@ -1272,9 +1277,13 @@ namespace kumozu {
     void transpose(Matrix<T>& A, const Matrix<T> &B) {
     const int rowsB = B.extent(0);
     const int colsB = B.extent(1);
-    const int rowsA = A.extent(0);
-    const int colsA = A.extent(1);
-    if ((rowsA != colsB) || (colsA != rowsB)) {
+    bool do_resize = false;
+    if ((A.size() != B.size()) || (A.order() != 2)) {
+      do_resize = true;
+    } else if ((A.extent(0) != B.extent(1)) || (A.extent(1) != B.extent(0))) {
+      do_resize = true;
+    }
+    if (do_resize) {
       A.resize(colsB, rowsB);
       resized();
     }
@@ -1317,12 +1326,12 @@ namespace kumozu {
    * Add the scalar value b to each element of matrix A.
    *
    */
-  template <typename T>
-    void add_scalar(Matrix<T>& A, T b) {
-    apply(A, [=] (T a) {
-        return a + b;
-      });
-  }
+  //template <typename T>
+  //void add_scalar(Matrix<T>& A, T b) {
+  //apply(A, [=] (T a) {
+  //    return a + b;
+  //  });
+  //}
 
   /**
    * Multiply each element of B by scale_factor and put the result in A.
@@ -1333,6 +1342,7 @@ namespace kumozu {
    * @param A Result is returned in this matrix, which will be resized to the same dimensions as
    * matrix B if necessary.
    * @param B Input matrix which is not modified.
+   * @param scale_factor The scale factor.
    *
    */
   template <typename T>
@@ -1344,6 +1354,35 @@ namespace kumozu {
     map1(A, B, [=] (T b) {
         return b*scale_factor;
       });
+  }
+
+  /**
+   * Multiply each element of A by scale_factor.
+   *
+   * A <- A*scale_factor
+   *
+   * @param A The source and result matrix.
+   * @param scale_factor The scale factor.
+   *
+   */
+  template <typename T>
+    void scale(Matrix<T>& A, T scale_factor) {
+    apply(A, [=] (T a) {
+      return a*scale_factor;
+    });
+  }
+
+  /**
+   * Add a scalar value to each element of the supplied matrix.
+   *
+   * @param A The matrix which will be modified.
+   * @param x The scalar which will be added to each element in A.
+   */
+  template <typename T>
+    void add_scalar(Matrix<T>& A, T x) {
+    apply(A, [=] (T a) {
+      return a + x;
+    });
   }
 
 

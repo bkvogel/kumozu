@@ -100,7 +100,10 @@ namespace kumozu {
 
 
 
-
+      // Item 33 in Effective C++, 3rd edition:
+      using Node::back_propagate_paramater_gradients;
+      using Node::back_propagate_deltas;
+      
       /**
        * Compute the gradients for W and bias.
        *

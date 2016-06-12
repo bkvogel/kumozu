@@ -50,7 +50,7 @@ namespace kumozu {
    * Input and output ports:
    *
    * By default, this cost function will automatically create its own output port with the name DEFAULT_OUTPUT_PORT_NAME. 
-   * During the forward data pass, the cost function will be computed and stored in the "output forward" activations of
+   * During the forward data pass, the cost function value will be computed and stored in the "output forward" activations of
    * the output port.
    * The user should create excatly 1 input port (with any name) by connecting the output port of some other node to
    * this node.
@@ -100,15 +100,17 @@ namespace kumozu {
        *
        * The target activations contain the target values (i.e., assumed true/correct values) corresponding
        * to the input forward activations. That is, the input forward activations should contain the output
-       * of the network and the target activations are the corresponding desired values for these activations.
+       * of the network and the target activations are the corresponding desired values for these activations, with
+       * the same dimensions.
        * 
        * Note that both the input activations corresponding to the input port and the target activations contain
-       * one mini-batch of date, where the second dimension (column index) is the example index within the mini-batch.
+       * one mini-batch of date, where the second dimension (column index) is the batch index within the mini-batch.
        *
        * This function must be called before the first forward() call, since the target activations
        * are needed by forward(). Otherwise, the program will exit with an error.
        * This function may be called an arbitrary number of times to supply a different target activations
-       * matrix, if desired.
+       * matrix, if desired. Since matrix reference is saved, it is not necessary to call this function
+       * repeatedly unless it is desired to change the reference to a different matrix.
        *
        * @param target_activations Contains the target activations which must be the same size as
        * the input forward activations: (unit_count x minibatch_size).

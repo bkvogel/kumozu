@@ -193,8 +193,6 @@ namespace kumozu {
 
   void test_jacobian_PoolingLayer();
 
-  // fixme: remove
-  void debug_NewPoolingLayer();
 
   void test_MSECostFunction();
 
@@ -216,6 +214,10 @@ namespace kumozu {
 
   void test_AdderNode();
 
+  void test_MeanNode();
+
+  void test_MeanNode2();  
+
   void test_ConcatNode();
 
   void test_SubtractorNode();
@@ -223,6 +225,8 @@ namespace kumozu {
   void test_MultiplyerNode();
 
   void test_SplitterNode();
+
+  void test_SplitterNode2();
 
   void test_ExtractorNode();
 

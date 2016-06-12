@@ -145,6 +145,18 @@ namespace kumozu {
       virtual void reinitialize() override;
 
       /**
+       * Return the cost function value. 
+       *
+       * This function should be called after calling forward().
+       */
+      float get_cost() {
+	if (m_output_forward.size() != 1) {
+	  error_exit("print_cost(): Error: output activations have wrong size.");
+	}
+	return m_output_forward(0);
+      }
+      
+      /**
        * Return the matrix of probabilities, which is the output of the softmax function.
        *
        * Note that this is a function only of the input activations only. The values of the

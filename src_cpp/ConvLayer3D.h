@@ -117,8 +117,6 @@ namespace kumozu {
           /*
            * Compute the gradients for W and bias.
            *
-           * This updates m_W_grad and m_bias_grad. // fixme
-           *
            * back_propagate_deltas() must have already been called before calling this function.
            *
            * The output error must have already been updated

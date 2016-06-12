@@ -43,15 +43,13 @@ namespace kumozu {
 
 
 
-  /*
+  /**
    * An instance of this class represents a dropout function that operates on a mini-batch
    * of input column vectors and outputs a corresponding mini-batch of column vectors.
    *
    * A single dropout mask is generated and then applied independently to each column in the mini-batch. Specifically,
    * the inputs to the dropout function are supplied as a MatrixF of size (dim_input x minibatch_size).
    * The output of the dropout function is a MatrixF of size (dim_output x minibatch_size).
-   *
-   * Usage: fixme
    *
    * Dropout should be applied only when in "training mode." To enable dropout, be sure to call
    * set_train_mode(true);
@@ -70,7 +68,7 @@ namespace kumozu {
   public:
 
 
-    /*
+    /**
      * Create an instance of a dropout function that operates on a mini-batch of
      * column activation vectors.
      *
@@ -89,7 +87,7 @@ namespace kumozu {
 
 
 
-      /*
+      /**
        * Compute the dropout function in the reverse direction.
        *
        * The reverse dropout function of the output deltas activations member variable
@@ -99,7 +97,7 @@ namespace kumozu {
        */
       virtual void back_propagate_deltas(MatrixF& input_backward, const MatrixF& input_forward);
 
-      /*
+      /**
        * Set the probability of keeping any given element.
        */
       void set_prob_keep(float prob_keep) {

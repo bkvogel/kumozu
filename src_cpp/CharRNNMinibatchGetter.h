@@ -47,7 +47,7 @@ namespace kumozu {
   /**
    * A Utility class to train a character-based recurrent neural network (RNN) in mini-batches.
    *
-   * This class then creates matrices for the input activations and target outputs for the RNN. For a character-based
+   * This class creates matrices for the input activations and target outputs for the RNN. For a character-based
    * RNN, the target output corresponds to the next character in the text sequence.
    *
    * When training a network using SGD or evaluating a network, it is common to supply small batches (called a mini-batch)
@@ -64,7 +64,7 @@ namespace kumozu {
    * that are read on the forward pass and the "input backwards" activations are written to by the network on the
    * backwards pass. The format for an input activations matrix at time slice t corresponds to a mini-batch of
    * activations of size (char_dim x minibatch_size). Thus, the matrix has minibatch_size columns, where the j'th
-   * column corresponds to the j'th character in the mini-batch. Each column vector j contains all zeros except for
+   * column corresponds to the j'th example in the mini-batch. Each column vector j contains all zeros except for
    * a 1 in row i where index i corresponds to on of the char_dim possible characters.
    *
    * The target outputs "target_outputs" for slice t may either correspond to a matrix of the same size for as the input activations or may

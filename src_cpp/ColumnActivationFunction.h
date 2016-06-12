@@ -123,8 +123,8 @@ namespace kumozu {
             Matrix<int> m_state;
             ACTIVATION_TYPE m_activation_type;
             int m_maxout_factor;
-            int m_partition_count; // fixme: let a method set this.
-            int m_k; // fixme: let a method set this.
+            int m_partition_count;
+            int m_k;
             float m_decay_unused_penalty;
             std::vector<int> m_input_extents;
 

@@ -751,11 +751,29 @@ namespace kumozu {
       m_cost_func.connect_parent(m_linear_output);
       add_node(m_cost_func);
       create_output_port_this_name(m_cost_func, "y_t");
+
+      m_input_port_names = {"x_t"}; // Should not include the hidden input ports.
       m_hidden_port_names = {"h_t"};
+      m_output_port_names = {"y_t"}; // Should not include the hidden output ports.
     }
 
+    // Needed by SliceUnroller
     const std::vector<string>& get_hidden_port_names() const {
       return m_hidden_port_names;
+    }
+
+    // Needed by SliceUnroller
+    // Includes all input ports except the hidden ports that are connected between
+    // time slices.
+    const std::vector<string>& get_input_port_names() const {
+      return m_input_port_names;
+    }
+
+    // Needed by SliceUnroller
+    // Includes all output ports except the hidden ports that are connected between
+    // time slices.
+    const std::vector<string>& get_output_port_names() const {
+      return m_output_port_names;
     }
 
     void set_target_activations(const MatrixI& target_activations) {
@@ -805,7 +823,9 @@ namespace kumozu {
     CrossEntropyCostFunction m_cost_func;
     int m_rnn_dim;
     int m_in_out_dim;
+    std::vector<string> m_input_port_names;
     std::vector<string> m_hidden_port_names;
+    std::vector<string> m_output_port_names;
   };
 
 
@@ -848,11 +868,28 @@ namespace kumozu {
       add_node(m_cost_func);
       create_output_port_this_name(m_cost_func, "y_t");
 
+      m_input_port_names = {"x_t"}; // Should not include the hidden input ports.
       m_hidden_port_names = {"h_t", "c_t"};
+      m_output_port_names = {"y_t"}; // Should not include the hidden output ports.
     }
 
+    // Needed by SliceUnroller
     const std::vector<string>& get_hidden_port_names() const {
       return m_hidden_port_names;
+    }
+
+    // Needed by SliceUnroller
+    // Includes all input ports except the hidden ports that are connected between
+    // time slices.
+    const std::vector<string>& get_input_port_names() const {
+      return m_input_port_names;
+    }
+
+    // Needed by SliceUnroller
+    // Includes all output ports except the hidden ports that are connected between
+    // time slices.
+    const std::vector<string>& get_output_port_names() const {
+      return m_output_port_names;
     }
 
     void set_target_activations(const MatrixI& target_activations) {
@@ -902,7 +939,9 @@ namespace kumozu {
     CrossEntropyCostFunction m_cost_func;
     int m_rnn_dim;
     int m_in_out_dim;
+    std::vector<string> m_input_port_names;
     std::vector<string> m_hidden_port_names;
+    std::vector<string> m_output_port_names;
   };
 
   // Contains an LSTMNode + dropout + linear layer + cost function representing 1 time slice.
@@ -947,11 +986,28 @@ namespace kumozu {
       add_node(m_cost_func);
       create_output_port_this_name(m_cost_func, "y_t");
 
+      m_input_port_names = {"x_t"}; // Should not include the hidden input ports.
       m_hidden_port_names = {"h_t", "c_t"};
+      m_output_port_names = {"y_t"}; // Should not include the hidden output ports.
     }
 
+    // Needed by SliceUnroller
     const std::vector<string>& get_hidden_port_names() const {
       return m_hidden_port_names;
+    }
+
+    // Needed by SliceUnroller
+    // Includes all input ports except the hidden ports that are connected between
+    // time slices.
+    const std::vector<string>& get_input_port_names() const {
+      return m_input_port_names;
+    }
+
+    // Needed by SliceUnroller
+    // Includes all output ports except the hidden ports that are connected between
+    // time slices.
+    const std::vector<string>& get_output_port_names() const {
+      return m_output_port_names;
     }
 
     void set_target_activations(const MatrixI& target_activations) {
@@ -1002,7 +1058,9 @@ namespace kumozu {
     CrossEntropyCostFunction m_cost_func;
     int m_rnn_dim;
     int m_in_out_dim;
+    std::vector<string> m_input_port_names;
     std::vector<string> m_hidden_port_names;
+    std::vector<string> m_output_port_names;
   };
 
 
@@ -1063,11 +1121,28 @@ namespace kumozu {
       add_node(m_cost_func);
       create_output_port_this_name(m_cost_func, "y_t");
 
+      m_input_port_names = {"x_t"}; // Should not include the hidden input ports.
       m_hidden_port_names = {"h_t_0", "c_t_0", "h_t_1", "c_t_1"};
+      m_output_port_names = {"y_t"}; // Should not include the hidden output ports.
     }
 
+    // Needed by SliceUnroller
     const std::vector<string>& get_hidden_port_names() const {
       return m_hidden_port_names;
+    }
+
+    // Needed by SliceUnroller
+    // Includes all input ports except the hidden ports that are connected between
+    // time slices.
+    const std::vector<string>& get_input_port_names() const {
+      return m_input_port_names;
+    }
+
+    // Needed by SliceUnroller
+    // Includes all output ports except the hidden ports that are connected between
+    // time slices.
+    const std::vector<string>& get_output_port_names() const {
+      return m_output_port_names;
     }
 
     void set_target_activations(const MatrixI& target_activations) {
@@ -1122,7 +1197,9 @@ namespace kumozu {
     CrossEntropyCostFunction m_cost_func;
     int m_rnn_dim;
     int m_in_out_dim;
+    std::vector<string> m_input_port_names;
     std::vector<string> m_hidden_port_names;
+    std::vector<string> m_output_port_names;
   };
 
   // Contains two LSTMNode's + dropout + linear layer + cost function representing 1 time slice.
@@ -1188,12 +1265,29 @@ namespace kumozu {
       m_cost_func.connect_parent(m_linear_output);
       add_node(m_cost_func);
       create_output_port_this_name(m_cost_func, "y_t");
-
+      
+      m_input_port_names = {"x_t"}; // Should not include the hidden input ports.
       m_hidden_port_names = {"h_t_0", "c_t_0", "h_t_1", "c_t_1"};
+      m_output_port_names = {"y_t"}; // Should not include the hidden output ports.
     }
 
+    // Needed by SliceUnroller
     const std::vector<string>& get_hidden_port_names() const {
       return m_hidden_port_names;
+    }
+
+    // Needed by SliceUnroller
+    // Includes all input ports except the hidden ports that are connected between
+    // time slices.
+    const std::vector<string>& get_input_port_names() const {
+      return m_input_port_names;
+    }
+
+    // Needed by SliceUnroller
+    // Includes all output ports except the hidden ports that are connected between
+    // time slices.
+    const std::vector<string>& get_output_port_names() const {
+      return m_output_port_names;
     }
 
     void set_target_activations(const MatrixI& target_activations) {
@@ -1247,7 +1341,9 @@ namespace kumozu {
     CrossEntropyCostFunction m_cost_func;
     int m_rnn_dim;
     int m_in_out_dim;
+    std::vector<string> m_input_port_names;
     std::vector<string> m_hidden_port_names;
+    std::vector<string> m_output_port_names;
   };
 
 
@@ -1409,7 +1505,7 @@ namespace kumozu {
     }
     const vector<int> x_t_extents = {local_char_dim, local_minibatch_size};
     for (int i = 0; i < local_num_slices; ++i) {
-      input_port_extents_map[std::to_string(i)] = x_t_extents;
+      input_port_extents_map["x_t_" + std::to_string(i)] = x_t_extents;
     }
     MatrixI target_activations(local_minibatch_size);
     for (int i = 0; i < local_num_slices; ++i) {
@@ -1458,14 +1554,14 @@ namespace kumozu {
     ///////////////////////////////////////////////////////////////////////////
     // Use suggested parameters from "Visualizing and Understanding Recurrent Networks" by Karpathy et al:
     //
-    const int minibatch_size = 64;
-    const int num_slices = 100; // 10 Length of RNN.
-    const int rnn_dim = 256; // good size 256 or greater
+    const int minibatch_size = 50;
+    const int num_slices = 50; // 10 Length of RNN.
+    const int rnn_dim = 1024; // good size 256 or greater
     // Set up learning rates.
     //float learning_rate_weights = 1e-2f; // 1e-3 -  1e-5
-    float rms_prop_rate_weights = 2e-3f; //2e-3f
+    float rms_prop_rate_weights = 5e-3f; //2e-3f
     //float learning_rate_bias = 1e-2f; //
-    float rms_prop_rate_bias = 2e-3f;
+    float rms_prop_rate_bias = 5e-3f;
     float weight_decay = 1e-5f; //
     const bool enable_weight_decay = true;
     const float dropout_prob_keep = 0.5f; // Dropout probability of keeping an activation.
@@ -1509,7 +1605,8 @@ namespace kumozu {
       MatrixF& hidden_backward = *name_to_hidden_backward_matrix_train[port_name];
       rnn_train.create_input_port(hidden_forward, hidden_backward, port_name);
     }
-    const int minibatch_size_test = minibatch_size; // Mini-batch size for testing.
+    //const int minibatch_size_test = minibatch_size; // Mini-batch size for testing.
+    const int minibatch_size_test = 10; // Mini-batch size for testing.
     // For testing:
     std::map<std::string, std::unique_ptr<MatrixF>> name_to_hidden_forward_matrix_test = slice_0.make_hidden_state_matrices(minibatch_size_test); // todo: make typedef/alias
     std::map<std::string, std::unique_ptr<MatrixF>> name_to_hidden_backward_matrix_test = slice_0.make_hidden_state_matrices(minibatch_size_test);
@@ -1525,7 +1622,7 @@ namespace kumozu {
       //cout << "slice = " << i << endl;
       const MatrixF& input_forward = train_getter.get_input_forward_batch(i);
       MatrixF& input_backward = train_getter.get_input_backward_batch(i);
-      rnn_train.create_input_port(input_forward, input_backward, std::to_string(i));
+      rnn_train.create_input_port(input_forward, input_backward, "x_t_" + std::to_string(i));
 
       const MatrixI& target_activations = train_getter.get_output_class_index_batch(i);
       auto& slice = rnn_train.get_slice(i);
@@ -1540,7 +1637,7 @@ namespace kumozu {
       //cout << "slice = " << i << endl;
       const MatrixF& input_forward = test_getter.get_input_forward_batch(i);
       MatrixF& input_backward = test_getter.get_input_backward_batch(i);
-      rnn_test.create_input_port(input_forward, input_backward, std::to_string(i));
+      rnn_test.create_input_port(input_forward, input_backward, "x_t_" + std::to_string(i));
 
       const MatrixI& target_activations = test_getter.get_output_class_index_batch(i);
       auto& slice = rnn_test.get_slice(i);
@@ -1552,28 +1649,31 @@ namespace kumozu {
 
     rnn_train.forward(); // Initialize network.
     rnn_test.forward();
-    MatrixF& W = rnn_train.get_weights();
-    Updater weights_updater(W.get_extents(), "Weights Updater");
+    //MatrixF& W = rnn_train.get_weights();
+    Updater weights_updater(rnn_train.get_weights_list(), rnn_train.get_weights_gradient_list(), "Weights Updater");
     //weights_updater.set_mode_constant_learning_rate(learning_rate_weights); //
     //weights_updater.set_mode_rmsprop_momentum(rms_prop_rate_weights, 0.9f, 0.9f);
     weights_updater.set_mode_rmsprop(rms_prop_rate_weights, 0.9f);
     weights_updater.set_flag_weight_decay(weight_decay, enable_weight_decay);
-    cout << "W size = " << W.size() << endl;
+    //cout << "W size = " << W.size() << endl;
 
     // To use Karpathy initial parameters, uncomment:
     //FullSlice& slice0 = rnn_train.get_slice(0);
     //slice0.initialize_params();
 
-    MatrixF& bias = rnn_train.get_bias();
-    Updater bias_updater(bias.get_extents(), "Bias Updater");
+    //MatrixF& bias = rnn_train.get_bias();
+    Updater bias_updater(rnn_train.get_bias_list(), rnn_train.get_bias_gradient_list(), "Bias Updater");
     //bias_updater.set_mode_constant_learning_rate(learning_rate_bias); //
     //bias_updater.set_mode_rmsprop_momentum(rms_prop_rate_bias, 0.9f, 0.9f);
     bias_updater.set_mode_rmsprop(rms_prop_rate_bias, 0.9f);
     bias_updater.set_flag_weight_decay(weight_decay, enable_weight_decay);
 
-    MatrixF& W_grad = rnn_train.get_weight_gradient();
-    MatrixF& bias_grad = rnn_train.get_bias_gradient();
-
+    //MatrixF& W_grad = rnn_train.get_weight_gradient();
+    //MatrixF& bias_grad = rnn_train.get_bias_gradient();
+    MatrixRefVectorF& W_grad_list = rnn_train.get_weights_gradient_list();
+    MatrixRefVectorF& bias_grad_list = rnn_train.get_bias_gradient_list();
+    
+    
     FullSlice slice_clone(rnn_dim, char_dim, 0.0f, "Slice Clone");
     slice_clone.set_shared(rnn_train.get_slice(0));
     SliceSampler slice_sampler(slice_clone, train_getter.get_idx_to_char_map());
@@ -1601,17 +1701,23 @@ namespace kumozu {
       }
 
       for (int i = 0; i < num_slices; ++i) {
-        const MatrixF& cost_output = rnn_train.get_output_forward(std::to_string(i));
+        const MatrixF& cost_output = rnn_train.get_output_forward("y_t_" + std::to_string(i));
         train_loss_accumulator.accumulate(cost_output[0]);
       }
 
       rnn_train.back_propagate();
-      scale(W_grad, W_grad, 1.0f/static_cast<float>(num_slices));
-      clip_to_range(W_grad, -5.0f, 5.0f);
-      weights_updater.update(W, W_grad);
-      scale(bias_grad, bias_grad, 1.0f/static_cast<float>(num_slices));
-      clip_to_range(bias_grad, -5.0f, 5.0f);
-      bias_updater.update(bias, bias_grad);
+      for (int i = 0; i < W_grad_list.size(); ++i) {
+	auto& W_grad = W_grad_list.at(i);
+	scale(W_grad, W_grad, 1.0f/static_cast<float>(num_slices));
+	clip_to_range(W_grad, -5.0f, 5.0f);
+      }
+      weights_updater.update();
+      for (int i = 0; i < bias_grad_list.size(); ++i) {
+	auto& bias_grad = bias_grad_list.at(i);
+	scale(bias_grad, bias_grad, 1.0f/static_cast<float>(num_slices));
+	clip_to_range(bias_grad, -5.0f, 5.0f);
+      }
+      bias_updater.update();
 
       if ((batch_counter % 10) == 0) {
         cout << batch_counter << " (epoch " << train_epochs << ") Train loss: " << train_loss_accumulator.get_mean() << endl;
@@ -1619,16 +1725,18 @@ namespace kumozu {
       }
 
       if (end_epoch) {
-        print_stats(W_grad, "W_grad");
+        //print_stats(W_grad, "W_grad");
         cout << endl << "---------------" << endl;
         cout << "Batches processed: " << batch_counter << endl;
         //network.print_paramater_stats(); // enable for debugging info
         test_loss_accumulator.reset();
         // Copy parameters from training RNN to test RNN.
-        MatrixF& W_test = rnn_test.get_weights();
-        copy_matrix(W_test, W);
-        MatrixF& bias_test = rnn_test.get_bias();
-        copy_matrix(bias_test, bias);
+        //MatrixF& W_test = rnn_test.get_weights();
+        //copy_matrix(W_test, W);
+	copy(rnn_test.get_weights_list(), rnn_train.get_weights_list());
+	copy(rnn_test.get_bias_list(), rnn_train.get_bias_list());
+        //MatrixF& bias_test = rnn_test.get_bias();
+        //copy_matrix(bias_test, bias);
 
         bool done = false;
         // Zero out the initial hidden state vectors:
@@ -1650,7 +1758,7 @@ namespace kumozu {
           }
 
           for (int i = 0; i < num_slices; ++i) {
-            const MatrixF& cost_output = rnn_test.get_output_forward(std::to_string(i));
+            const MatrixF& cost_output = rnn_test.get_output_forward("y_t_" + std::to_string(i));
             test_loss_accumulator.accumulate(cost_output[0]);
           }
         }

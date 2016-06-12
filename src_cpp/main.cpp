@@ -46,6 +46,8 @@
 #include "ExamplesMatrix.h"
 #include "ExamplesRNN.h" 
 
+// Experimental includes: (comment before releasing)
+//#include "ExamplesPositiveFactorNetworks.h"
 
 using namespace std;
 using namespace kumozu;
@@ -59,12 +61,23 @@ int main(int argc, char* argv[]) {
 
   try {
     // Set number of threads for OpenMP and OpenBlas.
-    omp_set_num_threads(8); // Set number of OpenMP threads for 5960x.
+    //omp_set_num_threads(8); // Set number of OpenMP threads for 5960x.
+    omp_set_num_threads(4); // 
     //omp_set_num_threads(2); // Set number of OpenMP threads for Macbook.
 
     // Show first NaN exception in gdb. Only works on Linux.
     //feenableexcept(FE_INVALID | FE_OVERFLOW);
 
+    //pfn_example1();
+    //pfn_example2();
+    //pfn_example3();
+    //pfn_example4();
+    //pfn_example5();
+    //pfn_example6();
+    //pfn_example7();
+    //pfn_example8();
+    //pfn_example9(); 
+    
     if (argc == 2) {
       std::string methodName = argv[1];
       if (methodName == "example_plots") {
@@ -99,7 +112,10 @@ int main(int argc, char* argv[]) {
 	// LSTM RNN example.
 	lstm_example();
       } 
-     
+      // 
+      else if (methodName == "nmf_example_1") {
+	//nmf_example_1();
+      }
     }
   }
   catch (out_of_range) {
@@ -118,12 +134,6 @@ void run_unit_tests() {
   //test_mat_mult();
   //benchmark_mat_mult();
   //stress_test_forward_prop();
-
-  /////////////////////
-  // Run an invdividual unit test:
-  //test_gradients_Network2DConv3F1();
-  //test_gradients_Network3DConv3F1();
-  //test_gradients_ConvLayer2D();
 
   // Run all unit tests:
   run_all_tests();

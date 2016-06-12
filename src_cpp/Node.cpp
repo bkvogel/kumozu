@@ -31,7 +31,7 @@
 #include "Node.h"
 #include "Utilities.h"
 #include "MatrixIO.h"
-//#include <memory>
+
 
 using namespace std;
 
@@ -61,31 +61,22 @@ namespace kumozu {
     }
     if (extents_changed || (is_initialized() == false))  {
       if (VERBOSE_MODE) {
-	std::cout << std::endl << "Initializing " << get_name() << ":" << std::endl;
+        std::cout << std::endl << "Initializing " << get_name() << ":" << std::endl;
       }
-      // Re-connect input ports to internal nodes, if any.
-      make_internal_input_port_connections();
-      // Other re-initialization stuff (for subclasses).
-      reinitialize();
+      // Initialize this node and all deeply-contained nodes (allocated storage for parameters, connect ports, etc.)
+      deep_initialize();
     }
     forward_propagate();
     zero_parameter_gradients();
     zero_input_backward();
-    set_initialized(true);
   }
 
   void Node::forward_propagate() {
     // If has at least one contained node:
     if (get_contained_node_count() != 0) {
-      //copy params to contained nodes.
-      copy_weights_this_to_contained_layers();
-      copy_bias_this_to_contained_layers();
       for (int i = 0; i < get_contained_node_count(); ++i) {
-	get_node(i).forward();
+        get_node(i).forward();
       }
-      // copy params from contained nodes to this.
-      copy_weights_contained_layers_to_this();
-      copy_bias_contained_layers_to_this();
     }
   }
 
@@ -109,24 +100,19 @@ namespace kumozu {
       for (int i = get_contained_node_count()-1; i >= 0; --i) {
         get_node(i).back_propagate_paramater_gradients();
       }
-      // todo: might be better to just use a list of matrix references for the parameters, to avoid the copying.
-      copy_weights_gradients_contained_layers_to_this(); 
-      copy_bias_gradients_contained_layers_to_this();
-    } 
+    }
   }
 
   void Node::zero_parameter_gradients() {
-    // If has at least one contained node:
-    if (get_contained_node_count() != 0) {
-      for (int i = 0; i < get_contained_node_count(); ++i) {
-        get_node(i).zero_parameter_gradients();
-      }
-      copy_weights_gradients_contained_layers_to_this(); 
-      copy_bias_gradients_contained_layers_to_this();
-    } else {
-      set_value(get_weight_gradient(), 0.0f);
-      set_value(get_bias_gradient(), 0.0f);
+    MatrixRefVectorF& temp_W_grad_list = get_weights_gradient_list();
+    for (int i = 0; i < temp_W_grad_list.size(); ++i) {
+      set_value(temp_W_grad_list.at(i), 0.0f);
     }
+    MatrixRefVectorF& temp_bias_grad_list = get_bias_gradient_list();
+    for (int i = 0; i < temp_bias_grad_list.size(); ++i) {
+      set_value(temp_bias_grad_list.at(i), 0.0f);
+    }
+
   }
 
   void Node::zero_input_backward() {
@@ -189,11 +175,11 @@ namespace kumozu {
     }
     auto it3 = m_input_port_fan_out_map.find(name);
     if (it3 != m_input_port_fan_out_map.end()) {
-      m_input_port_fan_out_map.erase(it3);      
+      m_input_port_fan_out_map.erase(it3);
     }
     auto it4 = m_input_port_extents_map.find(name);
     if (it4 != m_input_port_extents_map.end()) {
-      m_input_port_extents_map.erase(it4);      
+      m_input_port_extents_map.erase(it4);
     }
     set_initialized(false);
   }
@@ -218,7 +204,7 @@ namespace kumozu {
   void Node::create_output_port(Node& contained, std::string contained_output, std::string output_name) {
     const MatrixF& contained_out_mat = contained.get_output_forward(contained_output);
     MatrixF& contained_out_deltas_mat = contained.get_output_backward(contained_output);
-    create_output_port(contained_out_mat, contained_out_deltas_mat, output_name); 
+    create_output_port(contained_out_mat, contained_out_deltas_mat, output_name);
   }
 
   void Node::create_output_port_this_name(Node& contained, std::string output_name) {
@@ -227,7 +213,7 @@ namespace kumozu {
 
   void Node::create_output_port_contained_name(Node& contained, std::string output_name) {
     create_output_port(contained, output_name, DEFAULT_OUTPUT_PORT_NAME);
-  }  
+  }
 
   void Node::create_output_port(Node& contained) {
     create_output_port(contained, DEFAULT_OUTPUT_PORT_NAME, DEFAULT_OUTPUT_PORT_NAME);
@@ -236,7 +222,7 @@ namespace kumozu {
   const MatrixF& Node::get_output_forward(std::string name) const {
     auto it = m_output_port_forward_map.find(name);
     if (it == m_output_port_forward_map.end()) {
-      error_exit("get_output_forward(): Error: " + name + " is not an output.");
+      error_exit("get_output_forward(): Error accessing output port: Node: " + get_name() + " : port: " + name + " does not exist.");
     }
     return it->second;
   }
@@ -251,19 +237,19 @@ namespace kumozu {
   void Node::delete_output_port(std::string name) {
     auto it = m_output_port_forward_map.find(name);
     if (it == m_output_port_forward_map.end()) {
-      error_exit("delete_output_port(): Error: " + name + " is not an existing output.");
+      error_exit("delete_output_port(): Error accessing output port: " + name + " does not exist.");
     }
     m_output_port_forward_map.erase(it);
 
     auto it2 = m_output_port_backward_map.find(name);
     if (it2 == m_output_port_backward_map.end()) {
-      error_exit("delete_output_port(): Error: " + name + " is not an existing output.");
+      error_exit("delete_output_port(): Error accessing output port: " + name + " does not exist.");
     }
     m_output_port_backward_map.erase(it2);
 
     auto it3 = m_output_port_fan_out_map.find(name);
     if (it3 == m_output_port_fan_out_map.end()) {
-      error_exit("delete_output_port(): Error: " + name + " is not an existing output.");
+      error_exit("delete_output_port(): Error accessing output port: " + name + " does not exist.");
     }
     m_output_port_fan_out_map.erase(it3);
     set_initialized(false);
@@ -279,7 +265,7 @@ namespace kumozu {
   const MatrixF& Node::get_output_backward(std::string name) const {
     auto it = m_output_port_backward_map.find(name);
     if (it == m_output_port_backward_map.end()) {
-      error_exit("get_output_forward(): Error: " + name + " is not an output.");
+      error_exit("get_output_forward(): Error accessing output port: node: " + get_name() + " : port: " + name + " does not exist.");
     }
     return it->second;
   }
@@ -287,7 +273,7 @@ namespace kumozu {
   MatrixF& Node::get_output_backward(std::string name) {
     auto it = m_output_port_backward_map.find(name);
     if (it == m_output_port_backward_map.end()) {
-      error_exit("get_output_forward(): Error: " + name + " is not an output.");
+      error_exit("get_output_forward(): Error accessing output port: node: " + get_name() + " : port: " + name + " does not exist.");
     }
     return it->second;
   }
@@ -316,7 +302,7 @@ namespace kumozu {
   const MatrixF& Node::get_input_port_forward(std::string name) const {
     auto it = m_input_port_forward_map.find(name);
     if (it == m_input_port_forward_map.end()) {
-      error_exit("get_input_port_forward(): Error: " + name + " is not an input.");
+      error_exit("get_input_port_forward(): Error accessing input port: node: " + get_name() + " : port: " + name + " does not exist.");
     }
     return it->second;
   }
@@ -332,7 +318,7 @@ namespace kumozu {
   const MatrixF& Node::get_input_port_backward(std::string name) const {
     auto it = m_input_port_backward_map.find(name);
     if (it == m_input_port_backward_map.end()) {
-      error_exit("get_input_port_backward(): Error: " + name + " is not an input.");
+      error_exit("get_input_port_backward(): Error accessing input port: node " + get_name() + " : port: " + name + " does not exist.");
     }
     return it->second;
   }
@@ -340,7 +326,7 @@ namespace kumozu {
   MatrixF& Node::get_input_port_backward(std::string name) {
     auto it = m_input_port_backward_map.find(name);
     if (it == m_input_port_backward_map.end()) {
-      error_exit("get_input_port_backward(): Error: " + name + " is not an input.");
+      error_exit("get_input_port_backward(): Error accessing input port: node: " + get_name() + " : port: " + name + " does not exist.");
     }
     return it->second;
   }
@@ -408,22 +394,22 @@ namespace kumozu {
     }
   }
 
-  void Node::print_paramater_stats() const {
+  void Node::print_paramater_stats() {
     if (!is_initialized()) {
       std::cerr << get_name() <<  ": print_paramater_stats() called before being initialized." << std::endl;
       exit(1);
     }
-    if (get_weights().size() > 0) {
-      print_stats(get_weights(), get_name() + " : weights");
+    if (m_W.size() > 0) {
+      print_stats(m_W, get_name() + " : weights");
     }
-    if (get_bias().size() > 0) {
-      print_stats(get_bias(), get_name() + " : bias");
+    if (m_bias.size() > 0) {
+      print_stats(m_bias, get_name() + " : bias");
     }
-    if (get_weight_gradient().size() > 0) {
-      print_stats(get_weight_gradient(), get_name() + " : weight gradients");
+    if (m_W_grad.size() > 0) {
+      print_stats(m_W_grad, get_name() + " : weight gradients");
     }
-    if (get_bias_gradient().size() > 0) {
-      print_stats(get_bias_gradient(), get_name() + " : bias gradients");
+    if (m_bias_grad.size() > 0) {
+      print_stats(m_bias_grad, get_name() + " : bias gradients");
     }
     if(get_output_forward().size() > 0) {
       print_stats(get_output_forward(), get_name() + " : output activations");
@@ -439,33 +425,41 @@ namespace kumozu {
     }
   }
 
-  void Node::save_parameters(std::string name) const {
+  void Node::save_parameters(std::string name) {
     if (!is_initialized()) {
-      std::cerr << get_name() <<  ": save_parameters() called before being initialized." << std::endl;
-      exit(1);
+      error_exit(get_name() +  ": save_parameters() called before being initialized.");
     }
-    save_matrix(m_W_ref, name + "_" + get_name() + "_W.dat");
-    save_matrix(m_bias, name + "_" + get_name() + "_bias.dat");
+    MatrixRefVectorF& w_list = get_weights_list();
+    for (int i = 0; i < w_list.size(); ++i) {
+      save_matrix(w_list.at(i), name + "_" + std::to_string(i) + "_" + get_name() + "_W.dat");
+    }
+    MatrixRefVectorF& bias_list = get_bias_list();
+    for (int i = 0; i < bias_list.size(); ++i) {
+      save_matrix(bias_list.at(i), name + "_" + std::to_string(i) + "_" + get_name() + "_bias.dat");
+    }
   }
 
   void Node::load_parameters(std::string name) {
-    //m_W_ref.get() = load_matrix(name + "_" + get_name() + "_W.dat");
-    get_weights() = load_matrix(name + "_" + get_name() + "_W.dat");
-    m_bias = load_matrix(name + "_" + get_name() + "_bias.dat");
-    if (get_contained_node_count() != 0) {
-      copy_weights_this_to_contained_layers();
-      copy_bias_this_to_contained_layers();
+    MatrixRefVectorF& w_list = get_weights_list();
+    for (int i = 0; i < w_list.size(); ++i) {
+      MatrixF temp_mat = load_matrix(name + "_" + std::to_string(i) + "_" + get_name() + "_W.dat");
+      copy_matrix(w_list.at(i), temp_mat);
+    }
+    MatrixRefVectorF& bias_list = get_bias_list();
+    for (int i = 0; i < bias_list.size(); ++i) {
+      MatrixF temp_mat = load_matrix(name + "_" + std::to_string(i) + "_" + get_name() + "_bias.dat");
+      copy_matrix(bias_list.at(i), temp_mat);
     }
   }
 
   void Node::check_jacobian_weights(std::map<std::string, std::vector<int>> input_port_extents_map) {
-    cout << get_name() << ": Checking Jacobian for weights..." << endl;
+    cout << get_name() + ": Checking Jacobian for weights..." << endl;
     delete_all_input_ports();
     // We need to create a Matrix for each input port in the map and then connect it to this Node as a new
     // input port.
     vector<MatrixF> input_forward_list;
     vector<MatrixF> input_backward_list;
-    
+
     input_forward_list.reserve(input_port_extents_map.size());
     input_backward_list.reserve(input_port_extents_map.size());
     // Alocate whole vector to be safe. Even with the reserve, it might decide to realocate while adding elements?
@@ -502,66 +496,77 @@ namespace kumozu {
     // Size will be total_output_dim x total_weights_dim =
     // (dim_output*minibatch_size) x total_weights_dim
     const int total_output_dim = output_forward_flat.size();
-    const int total_weights_dim = get_weights().size();
-    // This will contain the Jacobian computed using finite differences method.
-    MatrixF numerical_jacobian_weights(total_output_dim, total_weights_dim);
-    // Randomize to make accidental matches less likely.
-    randomize_uniform(numerical_jacobian_weights, 0.0f, 1.0f);
 
-    // This will contain the Jacobian computed using the back-prop method of the class
-    MatrixF backprop_jacobian_weights(total_output_dim, total_weights_dim);
-    // Randomize to make accidental matches less likely.
-    randomize_uniform(backprop_jacobian_weights, 0.0f, 1.0f);
 
     // Now compute the numerical Jacobian:
     // This will be computed one column at a time.
-    MatrixF& W = get_weights();
-
-    for (int j=0; j < W.size(); ++j) {
-      // j is column index int Jacobian matrix.
-      float orig = W[j];
-      W[j] += m_epsilon;
-      // Now compute output of layer -> output_forward
-      forward();
-      copy_individual_to_flat_output_forward(output_forward_flat);
-      // Copy the output into column j of Jacobian.
-      for (int i=0; i < output_forward_flat.size(); ++i) {
-        numerical_jacobian_weights(i,j) = output_forward_flat[i];
-      }
-      W[j] = orig - m_epsilon;
-      // Now compute output of layer -> output_forward
-      forward();
-      copy_individual_to_flat_output_forward(output_forward_flat);
-      // Copy the output into column j of Jacobian.
-      for (int i=0; i < output_forward_flat.size(); ++i) {
-        numerical_jacobian_weights(i,j) -= output_forward_flat[i];
-        numerical_jacobian_weights(i,j) /= 2*m_epsilon;
-      }
-      // Put back original value.
-      W[j] = orig;
+    MatrixRefVectorF& list_W = get_weights_list();
+    MatrixRefVectorF& list_W_grad = get_weights_gradient_list();
+    if (list_W.size() != list_W_grad.size()) {
+      error_exit("weight and weight gradient sizes are different!");
     }
-    // Now compute the Jacobian using the backprop function.
-    MatrixF output_backwards_flat(output_forward_flat.size());
-    MatrixF& grad_W = get_weight_gradient();
-    set_value(output_backwards_flat, 0.0f);
-    for (int i=0; i < output_backwards_flat.size(); ++i) {
-      output_backwards_flat[i] = 1.0f;
-      // Now if we perform backprop, the result should be the same is row i of Jacobian.
-      copy_flat_output_backward_to_individual(output_backwards_flat);
-      zero_parameter_gradients();
-      zero_input_backward();
-      back_propagate();
+    for (int n = 0; n < list_W.size(); ++n) {
+      //cout << "n = " << n << endl;
+      MatrixF& W = list_W.at(n);
+      //cout << "W = " << endl << W << endl;
+      const int total_weights_dim = W.size();
+      // This will contain the Jacobian computed using finite differences method.
+      MatrixF numerical_jacobian_weights(total_output_dim, total_weights_dim);
+      // Randomize to make accidental matches less likely.
+      randomize_uniform(numerical_jacobian_weights, 0.0f, 1.0f);
+
+      // This will contain the Jacobian computed using the back-prop method of the class
+      MatrixF backprop_jacobian_weights(total_output_dim, total_weights_dim);
+      // Randomize to make accidental matches less likely.
+      randomize_uniform(backprop_jacobian_weights, 0.0f, 1.0f);
+
       for (int j=0; j < W.size(); ++j) {
-        backprop_jacobian_weights(i,j) = grad_W[j];
+        // j is column index int Jacobian matrix.
+        float orig = W[j];
+        W[j] += m_epsilon;
+        // Now compute output of layer -> output_forward
+        forward();
+        copy_individual_to_flat_output_forward(output_forward_flat);
+        // Copy the output into column j of Jacobian.
+        for (int i=0; i < output_forward_flat.size(); ++i) {
+          numerical_jacobian_weights(i,j) = output_forward_flat[i];
+        }
+        W[j] = orig - m_epsilon;
+        // Now compute output of layer -> output_forward
+        forward();
+        copy_individual_to_flat_output_forward(output_forward_flat);
+        // Copy the output into column j of Jacobian.
+        for (int i=0; i < output_forward_flat.size(); ++i) {
+          numerical_jacobian_weights(i,j) -= output_forward_flat[i];
+          numerical_jacobian_weights(i,j) /= 2*m_epsilon;
+        }
+        // Put back original value.
+        W[j] = orig;
       }
-      output_backwards_flat[i] = 0.0f;
-    }
+      // Now compute the Jacobian using the backprop function.
+      MatrixF output_backwards_flat(output_forward_flat.size());
+      //MatrixF& grad_W = get_weight_gradient();
+      MatrixF& grad_W = list_W_grad.at(n);
+      set_value(output_backwards_flat, 0.0f);
+      for (int i=0; i < output_backwards_flat.size(); ++i) {
+        output_backwards_flat[i] = 1.0f;
+        // Now if we perform backprop, the result should be the same is row i of Jacobian.
+        copy_flat_output_backward_to_individual(output_backwards_flat);
+        zero_parameter_gradients();
+        zero_input_backward();
+        back_propagate();
+        for (int j=0; j < W.size(); ++j) {
+          backprop_jacobian_weights(i,j) = grad_W[j];
+        }
+        output_backwards_flat[i] = 0.0f;
+      }
 
-    const float relative_error_score = relative_error(numerical_jacobian_weights, backprop_jacobian_weights);
-    std::cout << "numerical-back-prop gradients relative error = " << relative_error_score << std::endl;
-    //cout << "numerical_jacobian_weights = " << endl << numerical_jacobian_weights << endl;
-    //cout << "backprop_jacobian_weights = " << endl << backprop_jacobian_weights << endl;
-    assert_almost_equal(relative_error_score, 0.0f, m_pass_relative_error);
+      const float relative_error_score = relative_error(numerical_jacobian_weights, backprop_jacobian_weights);
+      std::cout << "numerical-back-prop gradients relative error = " << relative_error_score << std::endl;
+      //cout << "numerical_jacobian_weights = " << endl << numerical_jacobian_weights << endl;
+      //cout << "backprop_jacobian_weights = " << endl << backprop_jacobian_weights << endl;
+      assert_almost_equal(relative_error_score, 0.0f, m_pass_relative_error);
+    }
     delete_all_input_ports();
     cout << "PASSED" << endl;
   }
@@ -609,67 +614,77 @@ namespace kumozu {
     // Size will be total_output_dim x total_bias_dim =
     // (dim_output*minibatch_size) x total_bias_dim
     const int total_output_dim = output_forward_flat.size();
-    const int total_bias_dim = get_bias().size();
-    // This will contain the Jacobian computed using finite differences method.
-    MatrixF numerical_jacobian_bias(total_output_dim, total_bias_dim);
-    // Randomize to make accidental matches less likely.
-    randomize_uniform(numerical_jacobian_bias, 0.0f, 1.0f);
 
-    // This will contain the Jacobian computed using the back-prop method of the class
-    MatrixF backprop_jacobian_bias(total_output_dim, total_bias_dim);
-    // Randomize to make accidental matches less likely.
-    randomize_uniform(backprop_jacobian_bias, 0.0f, 1.0f);
 
     // Now compute the numerical Jacobian:
     // This will be computed one column at a time.
-    MatrixF& bias = get_bias();
-
-    //const MatrixF& output_forward = get_output_forward();
-    for (int j=0; j < bias.size(); ++j) {
-      // j is column index int Jacobian matrix.
-      float orig = bias[j];
-      bias[j] += m_epsilon;
-      // Now compute output of layer -> output_forward
-      forward();
-      copy_individual_to_flat_output_forward(output_forward_flat);
-      // Copy the output into column j of Jacobian.
-      for (int i=0; i < output_forward_flat.size(); ++i) {
-        numerical_jacobian_bias(i,j) = output_forward_flat[i];
-      }
-      bias[j] = orig - m_epsilon;
-      // Now compute output of layer -> output_forward
-      forward();
-      copy_individual_to_flat_output_forward(output_forward_flat);
-      // Copy the output into column j of Jacobian.
-      for (int i=0; i < output_forward_flat.size(); ++i) {
-        numerical_jacobian_bias(i,j) -= output_forward_flat[i];
-        numerical_jacobian_bias(i,j) /= 2*m_epsilon;
-      }
-      // Put back original value.
-      bias[j] = orig;
+    MatrixRefVectorF& list_bias = get_bias_list();
+    MatrixRefVectorF& list_bias_grad = get_bias_gradient_list();
+    if (list_bias.size() != list_bias_grad.size()) {
+      error_exit("bias and bias gradient sizes are different!");
     }
-    // Now compute the Jacobian using the backprop function.
-    MatrixF output_backwards_flat(output_forward_flat.size());
-    MatrixF& grad_bias = get_bias_gradient();
-    set_value(output_backwards_flat, 0.0f);
-    for (int i=0; i < output_backwards_flat.size(); ++i) {
-      output_backwards_flat[i] = 1.0f;
-      // Now if we perform backprop, the result should be the same is row i of Jacobian.
-      copy_flat_output_backward_to_individual(output_backwards_flat);
-      zero_parameter_gradients();
-      zero_input_backward();
-      back_propagate();
+    for (int n = 0; n < list_bias.size(); ++n) {
+      MatrixF& bias = list_bias.at(n);
+      //cout << "bias: " << endl << bias << endl;
+      const int total_bias_dim = bias.size();
+      // This will contain the Jacobian computed using finite differences method.
+      MatrixF numerical_jacobian_bias(total_output_dim, total_bias_dim);
+      // Randomize to make accidental matches less likely.
+      randomize_uniform(numerical_jacobian_bias, 0.0f, 1.0f);
+
+      // This will contain the Jacobian computed using the back-prop method of the class
+      MatrixF backprop_jacobian_bias(total_output_dim, total_bias_dim);
+      // Randomize to make accidental matches less likely.
+      randomize_uniform(backprop_jacobian_bias, 0.0f, 1.0f);
+
+      //const MatrixF& output_forward = get_output_forward();
       for (int j=0; j < bias.size(); ++j) {
-        backprop_jacobian_bias(i,j) = grad_bias[j];
+        // j is column index int Jacobian matrix.
+        float orig = bias[j];
+        bias[j] += m_epsilon;
+        // Now compute output of layer -> output_forward
+        forward();
+        copy_individual_to_flat_output_forward(output_forward_flat);
+        // Copy the output into column j of Jacobian.
+        for (int i=0; i < output_forward_flat.size(); ++i) {
+          numerical_jacobian_bias(i,j) = output_forward_flat[i];
+        }
+        bias[j] = orig - m_epsilon;
+        // Now compute output of layer -> output_forward
+        forward();
+        copy_individual_to_flat_output_forward(output_forward_flat);
+        // Copy the output into column j of Jacobian.
+        for (int i=0; i < output_forward_flat.size(); ++i) {
+          numerical_jacobian_bias(i,j) -= output_forward_flat[i];
+          numerical_jacobian_bias(i,j) /= 2*m_epsilon;
+        }
+        // Put back original value.
+        bias[j] = orig;
       }
-      output_backwards_flat[i] = 0.0f;
-    }
+      // Now compute the Jacobian using the backprop function.
+      MatrixF output_backwards_flat(output_forward_flat.size());
+      //MatrixF& grad_bias = get_bias_gradient();
+      MatrixF& grad_bias = list_bias_grad.at(n);
+      set_value(output_backwards_flat, 0.0f);
+      for (int i=0; i < output_backwards_flat.size(); ++i) {
+        output_backwards_flat[i] = 1.0f;
+        // Now if we perform backprop, the result should be the same is row i of Jacobian.
+        copy_flat_output_backward_to_individual(output_backwards_flat);
+        zero_parameter_gradients();
+        zero_input_backward();
+        back_propagate();
+        for (int j=0; j < bias.size(); ++j) {
+          backprop_jacobian_bias(i,j) = grad_bias[j];
+        }
+        output_backwards_flat[i] = 0.0f;
+      }
 
-    const float relative_error_score = relative_error(numerical_jacobian_bias, backprop_jacobian_bias);
-    std::cout << "numerical-back-prop gradients relative error = " << relative_error_score << std::endl;
-    //cout << "numerical_jacobian_bias = " << endl << numerical_jacobian_bias << endl;
-    //cout << "backprop_jacobian_bias = " << endl << backprop_jacobian_bias << endl;
-    assert_almost_equal(relative_error_score, 0.0f, m_pass_relative_error);
+      const float relative_error_score = relative_error(numerical_jacobian_bias, backprop_jacobian_bias);
+      std::cout << "numerical-back-prop gradients relative error = " << relative_error_score << std::endl;
+      //cout << "numerical_jacobian_bias = " << endl << numerical_jacobian_bias << endl;
+      //cout << "backprop_jacobian_bias = " << endl << backprop_jacobian_bias << endl;
+      assert_almost_equal(relative_error_score, 0.0f, m_pass_relative_error);
+    }
     delete_all_input_ports();
     cout << "PASSED" << endl;
   }
@@ -842,7 +857,7 @@ namespace kumozu {
     // If the element count is different the size of the current flat_mat, then exit with error.
     if (total_size != flat_output_forward.size()) {
       if (VERBOSE_MODE) {
-	std::cout << "Resizing flat_mat to size = " << total_size << std::endl;
+        std::cout << "Resizing flat_mat to size = " << total_size << std::endl;
       }
       flat_output_forward.resize(total_size);
     }
@@ -856,179 +871,6 @@ namespace kumozu {
     }
   }
 
-  // fixme: rename "layers" to "nodes" below in func name.
-  void Node::copy_weights_contained_layers_to_this() {
-    if (!is_composite()) {
-      return;
-    }
-    // Do an initial pass through all layers to compute the total number of weight
-    // parameters. Skip over nodes with shared parameters.
-    int total_size = 0;
-    for (int i = 0; i < get_contained_node_count(); i++) {
-      if (get_node(i).is_shared() == false) {
-	MatrixF& temp_W = get_node(i).get_weights();
-	total_size += temp_W.size();
-      }
-    }
-    // If this parameter count is different the size of the current m_W, then reinitialize.
-    if (total_size != get_weights().size()) {
-      // Create 1-dim matrix of size total_size.
-      if (VERBOSE_MODE) {
-	cout << get_name() << ": Resizing weights matrix to size = " << total_size << endl;
-      }
-      get_weights().resize(total_size);
-    }
-    // Now do another pass through all layers, this time copying the parameters into m_W.
-    MatrixF& W = get_weights();
-    int cur_pos = 0;
-    for (int i = 0; i < get_contained_node_count(); i++) {
-      if (get_node(i).is_shared() == false) {
-	MatrixF& temp_W = get_node(i).get_weights();
-	for (int backing_index = 0; backing_index < temp_W.size(); ++backing_index) {
-	  W[cur_pos + backing_index] = temp_W[backing_index];
-	}
-	cur_pos += temp_W.size();
-      }
-    }
-  }
-
-  void Node::copy_weights_this_to_contained_layers() {
-    if (get_weights().size() == 0) {
-      return;
-    }
-    const MatrixF& W = get_weights();
-    int cur_pos = 0;
-    for (int i = 0; i < get_contained_node_count(); i++) {
-      if (get_node(i).is_shared() == false) {
-	MatrixF& temp_W = get_node(i).get_weights();
-	for (int backing_index = 0; backing_index < temp_W.size(); ++backing_index) {
-	  temp_W[backing_index] = W[cur_pos + backing_index];
-	}
-	cur_pos += temp_W.size();
-      }
-    }
-  }
-
-  void Node::copy_weights_gradients_contained_layers_to_this() {
-    if (!is_composite()) {
-      return;
-    }
-    // Do an initial pass through all layers to compute the total number of weight gradient
-    // parameters.
-    int total_size = 0;
-    for (int i = 0; i < get_contained_node_count(); i++) {
-      if (get_node(i).is_shared() == false) {
-	MatrixF& temp_W_grad = get_node(i).get_weight_gradient();
-	total_size += temp_W_grad.size();
-      }
-    }
-    // If this parameter count is different the size of the current m_W_grad, then reinitialize.
-    if (total_size != m_W_grad.size()) {
-      // Create 1-dim matrix of size total_size.
-      if (VERBOSE_MODE) {
-	cout << get_name() << ": Resizing weight gradients to size = " << total_size << endl;
-      }
-      get_weight_gradient().resize(total_size);
-    }
-    // Now do another pass through all layers, this time copying the parameters into m_W_grad.
-    int cur_pos = 0;
-    MatrixF& grad_W = get_weight_gradient();
-    for (int i = 0; i < get_contained_node_count(); i++) {
-      if (get_node(i).is_shared() == false) {
-	MatrixF& temp_W_grad = get_node(i).get_weight_gradient();
-	for (int backing_index = 0; backing_index < temp_W_grad.size(); ++backing_index) {
-	  grad_W[cur_pos + backing_index] = temp_W_grad[backing_index];
-	}
-	cur_pos += temp_W_grad.size();
-      }
-    }
-  }
-
-  void Node::copy_bias_contained_layers_to_this() {
-    if (!is_composite()) {
-      return;
-    }
-    // Do an initial pass through all layers to compute the total number of bias
-    // parameters.
-    int total_size = 0;
-    for (int i = 0; i < get_contained_node_count(); i++) {
-      if (get_node(i).is_shared() == false) {
-	MatrixF& temp_bias = get_node(i).get_bias();
-	total_size += temp_bias.size();
-      }
-    }
-    // If this parameter count is different the size of the current m_bias, then reinitialize.
-    if (total_size != m_bias.size()) {
-      // Create 1-dim matrix of size total_size.
-      if (VERBOSE_MODE) {
-	cout << get_name() << ": Resizing m_bias to size = " << total_size << endl;
-      }
-      m_bias.resize(total_size);
-    }
-    // Now do another pass through all layers, this time copying the parameters into m_bias.
-    int cur_pos = 0;
-    for (int i = 0; i < get_contained_node_count(); i++) {
-      if (get_node(i).is_shared() == false) {
-	MatrixF& temp_bias = get_node(i).get_bias();
-	for (int backing_index = 0; backing_index < temp_bias.size(); ++backing_index) {
-	  m_bias[cur_pos + backing_index] = temp_bias[backing_index];
-	}
-	cur_pos += temp_bias.size();
-      }
-    }
-  }
-
-  void Node::copy_bias_this_to_contained_layers() {
-    if (m_bias.size() == 0) {
-      return;
-    }
-    int cur_pos = 0;
-    for (int i = 0; i < get_contained_node_count(); i++) {
-      if (get_node(i).is_shared() == false) {
-	MatrixF& temp_bias = get_node(i).get_bias();
-	for (int backing_index = 0; backing_index < temp_bias.size(); ++backing_index) {
-	  temp_bias[backing_index] = m_bias[cur_pos + backing_index];
-	}
-	cur_pos += temp_bias.size();
-      }
-    }
-  }
-
-  void Node::copy_bias_gradients_contained_layers_to_this() {
-    if (!is_composite()) {
-      return;
-    }
-    // Do an initial pass through all layers to compute the total number of weight gradient
-    // parameters.
-    int total_size = 0;
-    for (int i = 0; i < get_contained_node_count(); i++) {
-      if (get_node(i).is_shared() == false) {
-	MatrixF& temp_bias_grad = get_node(i).get_bias_gradient();
-	total_size += temp_bias_grad.size();
-      }
-    }
-    // If this parameter count is different the size of the current m_bias_grad, then reinitialize.
-    if (total_size != m_bias_grad.size()) {
-      // Create 1-dim matrix of size total_size.
-      if (VERBOSE_MODE) {
-	cout << get_name() << ": Resizing m_bias_grad of size = " << total_size << endl;
-      }
-      //m_bias_grad = MatrixF(total_size); // fixme: move to init()
-      m_bias_grad.resize(total_size);
-    }
-    // Now do another pass through all layers, this time copying the parameters into m_bias_grad.
-    int cur_pos = 0;
-    for (int i = 0; i < get_contained_node_count(); i++) {
-      if (get_node(i).is_shared() == false) {
-	MatrixF& temp_bias_grad = get_node(i).get_bias_gradient();
-	for (int backing_index = 0; backing_index < temp_bias_grad.size(); ++backing_index) {
-	  m_bias_grad[cur_pos + backing_index] = temp_bias_grad[backing_index];
-	}
-	cur_pos += temp_bias_grad.size();
-      }
-    }
-  }
-
   void Node::make_internal_input_port_connections() {
     if (VERBOSE_MODE) {
       cout << "Connecting input ports of " << get_name() << " to internal nodes..." << endl;
@@ -1038,13 +880,13 @@ namespace kumozu {
       Node& contained_node = connection.get_contained_node();
       string contained_input = connection.get_contained_input();
       if (VERBOSE_MODE) {
-	cout << "Connecting input port: " << input_name << " of " << get_name()  << " to input port: " 
-	     << contained_input << " of contained node: " << contained_node.get_name() << endl;
+        cout << "Connecting input port: " << input_name << " of " << get_name()  << " to input port: "
+             << contained_input << " of contained node: " << contained_node.get_name() << endl;
       }
-      const MatrixF& this_input_forward = get_input_port_forward(input_name); 
+      const MatrixF& this_input_forward = get_input_port_forward(input_name);
       MatrixF& this_input_backward = get_input_port_backward(input_name);
       contained_node.delete_input_port(contained_input);
-      contained_node.create_input_port(this_input_forward, this_input_backward, contained_input); 
+      contained_node.create_input_port(this_input_forward, this_input_backward, contained_input);
     }
     if (VERBOSE_MODE) {
       cout << endl;

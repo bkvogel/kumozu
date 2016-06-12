@@ -34,53 +34,53 @@
 #include "Matrix.h"
 #include <string>
 #include <iostream>
+#include <functional>
+#include <memory>
 #include "Constants.h"
 #include "Utilities.h"
-
+#include "MatrixRefVector.h"
 
 namespace kumozu {
 
-  /*
-   * An instance of this class is associated with a pair of matrices: W and W_grad. An "update()"
-   * method is provided that can then be used to update the values in W from the gradients in W_grad.
+  /**
+   * Apply an optimization algorithm to update parameter values using the corresponding gradients.
    *
-   * This class supports several update modes and options that together specify the algorithm for updating
-   * W from W_grad. These modes can be changed at any time using the provided mode-setting methods.
+   * An instance of this class is associated with two lists of matrices that are supplied to the constructor:
+   * - A list of parameter matrices that that the optimization algorithm will modify.
+   * - A list of read-only matrices that contain the corresponding gradients.
    *
    * Usage:
    *
-   * This class is generally intended to be used to update either the weights W in a layer using the corresponding
-   * gradients W_grad or the activations X in a layer using the corresponding gradients (deltas). Note that
-   * since the bias vector is represented using the same MatrixF structure as the weights, this class can also be
-   * used to updated the bias vector b from the corresponding gradients in grad_b.
-   *
-   * First create a new instance of this class, supplying the size of W to the constructor.
+   * First create a new instance of this class, supplying the paramer and gradient lists to the constructor.
    *
    * Then optionally call one of the mode-setting functions to configure the update algorithm.
    *
-   * Then, whenver the gradients in W_grad get updated, we can then call the update() method to update
-   * W.
+   * Then, whenver new gradients are available, call update() to use the gradients to update the corresponding parameter values.
    *
-   * Implementation note: Although another option would be to have a distinct subclass for each update algorithm,
-   * we choose here to make this class support all available update algorithms.
+   * Typically, on Updater instance will be created for the weights parameters and another Updater for the bias parameters.
+   * Note also the Node contains functions get*list() than can be used to obtain the matrix lists that need to be supplied
+   * to the constructor.
+   *
    */
   class Updater {
 
   public:
 
-    Updater() {}
-
-    /*
-     * If no "mode-setting" methods are called, update will apply a
-     * default learning rate of 0.01.
+    /**
+     * Create a new instance that will update the parameter matrices in "parameters_list" using the corresponding
+     * gradients from "gradients_list."
+     *
      *
      * Parameters:
      *
-     * input_extents: Size of W, which is also the size of grad_W.
+     * @param parameters_list The learnable parameters of the model, such as the weights and/or bias matrices.
+     * @param gradients The gradients corresponding to parameters_list. At the time update() is called, these
+     * two list must have the same number of matrices and for each list index, the two matrices must have
+     * the same dimensions.
      */
-  Updater(const std::vector<int>& input_extents, std::string name):
-    m_momentum_W {input_extents},
-      m_sum_square_grad_W {input_extents},
+  Updater(MatrixRefVectorF& parameters_list, const MatrixRefVectorF& gradients_list, std::string name):
+    m_parameters_list {parameters_list},
+      m_gradients_list {gradients_list},
         m_name {name},
           m_learning_rate {0.01f}, // default learning rate.
             m_weight_decay {0.0f},
@@ -91,21 +91,18 @@ namespace kumozu {
 
                   }
 
-                  /*
-                   * Update the elements in the supplied MatrixF W using the gradients in
-                   * the supplied MatrixF grad_W.
+                  /**
+                   * Update the elements in the parameters there were passed to the constructor using the
+                   * corresponding gradients that were passed to the constructor.
                    *
                    * Depending on the current update mode, it is possible that the updated values may
                    * also be influenced by the history of past gradients supplied to this method
                    * up until now.
                    *
-                   * Parameters:
-                   *
-                   * W: The matrix to be updated.
-                   *
-                   * grad_W: The matrix containing the gradients, which must be the same size as W.
                    */
-                  void update(MatrixF& W, const MatrixF& grad_W);
+                  void update();
+
+
 
                   //////////////////////////////////////////////////////////////////////////////////////////////////
                   //
@@ -113,18 +110,23 @@ namespace kumozu {
                   //
                   // Only one mode can be active at a time.
 
-                  /*
+                  /**
                    * Set a constant learning rate.
                    *
-                   * This is the default mode, with default values: learning_rate = 0.01.
+                   * This is the default mode.
                    *
+		   * @param learning_rate Default values: learning_rate = 0.01.
                    */
                   void set_mode_constant_learning_rate(float learning_rate);
 
-
+		  /**
+		   * Use Rmsprop.
+		   */ 
                   void set_mode_rmsprop(float rmsprop_learning_rate, float rho);
 
-                  /*
+                  /**
+		   * Use Rmsprop with momentum.
+		   *
                    * Try:
                    * rmsprop_learning_rate = 1e-2 to 1e-4
                    * rho = 0.9
@@ -168,12 +170,14 @@ namespace kumozu {
                    */
                   void set_flag_weight_decay(float decay_val, bool enable_weight_decay);
 
-		  
+
 
   private:
 
-                  MatrixF m_momentum_W;
-                  MatrixF m_sum_square_grad_W;
+                  MatrixRefVectorF& m_parameters_list;
+                  const MatrixRefVectorF& m_gradients_list;
+                  std::vector<std::unique_ptr<MatrixF>> m_momentum_list;
+                  std::vector<std::unique_ptr<MatrixF>> m_sum_square_grad_list;
                   std::string m_name;
                   float m_rmsprop_learning_rate; // 1.0e-4f
                   float m_learning_rate;

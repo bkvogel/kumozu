@@ -64,15 +64,14 @@ namespace kumozu {
         std::cout << indent << "Output layer units = " << m_output_layer_units << std::endl;
       }
     }
-    m_output_forward_indices = Matrix<int>(m_dim_output, m_minibatch_size);
+    //m_output_forward_indices = Matrix<int>(m_dim_output, m_minibatch_size);
+    m_output_forward_indices.resize(m_dim_output, m_minibatch_size);
   }
-
 
   void LinearLayer::forward_propagate(const MatrixF& input_forward) {
     if (!is_enable_bias()) {
       set_value(get_bias(), 0.0f);
     }
-
     // m_Z = m_W * m_input_forward + m_bias
     do_product_update(m_output_forward, get_weights(), input_forward, get_bias());
   }

@@ -950,10 +950,13 @@ namespace kumozu {
     std::ostream& operator<<(std::ostream& os, const Matrix<T>& m);
 
   // Typedefs for common types.
-  typedef Matrix<float> MatrixF;
-  typedef Matrix<double> MatrixD;
-  typedef Matrix<int> MatrixI;
+  //typedef Matrix<float> MatrixF;
+  //typedef Matrix<double> MatrixD;
+  //typedef Matrix<int> MatrixI;
 
+  using MatrixF = Matrix<float>;
+  using MatrixD = Matrix<double>;
+  using MatrixI = Matrix<int>;
 
   /////////////////////////////////////////////////////////////////////////////////////////
   // Implementation below: Needs to be in header file or else we get linker errors.

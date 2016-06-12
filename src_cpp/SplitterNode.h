@@ -51,6 +51,9 @@ namespace kumozu {
    * output ports is specified in the constructor. The output ports will have the names "0", "1", "2", ...
    * The input port can have any name. If the user tries to add more than 1 input port, the program will exit with an error.
    *
+   * Note: if pfn_mode is set to true, during the backward pass, the element-wise mean of the "output backward" activations
+   * is computed and then copied into the "input backward" activations.
+   *
    * Usage:
    *
    * Obtain an instance of this class, specifying the number of output ports to use in the constructor.
@@ -66,9 +69,15 @@ namespace kumozu {
      *
      * @param output_port_count The number of output ports to create. The ports will be given names that correspond
      * to their index: "0", "1", "2", ..., "output_port_count-1".
+     *
+     * @param pfn_mode If the network uses gradients in the backward pass (i.e., the usual SGD methods), set to false.
+     * If the network uses updated values of the outputs in the backward pass, such as a positive factor network (PFN),
+     * set to true.
      */
-  SplitterNode(int output_port_count, std::string name) :
-    Node{name} {
+  SplitterNode(int output_port_count, std::string name, bool pfn_mode=false) :
+    Node{name},
+      m_pfn_mode {pfn_mode}
+      {
       for (int i = 0; i < output_port_count; ++i) {
 	m_output_ports_forward.push_back(std::move(std::make_unique<MatrixF>()));
 	m_output_ports_backward.push_back(std::move(std::make_unique<MatrixF>()));
@@ -92,10 +101,14 @@ namespace kumozu {
      */
     virtual void back_propagate_deltas() override {
       MatrixF& input_backward_mat = get_input_port_backward();
+      const float scale_factor = 1.0f/static_cast<float>(get_output_port_count());
       set_value(input_backward_mat, 0.0f);
       for (size_t i = 0; i < m_output_ports_backward.size(); ++i) {
 	const MatrixF& out_backward_mat = *m_output_ports_backward.at(i);
 	element_wise_sum(input_backward_mat, input_backward_mat, out_backward_mat);
+      }
+      if (m_pfn_mode) {
+	scale(input_backward_mat, input_backward_mat, scale_factor);
       }
     }
 
@@ -117,7 +130,7 @@ namespace kumozu {
 
     std::vector<std::unique_ptr<MatrixF>> m_output_ports_forward;
     std::vector<std::unique_ptr<MatrixF>> m_output_ports_backward;
-
+    bool m_pfn_mode;
   };
 
 }

@@ -96,6 +96,7 @@ namespace kumozu {
 
 
   void mat_multiply(MatrixF& A, const MatrixF &B, const MatrixF &C) {
+    
     mat_multiply_blas(A, B, C); // Optimized BLAS version.
     //mat_multiply_naive(A, B, C); // Super slow naive version.
   }
@@ -114,8 +115,14 @@ namespace kumozu {
     if (B.extent(1) != C.extent(0)) {
       error_exit("Error: Inconsistent matrix dimensions! Exiting.");
     }
-    if ((A.extent(0) != B.extent(0)) || (A.extent(1) != C.extent(1))) {
-      A.resize(B.extent(0), C.extent(1));
+    //if ((A.extent(0) != B.extent(0)) || (A.extent(1) != C.extent(1))) {
+    //A.resize(B.extent(0), C.extent(1));
+    //resized();
+    //}
+    const int rows_A = B.extent(0);
+    const int cols_A = C.extent(1);
+    if ((A.order() != 2) || (A.size() != rows_A*cols_A)) {
+      A.resize(rows_A, cols_A);
       resized();
     }
 
@@ -125,7 +132,6 @@ namespace kumozu {
 
     cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, A.extent(0), A.extent(1), B.extent(1), alpha,
                 backingArrayB, B.extent(1), backingArrayC, C.extent(1), beta, backingArrayA, A.extent(1));
-
   }
 
 
@@ -213,8 +219,7 @@ namespace kumozu {
     const float* backingArrayC = C.get_backing_data();
 
     cblas_sgemm(CblasRowMajor, CblasTrans, CblasNoTrans, A.extent(0), A.extent(1), B.extent(0), 1.0f,
-                backingArrayB, B.extent(1), backingArrayC, C.extent(1), 0.0f, backingArrayA, A.extent(1));
-
+            backingArrayB, B.extent(1), backingArrayC, C.extent(1), 0.0f, backingArrayA, A.extent(1));
   }
 
   void mat_multiply_left_transpose_naive(MatrixF& A, const MatrixF& B, const MatrixF& C) {
@@ -256,8 +261,7 @@ namespace kumozu {
     const float* backingArrayC = C.get_backing_data();
 
     cblas_sgemm(CblasRowMajor, CblasTrans, CblasNoTrans, A.extent(0), A.extent(1), B.extent(0), 1.0f,
-                backingArrayB, B.extent(1), backingArrayC, C.extent(1), 1.0f, backingArrayA, A.extent(1));
-
+            backingArrayB, B.extent(1), backingArrayC, C.extent(1), 1.0f, backingArrayA, A.extent(1));
   }
 
   void mat_multiply_left_transpose_naive_accumulate(MatrixF& A, const MatrixF& B, const MatrixF& C) {
@@ -298,8 +302,7 @@ namespace kumozu {
     const float* backingArrayC = C.get_backing_data();
 
     cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasTrans, B.extent(0), C.extent(0), B.extent(1), 1.0f,
-                backingArrayB, B.extent(1), backingArrayC, C.extent(1), 0.0f, backingArrayA, A.extent(1));
-
+            backingArrayB, B.extent(1), backingArrayC, C.extent(1), 0.0f, backingArrayA, A.extent(1));
   }
 
   void mat_multiply_right_transpose_naive(MatrixF& A, const MatrixF& B, const MatrixF& C)  {
@@ -340,8 +343,7 @@ namespace kumozu {
     const float* backingArrayC = C.get_backing_data();
 
     cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasTrans, B.extent(0), C.extent(0), B.extent(1), 1.0f,
-                backingArrayB, B.extent(1), backingArrayC, C.extent(1), 1.0f, backingArrayA, A.extent(1));
-
+            backingArrayB, B.extent(1), backingArrayC, C.extent(1), 1.0f, backingArrayA, A.extent(1));
   }
 
   void mat_multiply_right_transpose_accumulate_naive(MatrixF& A, const MatrixF& B, const MatrixF& C)  {

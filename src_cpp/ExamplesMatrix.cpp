@@ -72,7 +72,7 @@ namespace kumozu {
         return i;
       });
 
-    cout << "X" << endl;
+    cout << "cout << X << endl;" << endl;
     cout << X << endl;
 
     cout << "// Apply sqrt() to all elements in X." << endl;
@@ -107,9 +107,9 @@ namespace kumozu {
         return i;
       });
 
-    cout << "// map2() example:" << endl;
+    cout << endl << "// map2() example:" << endl;
 
-    cout << "Y = " << endl;
+    cout << "cout << Y << endl;" << endl;
     cout << Y << endl;
 
     cout << "MatrixF A = Y;" << endl;
@@ -174,6 +174,34 @@ namespace kumozu {
 
     cout << "cout << Y << endl;" << endl;
     cout << Y << endl;
+
+    cout << "// Matrix multilication example:" << endl;
+    cout << "MatrixF U(3,4);" << endl;
+    MatrixF U(3,4);
+    cout << "cout << U << endl;" << endl;
+    cout << U << endl;
+    cout << "randomize_uniform(U, -1.0f, 1.0f);" << endl;
+    randomize_uniform(U, -1.0f, 1.0f);
+    cout << "cout << U << endl;" << endl;
+    cout << U << endl;
+    cout << "MatrixF R(4,5);" << endl;
+    MatrixF R(4,5);
+    cout << "cout << R << endl;" << endl;
+    cout << R << endl;
+    cout << "set_value(R, 1.0f);" << endl;
+    set_value(R, 1.0f);
+    cout << "cout << R << endl;" << endl;
+    cout << R << endl;    
+    cout << "// Compute C = U*R:" << endl;
+    cout << "MatrixF C;" << endl;
+    MatrixF C;
+    cout << "// Note: C has not been initialized to the required output dimensions but will be " << endl;
+    cout << "// resized to the correct dimensions inside the matrix multiplication function." << endl;
+    cout << "// Many of the matrix utility functions work like this (auto re-sizing of result)." << endl;
+    cout << "mat_multiply(C, U, R);" << endl;
+    mat_multiply(C, U, R);
+    cout << "cout << C << endl;" << endl;
+    cout << C << endl;
 
   }
 

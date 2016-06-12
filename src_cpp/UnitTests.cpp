@@ -59,6 +59,7 @@
 #include "BatchNormalization3D.h"
 #include "SequentialLayer.h"
 #include "AdderNode.h"
+//#include "MeanNode.h"
 #include "SubtractorNode.h"
 #include "MultiplyerNode.h"
 #include "SplitterNode.h"
@@ -1249,13 +1250,8 @@ void test_mat_multiply_right_transpose_accumulate() {
     seq_net.check_jacobian_bias(input_extents);
     // Now check input error gradients
     seq_net.check_jacobian_input_backward(input_extents);
-
-    //MatrixF input_activations(minibatch_size, image_depth, image_height, image_width);
-    //seq_net.forward(input_activations);
-    //seq_net.forward(input_activations);
-
-    //
   }
+
 
 
   void test_SequentialLayer2() {
@@ -1519,46 +1515,6 @@ void test_SequentialLayer4() {
     layer.check_jacobian_bias(input_extents);
     // Now check input error gradients
     layer.check_jacobian_input_backward(input_extents);
-
-  }
-
-  void debug_PoolingLayer() {
-    cout << "debug_PoolingLayer()" << endl;
-    //const int minibatch_size = 1;
-    //const int depth = 2;
-    //const int height = 4;
-    //const int width = 4;
-
-    const int minibatch_size = 2;
-    const int depth = 3;
-    const int height = 4; // 4 works
-    const int width = 4;
-    const vector<int> pooling_region_extents = {1, 3, 3};
-    const vector<int> pooling_region_step_sizes = {1, 3, 2};
-
-    const vector<int> input_extents = {minibatch_size, depth, height, width};
-    //const vector<int> pooling_region_extents = {2, 2, 2};
-    //const vector<int> pooling_region_step_sizes = {2, 2, 2};
-    PoolingLayer layer(pooling_region_extents, pooling_region_step_sizes, "Pooling Layer 1");
-
-
-    MatrixF input_activations(input_extents);
-    MatrixF input_backwards(input_extents);
-    layer.create_input_port(input_activations, input_backwards);
-    //randomize_uniform(input_activations, -1.0f, 1.0f);
-    set_value(input_activations, 0.12f);
-    cout << "input_activations: " << endl << input_activations << endl;
-    layer.forward();
-
-    const MatrixF& output_forward = layer.get_output_forward();
-    cout << "output_forward: " << endl << output_forward << endl;
-
-    MatrixF& output_backward = layer.get_output_backward();
-    randomize_uniform(output_backward, -1.0f, 1.0f);
-    cout << "output_backward: " << endl << output_backward << endl;
-    
-    layer.back_propagate();
-    cout << "input_backwards: " << endl << input_backwards << endl;
 
   }
 
@@ -1842,23 +1798,58 @@ void test_SequentialLayer4() {
     layer2.set_shared(layer1);
 
     layer1.forward(); // Initialize
+    auto& layer1_forward_out = layer1.get_output_forward();
     layer2.forward(); // Initialize
+    auto& layer2_forward_out = layer2.get_output_forward();
+    assert_almost_equal(layer1_forward_out, layer2_forward_out);
 
-    // Both layers should now have identical parameter values. Let's check:
-    cout << "Layer 1 weights: " << endl << layer1.get_weights() << endl;
-    cout << "Layer 2 weights: " << endl << layer2.get_weights() << endl;
-    
-    randomize_uniform(layer2.get_bias(), 0.0f, 1.0f);
-      
-    cout << "Layer 1 bias: " << endl << layer1.get_bias() << endl;
-    cout << "Layer 2 bias: " << endl << layer2.get_bias() << endl;
-    assert_almost_equal(layer1.get_weights(), layer2.get_weights());
-    assert_almost_equal(layer1.get_bias(), layer2.get_bias());
     cout << "PASSED" << endl;
   }
 
   void test_Node_shared_parameters2() {
     cout << "test_Node_shared_parameters2()..." << endl;
+    
+
+    // Reason for making a custom class:
+    // If you want to make multiple copies of the same network, such as 1 for training and
+    // 1 validation etc, it is best to wrap the network in a class for convinience. This
+    // allows us to avoid dealing with pointers for the nodes that are added using "add_layer()".
+    class TestNet : public Node {
+
+    public:
+
+      TestNet(int filter_count, int filter_height, int filter_width, int dim_output, std::string name) :
+	Node(name),
+	m_net {"sequential network: " + name},
+	m_conv_layer1 {filter_count, filter_height, filter_width, "Conv Layer: " + name},
+	m_box_activation_layer1 {BoxActivationFunction::ACTIVATION_TYPE::leakyReLU, "Box Activation Function: " + name},
+	m_pooling_layer1 {{1, 3, 3}, {1, 2, 2}, "Pooling Layer: " + name},
+	m_layer2 {"Image To Column Layer: " + name},
+	m_linear_laye1 {dim_output, "Linear Layer:" + name},
+	m_column_activation_layer1 {ColumnActivationFunction::ACTIVATION_TYPE::leakyReLU, "Column Activation Function: " + name}
+      {
+	connect_input_to_contained_node(m_net);
+	add_node(m_net);
+	m_net.add_layer(m_conv_layer1);
+	m_net.add_layer(m_box_activation_layer1);
+	m_net.add_layer(m_pooling_layer1);
+	m_net.add_layer(m_layer2);
+	m_net.add_layer(m_linear_laye1);
+	m_net.add_layer(m_column_activation_layer1);
+	create_output_port(m_net);
+      }
+	
+    private:
+      SequentialLayer m_net;
+      ConvLayer3D m_conv_layer1;
+      BoxActivationFunction m_box_activation_layer1;
+      PoolingLayer m_pooling_layer1;
+      ImageToColumnLayer m_layer2;
+      LinearLayer m_linear_laye1;
+      ColumnActivationFunction m_column_activation_layer1;
+
+    };
+
     const int minibatch_size = 4;
     const int image_depth = 3;
     const int image_height = 13;
@@ -1868,55 +1859,43 @@ void test_SequentialLayer4() {
     const int filter_width = 4;
 
     const int dim_output = 7;
+   
 
-    SequentialLayer net1("sequential network 1");
-    ConvLayer3D conv_layer1(filter_count, filter_height, filter_width, "Conv Layer 1");
-    net1.add_layer(conv_layer1);
-    BoxActivationFunction box_activation_layer1(BoxActivationFunction::ACTIVATION_TYPE::leakyReLU, "Box Activation Function 1");
-    net1.add_layer(box_activation_layer1);
-    const vector<int> pooling_region_extents = {1, 3, 3};
-    const vector<int> pooling_region_step_sizes = {1, 2, 2};
-    PoolingLayer pooling_layer1(pooling_region_extents, pooling_region_step_sizes, "Pooling Layer 1");
-    net1.add_layer(pooling_layer1);
-    ImageToColumnLayer layer2("Image To Column Layer 1");
-    net1.add_layer(layer2);
-    LinearLayer linear_laye1(dim_output, "Linear Layer 1");
-    net1.add_layer(linear_laye1);
-    ColumnActivationFunction column_activation_layer1(ColumnActivationFunction::ACTIVATION_TYPE::leakyReLU, "Column Activation Function 1");
-    net1.add_layer(column_activation_layer1);
+    TestNet net1(filter_count, filter_height, filter_width, dim_output, "1");
+    TestNet net2(filter_count, filter_height, filter_width, dim_output, "2");
 
     const vector<int> input_extents = {minibatch_size, image_depth, image_height, image_width};
     MatrixF input_activations(input_extents);
+    randomize_uniform(input_activations, 0.0f, 1.0f);
     MatrixF input_backwards(input_extents);
 
     net1.create_input_port(input_activations, input_backwards);
-    SequentialLayer net2 = net1;
     net2.create_input_port(input_activations, input_backwards);
-    cout << "layers in net: " << net1.get_contained_node_count() << endl;
-    cout << "layers in net2: " << net2.get_contained_node_count() << endl;
 
     // Make net2 share net1's parameters:
     net2.set_shared(net1);
 
     net1.forward(); // Initialize
+    auto& net1_out = net1.get_output_forward();
     net2.forward(); // Initialize
+    auto& net2_out = net2.get_output_forward();
+    assert_almost_equal(net1_out, net2_out);
 
-    // Both layers should now have identical parameter values. Let's check:
-    randomize_uniform(net2.get_bias(), 0.0f, 1.0f);
-    assert_almost_equal(net1.get_weights(), net2.get_weights());
-    assert_almost_equal(net1.get_bias(), net2.get_bias());
+    auto& net1_out_backward = net1.get_output_backward();
+    randomize_uniform(net1_out_backward, 0.0f, 1.0f);
+    set_value(input_backwards, 0.0f);
+    net1.back_propagate();
+    MatrixF net1_input_backward = input_backwards;
 
-    // Check each of the internal nodes:
-    for (int i = 0; i < net1.get_contained_node_count(); ++i) {
-      const MatrixF& W1 = net1.get_node(i).get_weights();
-      const MatrixF& W2 = net2.get_node(i).get_weights();
-      if (W1.size() > 0) {
-	assert_almost_equal(W1, W2);
-      }
-    }
+    set_value(input_backwards, 0.0f);
+    auto& net2_out_backward = net2.get_output_backward();
+    net2_out_backward = net1_out_backward;
+    net2.back_propagate();
+    assert_almost_equal(net1_input_backward, input_backwards);
 
     cout << "PASSED" << endl;
   }
+
 
   void test_multi_port_node() {
     cout << "test_multi_port_node()" << endl;
@@ -1992,6 +1971,77 @@ void test_SequentialLayer4() {
     adder.check_jacobian_input_backward(input_port_extents_map);
   }
 
+  /*
+  void test_MeanNode() {
+    // Test MeanNode in usual model.
+    cout << "test_MeanNode()" << endl;
+    const int dim1 = 3;
+    const int dim2 = 2;
+    const vector<int> input_extents = {dim1, dim2};
+    MeanNode meaner("MeanNode");
+    MatrixF input_forward1(input_extents);
+    set_value(input_forward1, 1.0f);
+    cout << "Input 1: " << endl << input_forward1 << endl;
+    MatrixF input_backward1(input_extents);
+    meaner.create_input_port(input_forward1, input_backward1, "in1");
+
+    MatrixF input_forward2(input_extents);
+    set_value(input_forward2, 2.0f);
+    cout << "Input 2: " << endl << input_forward2 << endl;
+    MatrixF input_backward2(input_extents);
+    meaner.create_input_port(input_forward2, input_backward2, "in2");
+
+    meaner.forward();
+
+    cout << "Output: " << endl << meaner.get_output_forward() << endl;
+    
+    // Check gradients:
+    std::map<std::string, std::vector<int>> input_port_extents_map;
+    input_port_extents_map["in1"] = input_extents;
+    input_port_extents_map["in2"] = input_extents;
+
+    // Check weights gradients.
+    meaner.check_jacobian_weights(input_port_extents_map);
+    // Now check bias gradients
+    meaner.check_jacobian_bias(input_port_extents_map);
+    // Now check input error gradients
+    meaner.check_jacobian_input_backward(input_port_extents_map);
+  }
+  */
+
+  /*
+  void test_MeanNode2() {
+    // Test MeanNode in PFN mode
+    cout << "test_MeanNode2()" << endl;
+    const int dim1 = 3;
+    const int dim2 = 2;
+    const vector<int> input_extents = {dim1, dim2};
+    MeanNode meaner("MeanNode", true);
+    MatrixF input_forward1(input_extents);
+    set_value(input_forward1, 1.0f);
+    cout << "Input 1: " << endl << input_forward1 << endl;
+    MatrixF input_backward1(input_extents);
+    meaner.create_input_port(input_forward1, input_backward1, "in1");
+
+    MatrixF input_forward2(input_extents);
+    set_value(input_forward2, 2.0f);
+    cout << "Input 2: " << endl << input_forward2 << endl;
+    MatrixF input_backward2(input_extents);
+    meaner.create_input_port(input_forward2, input_backward2, "in2");
+
+    meaner.forward();
+    cout << "Output: " << endl << meaner.get_output_forward() << endl;
+
+    copy_matrix(meaner.get_output_backward(), meaner.get_output_forward());
+    
+    meaner.back_propagate();
+    cout << "Input 1 backward: " << endl << input_backward1;
+    cout << "Input 2 backward: " << endl << input_backward2;
+    cout << "PASSED" << endl;
+    // Note: can't check gradients in PFN mode.
+  }
+  */
+  
   void test_ConcatNode() {
     cout << "test_ConcatNode()" << endl;
     const int dim1a = 3;
@@ -2131,6 +2181,34 @@ void test_SequentialLayer4() {
     splitter.check_jacobian_input_backward(input_port_extents_map);
   }
 
+  void test_SplitterNode2() {
+    cout << "test_SplitterNode2()" << endl;
+    // Test PFN mode (computes mean of outputs in backward pass).
+    const int dim1 = 3;
+    const int dim2 = 2;
+    const vector<int> input_extents = {dim1, dim2};
+    const int output_port_count = 3;
+    SplitterNode splitter(output_port_count, "Splitter", true);
+    MatrixF input_forward(input_extents);
+    set_value(input_forward, 3.0f);
+    cout << "Input forward: " << endl << input_forward << endl;
+    MatrixF input_backward(input_extents);
+    splitter.create_input_port(input_forward, input_backward);
+
+    splitter.forward();
+    
+    for (int i = 0; i < output_port_count; ++i) {
+      cout << "Output forward: " << i << " " << endl << splitter.get_output_forward(to_string(i)) << endl;
+      set_value(splitter.get_output_backward(to_string(i)), static_cast<float>(i*i));
+      cout << "Output backward (set manually): " << i << " " << endl << splitter.get_output_backward(to_string(i)) << endl;
+    }
+    splitter.back_propagate();
+    cout << "Input backward: " << endl << input_backward << endl;
+
+    cout << "PASSED" << endl;
+  }
+
+  
   void test_ExtractorNode() {
     cout << "test_ExtractorNode()" << endl;
     const int minibatch_size = 2;
@@ -2539,10 +2617,13 @@ void test_SequentialLayer4() {
     test_Node_shared_parameters2();
     test_multi_port_node();
     test_AdderNode();
+    //test_MeanNode();
+    //test_MeanNode2();
     test_ConcatNode();
     test_SubtractorNode();
     test_MultiplyerNode();
     test_SplitterNode();
+    test_SplitterNode2();
     test_ExtractorNode();
     test_rnn_slice();
     test_simple_rnn();

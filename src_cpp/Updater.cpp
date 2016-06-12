@@ -33,31 +33,59 @@
 
 namespace kumozu {
 
-  void Updater::update(MatrixF& W, const MatrixF& grad_W) {
-    if (0 == m_current_mode) {
-      // Constant learning rate
-      update_weights_from_gradient(W, grad_W, m_learning_rate);
-    } else if (1 == m_current_mode) {
-      // Constant learning rate.
-      //update_weights_from_gradient(W, grad_W, m_learning_rate, m_weight_decay);
-    } else if (2 == m_current_mode) {
-      // Rmsprop
-      update_weights_from_gradient_rmsprop_v3(W, grad_W, m_sum_square_grad_W, m_rmsprop_learning_rate, m_rho);
-    } else if (3 == m_current_mode) {
-      // Rmsprop with momentum
-      update_weights_from_gradient_rmsprop_momentum(W, grad_W, m_sum_square_grad_W, m_momentum_W, m_rmsprop_learning_rate, m_rho, m_momentum);
+  void Updater::update() {
+    // Error checking and resizing:
+    if (m_parameters_list.size() != m_gradients_list.size()) {
+      error_exit("update(): Error: Supplied parameter and gradients lists do not have the same size.");
     }
+    const int list_size = m_parameters_list.size();
+    if (static_cast<int>(m_momentum_list.size()) != list_size) {
+      // Resize
+      m_momentum_list.clear();
+      m_sum_square_grad_list.clear();
+      for (int i = 0; i < list_size; ++i) {
+	m_momentum_list.push_back(std::make_unique<MatrixF>(m_parameters_list.at(i).get_extents()));
+	m_sum_square_grad_list.push_back(std::make_unique<MatrixF>(m_parameters_list.at(i).get_extents()));
+      }
+    }
+    for (int n=0; n < list_size; ++n) {
+      MatrixF& W = m_parameters_list.at(n);
+      const MatrixF& grad_W = m_gradients_list.at(n);
+      MatrixF& sum_square_grad_W = *m_sum_square_grad_list.at(n);
+      MatrixF& momentum_W = *m_momentum_list.at(n);
+      if (W.size() != grad_W.size()) {
+	error_exit("update(): Error: Inconsistent matrix dimensions found in list.");
+      }
+      
 
-    // flags:
-    if (m_force_nonnegative) {
-      threshold_lower(W, 0.0f); // force nonnegative.
-    }
-    if (m_enable_weight_decay) {
-      // Enable weight/activation decay.
-      update_weights_from_decay(W, m_weight_decay);
+      if (0 == m_current_mode) {
+        // Constant learning rate
+        update_weights_from_gradient(W, grad_W, m_learning_rate);
+      } else if (1 == m_current_mode) {
+        // Constant learning rate.
+        //update_weights_from_gradient(W, grad_W, m_learning_rate, m_weight_decay);
+      } else if (2 == m_current_mode) {
+        // Rmsprop
+        update_weights_from_gradient_rmsprop_v3(W, grad_W, sum_square_grad_W, m_rmsprop_learning_rate, m_rho);
+      } else if (3 == m_current_mode) {
+        // Rmsprop with momentum
+        update_weights_from_gradient_rmsprop_momentum(W, grad_W, sum_square_grad_W, momentum_W, m_rmsprop_learning_rate, m_rho, m_momentum);
+      }
+
+      // flags:
+      if (m_force_nonnegative) {
+        threshold_lower(W, 0.0f); // force nonnegative.
+      }
+      if (m_enable_weight_decay) {
+        // Enable weight/activation decay.
+        update_weights_from_decay(W, m_weight_decay);
+      }
     }
   }
 
+   
+
+  
   void Updater::set_mode_constant_learning_rate(float learning_rate) {
     m_current_mode = 0;
     m_learning_rate = learning_rate;
@@ -91,6 +119,6 @@ namespace kumozu {
     m_enable_weight_decay = enable_weight_decay;
   }
 
-  
+
 
 }

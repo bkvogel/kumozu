@@ -42,8 +42,8 @@ namespace kumozu {
 
 
 
-  /* fixme:
-   * An instance of this class represents an dropout function that operates on a mini-batch
+  /**
+   * An instance of this class represents a dropout function that operates on a mini-batch
    * of input 3D (i.e., box-shaped) matrices and outputs a corresponding mini-batch of 3D
    * output matrices. Typically, the input corresponds to a mini-batch of activations from the
    * output of a linear convolutional layer.
@@ -66,7 +66,7 @@ namespace kumozu {
 
   public:
 
-    /*
+    /**
      * Create an instance of a dropout function that operates on a mini-batch of
      * data at a time.
      *
@@ -82,10 +82,7 @@ namespace kumozu {
 
         }
 
-
-
-
-      /*
+      /**
        * Compute the dropout function in the reverse direction.
        *
        * The reverse dropout function of the output deltas activations member variable
@@ -95,7 +92,7 @@ namespace kumozu {
        */
       virtual void back_propagate_deltas(MatrixF& input_backward, const MatrixF& input_forward);
 
-      /*
+      /**
        * Set the probability of keeping any given element.
        */
       void set_prob_keep(float prob_keep) {
