@@ -39,4 +39,4 @@ include_directories (${Boost_INCLUDE_DIRS} ${MKL_INCLUDE_DIR})
 target_link_libraries(main kumozu ${Boost_LIBRARIES} ${BLAS_LIBRARIES})
 
 # COMMENT THE FOLLOWING LINE IN PUBLIC VERSION!!!
-target_link_libraries(main_experimental kumozu ${Boost_LIBRARIES} ${BLAS_LIBRARIES}) 
+#target_link_libraries(main_experimental kumozu ${Boost_LIBRARIES} ${BLAS_LIBRARIES}) 
