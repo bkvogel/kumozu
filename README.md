@@ -14,7 +14,9 @@ Kumozu is research software for deep learning and matrix factorization algorithm
 
 * Data visualization using Gnuplot. Activations, layer weights, and various statistics can be plotted and refreshed as frequently as desired during network training.
 
-* Written in a modern C++ style with few dependencies. The code should compile with little modification on most platforms that support C++11. An optimized BLAS implementation is highly recommended, though.
+* Written in a modern C++ style. For example, there are no calls to `delete(raw_ptr)` anywhere in the code. This is because none of the raw pointers used in Kumozu own their memory; that is, their lifetime is allways managed either by automatic variables, or by smart pointers and so there is never a need to explicitly call delete().
+
+* Few dependencies. The code should compile with little modification on most platforms that support C++11. An optimized BLAS implementation is highly recommended, though.
 
 * Uses OpenBLAS sgemm to perform the matrix multiplications and optimized convolutions using the method described [here](http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.137.482&rep=rep1&type=pdf). This method can use a bit more memory than the naive method but is often much faster. This makes it fast enough to experiment with datasets such as MNIST and CIFAR in a reasonable amount of time (if you have a fast CPU).
 
@@ -25,7 +27,7 @@ Kumozu is research software for deep learning and matrix factorization algorithm
 
 #### Limitations
 
-* No GPU support. A design goal is to keep the code base as simple, efficient, and as platform agnostic as possible (ideally only requiring a compiler with C++11 support and a BLAS-optimized sgemm function), which currently seems to be at odds with adding GPU support.
+* No GPU support.. 
 
 * Limited file IO capability. Currently, only a few C++ and Python functions are provided to load/save float-type multi-dimensional arrays to disk. This makes it possible to easily move multi-dimensional array data between Python scripts and the C++ code. No support for csv/text-formated files yet.
 
@@ -45,7 +47,7 @@ make USE_OPENMP=1
 sudo make install
 ```
 
-Python is used only for loading the datasets for some of the examples. Either install a scientific python distribution such as [Anaconda](https://store.continuum.io/cshop/anaconda/) or manually install Python 2.7.x, Scipy, Numpy, Matplotlib, etc.
+Python is used only for loading the datasets for some of the examples. Python 3 is required. Either install a scientific python distribution such as [Anaconda](https://store.continuum.io/cshop/anaconda/) or manually install  Numpy, Matplotlib, etc.
 
 Install Boost (optional, which is a dependency for Gnuplot.
 
@@ -62,18 +64,29 @@ sudo apt-get install gnuplot-x11
 
 #### Instalation
 
-`cd` to `kumozu\src_cpp` folder and open **makefile** in an editor. Edit the library and include paths to point to the locations of OpenBLAS and Boost library and include folders if different than Ubuntu 14.04 defaults.
-
-Open main.cpp and set ```<number of threads>``` in
+Optionally open `main.cpp` and set ```<number of threads>``` in
 
 ```C++
 omp_set_num_threads(<number of threads>);
 ```
-to the desired number of threads, typically the same as the number of cores in your CPU. Build the **main** executable:
+to the desired number of threads, typically the same as the number of cores in your CPU. Build the  **main** executable:
+
+For a debug build which also enables bounds-checking:
 
 ```
+cmake -DCMAKE_BUILD_TYPE=Debug .
 make -j8
 ```
+
+OR
+
+For a release build with compiler optimizations enabled and with debugging checks disabled:
+
+```
+cmake -DCMAKE_BUILD_TYPE=Release .
+make -j8
+```
+
 
 Then run the unit tests to make sure there are no errors:
 
@@ -87,8 +100,7 @@ Then run the matrix multiplication benchmark to make sure the OpenBLAS library g
 ./main matrix_mult_benchmark
 ```
 
-The result should probably be in the 100s of GFLOPS for a recent CPU. On a Core i7 5960X desktop, I get 692 GFLOPS.
-
+The result should probably be in the hundreds of GFLOPS for a recent laptop CPU and possibly over 1 TFLOPS for a high-end desktop or server.
 
 
 #### Running the examples
@@ -358,13 +370,4 @@ When this mode is enabled, a message will also be printed to stdout whenever a M
 
 FreeBSD license.
 
-#### Todo
 
-
-Add more MF/NMF examples (I have written several examples and optimizers that I will consider checking in once the code is cleaned up).
-
-Add deconvolutional layers and examples.
-
-Improve documentation.
-
-Add GPU support at some point if it can be done without violating the "keep it simple and platform agnostic" design principle.

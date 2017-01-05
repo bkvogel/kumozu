@@ -8,16 +8,15 @@ import sys
 sys.path =  ['../../src_python/'] + sys.path
 import arrayUtils
 import os
-import scipy
-import scipy.signal
 from pylab import * # fixme: bad style
 import numpy as np
 #import mnist_utils
 from os.path import join
-import cPickle as pickle
+import pickle
 
 # Uncomment for debugging:
 #from ipsh import *
+
 
 ###############################################################
 # Name of the C++ function to run:
@@ -30,24 +29,40 @@ def load_cifar():
     """
     Load the training and test images and labels.
     
+    Fixme: Colors seem inverted after updating to Python 3.
     """
     cifar_path = 'data'
     # Load training data batches.
     with open(join(cifar_path,'cifar-10-batches-py','data_batch_1'),'rb') as f:
-        train_data_b1 = pickle.load(f)
+        train_data_b1 = pickle.load(f, encoding='latin1')
     with open(join(cifar_path,'cifar-10-batches-py','data_batch_2'),'rb') as f:
-        train_data_b2 = pickle.load(f)
+        train_data_b2 = pickle.load(f, encoding='latin1')
     with open(join(cifar_path,'cifar-10-batches-py','data_batch_3'),'rb') as f:
-        train_data_b3 = pickle.load(f)
+        train_data_b3 = pickle.load(f, encoding='latin1')
     with open(join(cifar_path,'cifar-10-batches-py','data_batch_4'),'rb') as f:
-        train_data_b4 = pickle.load(f)
+        train_data_b4 = pickle.load(f, encoding='latin1')
     with open(join(cifar_path,'cifar-10-batches-py','data_batch_5'),'rb') as f:
-        train_data_b5 = pickle.load(f)
+        train_data_b5 = pickle.load(f, encoding='latin1')
     # Load test data
     with open(join(cifar_path,'cifar-10-batches-py','test_batch'),'rb') as f:
-        test_data = pickle.load(f)
+        test_data = pickle.load(f, encoding='latin1')
+
+    #with open(join(cifar_path,'cifar-10-batches-py','data_batch_1'),'rb') as f:
+    #    train_data_b1 = pickle.load(f)
+    #with open(join(cifar_path,'cifar-10-batches-py','data_batch_2'),'rb') as f:
+    #    train_data_b2 = pickle.load(f)
+    #with open(join(cifar_path,'cifar-10-batches-py','data_batch_3'),'rb') as f:
+    #    train_data_b3 = pickle.load(f)
+    #with open(join(cifar_path,'cifar-10-batches-py','data_batch_4'),'rb') as f:
+    #    train_data_b4 = pickle.load(f)
+    #with open(join(cifar_path,'cifar-10-batches-py','data_batch_5'),'rb') as f:
+    #    train_data_b5 = pickle.load(f)
+    # Load test data
+    #with open(join(cifar_path,'cifar-10-batches-py','test_batch'),'rb') as f:
+    #    test_data = pickle.load(f)
 
 
+        
     labels_b1 = train_data_b1['labels']
     labels_b2 = train_data_b2['labels']
     labels_b3 = train_data_b3['labels']
@@ -154,7 +169,7 @@ def run_cifar():
     Load CIFAR-10 training and test data, save to file, and run the script to learn the model.
 
     """
-    print 'Loading data...'
+    print('Loading data...')
     (train_images_net_format, labels_train, test_images_net_format, labels_test) = load_cifar()
 
     M_ground_truth_train = computeGroundTruth(labels_train)    
@@ -166,9 +181,10 @@ def run_cifar():
     
     arrayUtils.writeArray(labels_test, "array_testing_labels.dat")
     arrayUtils.writeArray(labels_train, "array_training_labels.dat")
-    print "Finished making data."
+    print('Finished making data.')
     #runExe = includePaths.executablePath + ' ' + RUN_CPP_FUNCTION_NAME
     runExe = '../../src_cpp/main ' + RUN_CPP_FUNCTION_NAME
+    #runExe = '../../build-src_cpp-Desktop_Qt_5_7_0_GCC_64bit-Release/main ' + RUN_CPP_FUNCTION_NAME
     print(runExe)
     os.system(runExe)
 
