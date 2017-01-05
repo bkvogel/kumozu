@@ -18,7 +18,7 @@ Kumozu is research software for deep learning and matrix factorization algorithm
 
 * Few dependencies. The code should compile with little modification on most platforms that support C++11. An optimized BLAS implementation is highly recommended, though.
 
-* Uses OpenBLAS sgemm to perform the matrix multiplications and optimized convolutions using the method described [here](http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.137.482&rep=rep1&type=pdf). This method can use a bit more memory than the naive method but is often much faster. This makes it fast enough to experiment with datasets such as MNIST and CIFAR in a reasonable amount of time (if you have a fast CPU).
+* Uses OpenBLAS or Intel MKL sgemm to perform the matrix multiplications and optimized convolutions using the method described [here](http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.137.482&rep=rep1&type=pdf). This method can use a bit more memory than the naive method but is often much faster. This makes it fast enough to experiment with datasets such as MNIST and CIFAR in a reasonable amount of time (if you have a fast CPU).
 
 * Any node/layer in a network (including the whole network) can use the Jacobian checker that is included in the base `Node` class. This makes it easy to verify that a network or newly-created node is computing its gradients correctly.
 
@@ -38,7 +38,7 @@ This software was developed under Ubuntu 16.04.
 
 g++-4.9 or newer is required. Therefore, the default 4.8 version used by Ubuntu 14.04 will not work.
 
-Install OpenBLAS from source and add the library path to `LD_LIBRARY_PATH` environment variable. The makefile assumes the install location is `/opt/OpenBLAS/lib`. It is important to build OpenBLAS from source so that it can optimize itself to your specific CPU. Build with:
+Install Intel MKL (used by default) or OpenBLAS. For OpenBLAS, it is recommended to install from source and add the library path to `LD_LIBRARY_PATH` environment variable. The makefile assumes the install location is `/opt/OpenBLAS/lib`. Build with:
 
 ```
 git clone https://github.com/xianyi/OpenBLAS.git
@@ -94,13 +94,13 @@ Then run the unit tests to make sure there are no errors:
 ./main test
 ```
 
-Then run the matrix multiplication benchmark to make sure the OpenBLAS library gives the expected FLOPS performance.
+Then run the matrix multiplication benchmark to make sure the BLAS library gives the expected FLOPS performance.
 
 ```
 ./main matrix_mult_benchmark
 ```
 
-The result should probably be in the hundreds of GFLOPS for a recent laptop CPU and possibly over 1 TFLOPS for a high-end desktop or server.
+The result should probably be in the hundreds of GFLOPS for a recent laptop CPU and possibly over 1 TFLOPS for a high-end desktop or server CPU.
 
 
 #### Running the examples
