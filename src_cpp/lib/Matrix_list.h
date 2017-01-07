@@ -35,29 +35,30 @@
 #include <string>
 
 namespace kumozu {
-  /*
-   * Represents a single element in a matrix of floats at the
-   * specified row and column.
-   */
-  struct Matrix_element {
+
+/**
+ * Represents a single element in a matrix of floats at the
+ * specified row and column.
+ */
+struct Matrix_element {
     int row;
     int col;
     float val;
-  };
+};
 
-  /*
-   * An instance of this class represents a partially-observed matrix of floats.
-   * The matrix supports fast iteration through its elements in the same order
-   * that they were added.
-   *
-   * This matrix is backed by a vector of elements structs, which is publicly
-   * ascesable.
-   */
-  class Matrix_list {
+/**
+ * An instance of this class represents a sparse matrix of floats.
+ * The matrix supports fast iteration through its elements in the same order
+ * that they were added.
+ *
+ * This matrix is backed by a vector of Matrix_element, which is publicly
+ * ascesable.
+ */
+class Matrix_list {
 
-  public:
+public:
 
-    /*
+    /**
      * Construct a Matrix_list from the supplied dense matrix.
      */
     Matrix_list(const MatrixF& A);
@@ -71,16 +72,14 @@ namespace kumozu {
     int columns;
 
     // List of the observed elements in the matrix.
-    std::vector<Matrix_element> observed_list;
+    std::vector<Matrix_element> element_list;
 
-    //std::string to_string();
-
-  private:
+private:
     Matrix_list() {}
 
-  };
+};
 
-  std::ostream& operator<<(std::ostream& os, const Matrix_list& m);
+std::ostream& operator<<(std::ostream& os, const Matrix_list& m);
 
 }
 #endif

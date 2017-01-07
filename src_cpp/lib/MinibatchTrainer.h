@@ -125,8 +125,8 @@ public:
         std::cout << "Number of examples in set = " << m_example_count << std::endl;
         std::cout << "Using mini-batch size = " << m_minibatch_size << std::endl;
 
-        m_input_mini = narrow(m_input_full, m_example_index_dimension_input, 0, m_minibatch_size);
-        m_output_mini = narrow(m_output_full, m_example_index_dimension_output, 0, m_minibatch_size);
+        m_input_var_mini.data = narrow(m_input_full, m_example_index_dimension_input, 0, m_minibatch_size);
+        m_output_var_mini.data = narrow(m_output_full, m_example_index_dimension_output, 0, m_minibatch_size);
         // Optional: only allow a minibatch size that evenly divides into the number of examples.
         if ((m_example_count % m_minibatch_size) != 0) {
             std::cerr << "Warning: Number of examples divided by mini-batch size must have 0 remainder." << std::endl;
@@ -147,8 +147,16 @@ public:
      *
      * This function should only be called once, before the first call to next().
      */
-    const Matrix<T1>& get_input_batch() const {
-        return m_input_mini;
+    const Matrix<T1>& get_input_batch_mat() const {
+        return m_input_var_mini.data;
+    }
+
+    Variable<T1>& get_input_batch() {
+        return m_input_var_mini;
+    }
+
+    const Variable<T1>& get_input_batch() const {
+        return m_input_var_mini;
     }
 
     /**
@@ -157,8 +165,12 @@ public:
      *
      * This function should only be called once, before the first call to next().
      */
-    const Matrix<T2>& get_output_batch() const {
-        return m_output_mini;
+    const Matrix<T2>& get_output_batch_mat() const {
+        return m_output_var_mini.data;
+    }
+
+    const Variable<T2>& get_output_batch() const {
+        return m_output_var_mini;
     }
 
 
@@ -171,11 +183,11 @@ public:
      */
     bool next() {
         //narrow(m_input_mini, m_input_full, m_example_index_dimension_input, m_minibatch_start_index, m_minibatch_size);
-        narrow_permuted(m_input_mini, m_input_full, m_example_index_dimension_input, m_minibatch_start_index,
+        narrow_permuted(m_input_var_mini.data, m_input_full, m_example_index_dimension_input, m_minibatch_start_index,
                         m_get_size, m_example_indices);
 
         //narrow(m_output_mini, m_output_full, m_example_index_dimension_output, m_minibatch_start_index, m_minibatch_size);
-        narrow_permuted(m_output_mini, m_output_full, m_example_index_dimension_output, m_minibatch_start_index,
+        narrow_permuted(m_output_var_mini.data, m_output_full, m_example_index_dimension_output, m_minibatch_start_index,
                         m_get_size, m_example_indices);
 
         bool end_epoch = false;
@@ -230,8 +242,11 @@ private:
     const Matrix<T2>& m_output_full;
     int m_example_index_dimension_input;
     int m_example_index_dimension_output;
-    Matrix<T1> m_input_mini;
-    Matrix<T2> m_output_mini;
+    //Matrix<T1> m_input_mini;
+    //Matrix<T2> m_output_mini;
+
+    Variable<T1> m_input_var_mini;
+    Variable<T2> m_output_var_mini;
     int m_minibatch_start_index;
     bool m_is_initialized;
     int m_example_count;

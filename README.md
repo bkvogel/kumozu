@@ -4,7 +4,7 @@ Kumozu is research software for deep learning and matrix factorization algorithm
 
 #### Features
 
-* Includes a multi-dimensional matrix class template (`Matrix`), various utility functions in `Utilities.h`, and layer classes such as fully-connected, convolutional, batch normalization, dropout, etc. for constructing deep convolutional and feed-forward networks.
+* Includes a multi-dimensional matrix class template (`Matrix`), various utility functions in `Utilities.h`, and layer classes such as fully-connected, convolutional, batch normalization, dropout, etc. for constructing deep neural networks.
 
 * Support for general computation graphs using the base graph `Node` class. A node can have an arbitrary number of named input and output ports and can itself contain a subgraph of other Node instances, enabling expressive architectures such as recurrent neural networks. Kumozu is different from other frameworks in that it supports descriptive string-valued port names, rather than positional or integer-valued names. This is intended to improve code readability and reduce the chance of user error when making port connections between nodes.
 
@@ -38,7 +38,7 @@ This software was developed under Ubuntu 16.04.
 
 g++-4.9 or newer is required. Therefore, the default 4.8 version used by Ubuntu 14.04 will not work.
 
-Install Intel MKL (used by default) or OpenBLAS. For OpenBLAS, it is recommended to install from source and add the library path to `LD_LIBRARY_PATH` environment variable. The makefile assumes the install location is `/opt/OpenBLAS/lib`. Build with:
+Install Intel MKL (used by default) or OpenBLAS. If using OpenBLAS, it is recommended to install from source and add the library path to `LD_LIBRARY_PATH` environment variable. The makefile assumes the install location is `/opt/OpenBLAS/lib`. Build with:
 
 ```
 git clone https://github.com/xianyi/OpenBLAS.git
@@ -64,14 +64,9 @@ sudo apt-get install gnuplot-x11
 
 #### Instalation
 
-Optionally open `main.cpp` and set ```<number of threads>``` in
+Build the  **main** executable:
 
-```C++
-omp_set_num_threads(<number of threads>);
-```
-to the desired number of threads, typically the same as the number of cores in your CPU. Build the  **main** executable:
-
-For a debug build which also enables bounds-checking:
+For a debug build which also enables bounds-checking. Note: this will be very slow:
 
 ```
 cmake -DCMAKE_BUILD_TYPE=Debug .
@@ -86,7 +81,11 @@ For a release build with compiler optimizations enabled and with debugging check
 cmake -DCMAKE_BUILD_TYPE=Release .
 make -j8
 ```
-
+If using a CPU that supports hypertheading, set the number of OpenMP threads equal to the number of physical cores (not hyperthreaded cores). For example, if using an 8-core CPU with 16 hyperthreaded cores, set the number of OpenMP threads to 8:
+```
+export OMP_NUM_THREADS=8
+export KMP_AFFINITY=scatter
+```
 
 Then run the unit tests to make sure there are no errors:
 
@@ -94,13 +93,13 @@ Then run the unit tests to make sure there are no errors:
 ./main test
 ```
 
-Then run the matrix multiplication benchmark to make sure the BLAS library gives the expected FLOPS performance.
+Then run the matrix multiplication benchmark to make sure the OpenBLAS library gives the expected FLOPS performance.
 
 ```
 ./main matrix_mult_benchmark
 ```
 
-The result should probably be in the hundreds of GFLOPS for a recent laptop CPU and possibly over 1 TFLOPS for a high-end desktop or server CPU.
+The result should probably be in the hundreds of GFLOPS for a recent laptop CPU and possibly over 1 TFLOPS for a high-end desktop or server.
 
 
 #### Running the examples
@@ -300,10 +299,7 @@ and
 The train/test errors so far:
 ![cifar errors](cifar10_errors_plot.png)
 
-The example convnet is able to reach 90.7% test accuracy on CIFAR 10 without any data augmentation. It is based on the VGG-style network from this [Torch example](http://torch.ch/blog/2015/07/30/cifar.html) with similar results. For reference, human performance is supposedly around 94%. Note that because this is a somewhat large network (15 layers + batch normalization + dropout) and Kumozu does not use GPU, it runs a few times slower than GPU-optimized software such as Torch. On a fast CPU, it can take 24 hours or more to train the network.
-
-You can experiment with changing which C++ function is called from the Python script, which is controlled by the variable `RUN_CPP_FUNCTION_NAME` in `cifar10_example_1_run.py`. It is also interesting to try different model parameters and enable/disable various network layers, try different activations functions and SGD update methods etc. For example, I find it interesting that some networks can still learn even if fixed random weights are used for the back-propagation.
-
+The example convnet is able to reach 90.7% test accuracy on CIFAR 10 without any data augmentation. It is based on the VGG-style network from this [Torch example](http://torch.ch/blog/2015/07/30/cifar.html) with similar results. For reference, human performance is supposedly around 94%. Note that because this is a somewhat large network (15 layers + batch normalization + dropout) and Kumozu does not use GPU, it runs a few times slower than GPU-optimized software such as Torch.
 
 ##### MNIST Example
 
@@ -355,6 +351,21 @@ cd kumozu/src_cpp
 
 After a while, the error on the probe dataset should reach a minimum RMSE of around 0.91.
 
+##### Matrix factorization example 2: Audio spectrogram modeling
+
+This example models a magnitude spectrogram of an audio file using NMF. Each time slice (that is, magnitude spectrum) is modeled as an additive combination of nonnegative templates. For many audio and musical signals, such a nonnegative factor model can be a reasonable model.
+
+Run the example:
+
+```
+cd kumozu/examples/nmf
+```
+
+Open `nmf_example.py` and edit `IN_AUDIO_FILE` to specify the location of a mono wav file. If the sample rate is different than 16 kHz, it may be necessary to modify other hyperparameters in the script. Then run the script:	
+
+```
+python nmf_example.py
+```
 
 
 #### Documentation

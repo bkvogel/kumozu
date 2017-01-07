@@ -41,7 +41,7 @@ namespace kumozu {
         element.row = r;
         element.col = c;
         element.val = A(r, c);
-        observed_list.push_back(element);
+        element_list.push_back(element);
       }
     }
   }
@@ -55,9 +55,9 @@ namespace kumozu {
   std::ostream& operator<<(std::ostream& os, const Matrix_list& m) {
     os << "Row dimension = " << m.rows << endl;
     os << "Column dimension = " << m.columns << endl;
-    os << "Size = " << m.observed_list.size() << endl;
+    os << "Size = " << m.element_list.size() << endl;
     os << "Elements:" << endl;
-    for (vector<Matrix_element>::const_iterator iter = m.observed_list.begin(); iter != m.observed_list.end(); ++iter) {
+    for (vector<Matrix_element>::const_iterator iter = m.element_list.begin(); iter != m.element_list.end(); ++iter) {
       os << "-----------------------------------" << endl;
       os << "row = " << iter->row << endl;
       os << "col = " << iter->col << endl;

@@ -94,20 +94,20 @@ public:
         m_is_terminal_mode {is_terminal_node}
     {
         // Create the 1 output port.
-        create_output_port(m_output_forward, m_output_backward, DEFAULT_OUTPUT_PORT_NAME);
+        create_output_port(m_output_var, DEFAULT_OUTPUT_PORT_NAME);
     }
 
     /**
      * Set output forward activations to the mean over all input forward activations.
      */
     virtual void forward_propagate() override {
-        set_value(m_output_forward, 0.0f);
+        set_value(m_output_var.data, 0.0f);
         for_each_input_port_data([&] (const MatrixF& mat) {
-            element_wise_sum(m_output_forward, m_output_forward, mat);
+            element_wise_sum(m_output_var.data, m_output_var.data, mat);
         });
         // Scale sum by 1/<input port count>
         const float scale_factor = 1.0f/static_cast<float>(get_input_port_count());
-        scale(m_output_forward, m_output_forward, scale_factor);
+        scale(m_output_var.data, m_output_var.data, scale_factor);
     }
 
     /**
@@ -167,8 +167,7 @@ public:
             //std::cout << "in_mat:" << std::endl << mat << std::endl;
             if (m_input_extents.size() == 0) {
                 m_input_extents = mat.get_extents();
-                m_output_forward.resize(m_input_extents);
-                m_output_backward.resize(m_input_extents);
+                m_output_var.resize(m_input_extents);
             } else {
                 if (m_input_extents != mat.get_extents()) {
                     error_exit(get_name() + ": Error: Not all input matrices have the same extents.");
@@ -180,8 +179,9 @@ public:
 private:
 
     std::vector<int> m_input_extents; // Extents of each input port matrix.
-    MatrixF m_output_forward; // associated with the default output port
-    MatrixF m_output_backward; // associated with the default output port
+    //MatrixF m_output_forward; // associated with the default output port
+    //MatrixF m_output_backward; // associated with the default output port
+    VariableF m_output_var; // associated with the default output port
     bool m_pfn_mode;
     bool m_is_terminal_mode;
 };

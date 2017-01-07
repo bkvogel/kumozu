@@ -64,9 +64,9 @@ namespace kumozu {
 #pragma omp parallel for
       for (int i = 0; i < m_train_rating_count; ++i) {
 
-        int row = m_ratings_mat_train.observed_list[i].row; // item id
-        int col = m_ratings_mat_train.observed_list[i].col; // user id
-        float val_X = m_ratings_mat_train.observed_list[i].val; // rating
+        int row = m_ratings_mat_train.element_list[i].row; // item id
+        int col = m_ratings_mat_train.element_list[i].col; // user id
+        float val_X = m_ratings_mat_train.element_list[i].val; // rating
 
         // Compute estimate for val_X and the approximation error.
         float approx_val_X = 0;
@@ -100,9 +100,9 @@ namespace kumozu {
 #pragma omp parallel for
       for (int i = 0; i < m_test_rating_count; ++i) {
 
-        int row = m_ratings_mat_test.observed_list[i].row; // item id
-        int col = m_ratings_mat_test.observed_list[i].col; // user id
-        float val_X = m_ratings_mat_test.observed_list[i].val; // rating
+        int row = m_ratings_mat_test.element_list[i].row; // item id
+        int col = m_ratings_mat_test.element_list[i].col; // user id
+        float val_X = m_ratings_mat_test.element_list[i].val; // rating
 
         float approx_val_X = 0;
         for (int cur_feature = 0; cur_feature < feature_count; ++cur_feature) {
@@ -227,10 +227,10 @@ namespace kumozu {
             element.val = rating_float; // value is the rating.
 
             if (m_probe_hashes.find(item_id_str + ":" + user_id_str) == m_probe_hashes.end()) {
-              m_ratings_mat_train.observed_list.push_back(element);
+              m_ratings_mat_train.element_list.push_back(element);
               m_train_rating_count++;
             } else {
-              m_ratings_mat_test.observed_list.push_back(element);
+              m_ratings_mat_test.element_list.push_back(element);
               m_test_rating_count++;
             }
           }

@@ -290,7 +290,7 @@ public:
      * Since the graph structure is changed when a port is added,
      * calling this function will cause this node to become uninitialied so that
      * is_initialized() will then return false if called.
-     *
+     * fixme:
      * @param data An input activations matrix to connect to a new input port. This is a read-only matrix
      * that contains the activations for the forward pass.
      *
@@ -299,7 +299,9 @@ public:
      * @param input_name The name of a new input to this node that will be created by this function and connected to
      * the supplied matrices.
      */
-    void create_input_port(const MatrixF &data, MatrixF &grad, std::string input_name);
+    //todo: pass Variable instead of 2 matrices.
+    //void create_input_port(const MatrixF &data, MatrixF &grad, std::string input_name);
+    void create_input_port(VariableF& var, std::string input_name);
 
     /**
      * Create a new input port for this node that is associated with the supplied matrices.
@@ -321,7 +323,9 @@ public:
      * @param grad An input gradients matrix to connect to a new input port. This matrix will
      * be written to during the backward pass.
      */
-    void create_input_port(const MatrixF &data, MatrixF &grad);
+    //todo: pass Variable instead of 2 matrices.
+    //void create_input_port(const MatrixF &data, MatrixF &grad);
+    void create_input_port(VariableF& var);
 
     /**
      * Connect an output port of a parent node to an input port of this node, creating the input port in the process.
@@ -409,7 +413,7 @@ public:
      * @return the number of input ports.
      */
     int get_input_port_count() const {
-        return static_cast<int>(m_input_port_data_map.size());
+        return static_cast<int>(m_input_port_var_map.size());
     }
 
     /**
@@ -429,16 +433,15 @@ public:
     void delete_all_input_ports();
 
     /**
-     * Create an output port for this Node that is associated with the two supplied matrices.
+     * Create an output port for this Node that is associated with the supplied variable.
      *
-     * @param data The output activations (read-only) for the output port.
-     * @param grad The output error gradients (writable) for the output port.
+     * @param var The output activations for the output port.
      * @param output_name The name for the output port.
      */
-    void create_output_port(const MatrixF &data, MatrixF &grad, std::string output_name);
+    void create_output_port(VariableF& var, std::string output_name);
 
     /**
-     * Create a new output port for this node that is connected to the output port of a contained node.
+     * Create an output port for this node that is connected to the output port of a contained node.
      *
      * @param contained A node that is contained inside this node.
      * @param contained_output The name of an output port of node "contianed."
@@ -493,7 +496,7 @@ public:
      * @return the number of output ports.
      */
     int get_output_port_count() const {
-        return static_cast<int>(m_output_port_data_map.size());
+        return static_cast<int>(m_output_port_var_map.size());
     }
 
     /**
@@ -501,20 +504,61 @@ public:
      *
      * @param name The name of the output port.
      *
-     * @return A reference to the associated output activations.
+     * @return A reference to the associated output activations (data and
+     * gradients).
+     */
+    VariableF& get_output(std::string name);
+
+    /**
+     * Return the output activations associated with the specified output port.
+     *
+     * @param name The name of the output port.
+     *
+     * @return A reference to the associated output activations (data and
+     * gradients).
+     */
+    const VariableF& get_output(std::string name) const;
+
+    /**
+     * Return the output activations associated with the specified output port.
+     *
+     * @param name The name of the output port.
+     *
+     * @return A reference to the output activations (data part only).
      */
     const MatrixF &get_output_data(std::string name) const;
 
     /**
      * Return the output activations associated with the output port.
      *
-     * For a Node that has exactly 1 output port, this function may be
-     * used to obtain a reference to the output activations without
-     * needed to specify the port name.
+     * This function can be called if the node has exactly 1 output
+     * port.
      *
-     * @return A reference to the associated output activations.
+     * @param name The name of the output port.
+     *
+     * @return A reference to the output activations (data part only).
      */
     const MatrixF &get_output_data() const;
+
+    /**
+     * Return the output activations associated with the output port.
+     *
+     * This function can be called if the node has exactly 1 output
+     * port.
+     *
+     * @return A reference to the output activations (data part only).
+     */
+    VariableF& get_output();
+
+    /**
+     * Return the output activations associated with the output port.
+     *
+     * This function can be called if the node has exactly 1 output
+     * port.
+     *
+     * @return A reference to the output activations (data part only).
+     */
+    const VariableF& get_output() const;
 
     /**
      * Delete the output port of this Node with the supplied name.
@@ -640,8 +684,6 @@ public:
      */
     virtual std::map<std::string, std::shared_ptr<VariableF>> get_params_map() = 0;
 
-
-
     /**
      * Return a reference to the n'th Node contained by this node.
      */
@@ -714,15 +756,19 @@ public:
      * Check that the Jacobian computed using the finite differences method agrees with
      * the Jacobian computed using the gradient back-propagation member functions.
      *
+     * This function checks only the parameters.
+     *
      * @param input_port_extents_map A map from input port name to dimensions (extents) of the matrices
      * associated with that input port.
      */
-    void check_jacobian_weights(std::map<std::string, std::vector<int>> input_port_extents_map);
+    void check_jacobian_parameters(std::map<std::string, std::vector<int>> input_port_extents_map);
 
 
     /**
      * Check that the Jacobian computed using the finite differences method agrees with
      * the Jacobian computed using the gradient back-propagation member functions.
+     *
+     * This function checks only the input gradients.
      *
      * @param input_port_extents_map A map from input port name to dimensions (extents) of the matrices
      * associated with that input port.
@@ -738,7 +784,7 @@ public:
      *
      * @param input_extents The extents (dimensions) for the input port.
      */
-    void check_jacobian_weights(std::vector<int> input_extents);
+    void check_jacobian_parameters(std::vector<int> input_extents);
 
     /**
      * Check that the Jacobian computed using the finite differences method agrees with
@@ -785,8 +831,8 @@ public:
      */
     template<typename Func>
     void for_each_input_port_data(Func f) {
-        for (const auto &x : m_input_port_data_map) {
-            const MatrixF &cur_mat = x.second.get();
+        for (const auto &x : m_input_port_var_map) {
+            const MatrixF &cur_mat = x.second.get().data;
             f(cur_mat);
         }
     }
@@ -802,8 +848,8 @@ public:
      */
     template<typename Func>
     void for_each_input_port_grad(Func f) {
-        for (const auto &x : m_input_port_grad_map) {
-            MatrixF &cur_mat = x.second.get();
+        for (const auto &x : m_input_port_var_map) {
+            MatrixF &cur_mat = x.second.get().grad;
             f(cur_mat);
         }
     }
@@ -817,9 +863,10 @@ public:
     // todo: make this use Variable instead of 2 matrices.
     template<typename Func>
     void for_each_input_port(Func f) {
-        for (const auto &x : m_input_port_grad_map) {
-            const MatrixF &data_mat = m_input_port_data_map.at(x.first).get();
-            MatrixF &grad_mat = x.second.get();
+        for (const auto &x : m_input_port_var_map) {
+            //const MatrixF &data_mat = m_input_port_data_map.at(x.first).get();
+            const MatrixF &data_mat = x.second.get().data;
+            MatrixF &grad_mat = x.second.get().grad;
             f(data_mat, grad_mat);
         }
     }
@@ -843,6 +890,10 @@ public:
      * @return A reference to the associated input gradients.
      */
     MatrixF &get_input_port_grad(std::string name);
+
+    VariableF& get_input_port(std::string name);
+
+    const VariableF& get_input_port(std::string name) const;
 
     /**
      * Return the input gradients associated with the input port of this node.
@@ -870,6 +921,28 @@ public:
      */
     const MatrixF &get_input_port_grad() const;
 
+    /**
+     * Return the input activations associated with the input port of this node.
+     *
+     * Provided that this Node has exactly 1 input port, this function will return
+     * the input activations without needing to specify a port name. However, if
+     * this Node does not have exactly 1 input port, exit with an error.
+     *
+     * @return A reference to the associated input activations (data and gradients).
+     */
+    VariableF& get_input_port();
+
+    /**
+     * Return the input activations associated with the input port of this node.
+     *
+     * Provided that this Node has exactly 1 input port, this function will return
+     * the input activations without needing to specify a port name. However, if
+     * this Node does not have exactly 1 input port, exit with an error.
+     *
+     * @return A reference to the associated input activations (data and gradients).
+     */
+    const VariableF& get_input_port() const;
+
 
     /**
      * Recursively initialize this node and all deeply-contained nodes.
@@ -885,9 +958,7 @@ public:
      * contained nodes.
      *
      */
-    virtual void deep_initialize() = 0;
-
-
+    virtual void initialize() = 0;
 
     /**
      * Set the initialization state of this Node.
@@ -902,7 +973,8 @@ protected:
 
     bool m_is_train;
     bool m_is_shared;
-    std::map<std::string, std::reference_wrapper<MatrixF>> m_input_port_grad_map;
+    //std::map<std::string, std::reference_wrapper<MatrixF>> m_input_port_grad_map;
+    std::map<std::string, std::reference_wrapper<VariableF>> m_input_port_var_map;
 
 private:
 
@@ -916,7 +988,7 @@ private:
     void copy_flat_output_backward_to_individual(const MatrixF &flat_output_backward);
 
     /*
-     * Copy the elements of the individual "output forward" matrices into the supplied
+     * Copy the elements of the individual "output data" matrices into the supplied
      * float output forward matrix.
      *
      * If the size of the supplied matrix is not equal to the total number of elements to be
@@ -924,10 +996,78 @@ private:
      */
     void copy_individual_to_flat_output_forward(MatrixF &flat_output_forward);
 
+    /*
+     * Copy the elements from a flat Variable into a list of Variables.
+     *
+     * The size of "flat_mat" must be equal to the total number of elements in the variable list. Otherwise,
+     * this function will exit with an error.
+     *
+     * @param mat_list The list of variables that will be copied to.
+     * @param flat_mat The variable that will be copied from.
+     */
+    template <typename T>
+    void copy_flat_variable_to_list(std::vector<Variable<T>>& mat_list, const Variable<T>& flat_mat) {
+        // Do an initial pass through all matrices to determine the total number of elements.
+        int total_size = 0;
+        for (size_t i = 0; i < mat_list.size(); i++) {
+            Variable<T>& temp = mat_list[i];
+            total_size += temp.size();
+        }
+        // If the element count is different than size of the current flat_mat, then exit with error.
+        if (total_size != flat_mat.size()) {
+            error_exit("copy_flat_matrix_to_list(): Supplied matrix list has different element count than supplied flat matrix.");
+        }
+        int cur_pos = 0;
+        for (size_t i = 0; i < mat_list.size(); i++) {
+            Variable<T>& temp = mat_list[i];
+            for (int backing_index = 0; backing_index < temp.size(); ++backing_index) {
+                //temp[backing_index] = flat_mat[cur_pos + backing_index];
+                temp.data[backing_index] = flat_mat.data[cur_pos + backing_index];
+                temp.grad[backing_index] = flat_mat.grad[cur_pos + backing_index];
+            }
+            cur_pos += temp.size();
+        }
+    }
+
+    /*
+     * Copy the elements from a list of Matrix into a single flat Matrix.
+     *
+     * Since it can be inconvinient to determine to determine the total number of elements in the matrix
+     * list before calling this function, it is not necessary to supply a "flat_mat" of the correct size.
+     * The supplied "flat_mat" will be resized to match the total number of elements.
+     *
+     * @param mat_list The list of matrices that will be copied from.
+     * @param flat_mat The matrix that will be copied into. This matrix will be resized to the same total
+     * number of elements in the matrix list if necessary.
+     */
+    template <typename T>
+    void copy_list_to_flat_variable(const std::vector<Variable<T>>& mat_list, Variable<T>& flat_mat) {
+        // Do an initial pass through all matrices to determine the total number of elements.
+        int total_size = 0;
+        for (size_t i = 0; i < mat_list.size(); i++) {
+            const Variable<T>& temp = mat_list[i];
+            total_size += temp.size();
+        }
+        // If the element count is different the size of the current flat_mat, then reinitialize.
+        if (total_size != flat_mat.size()) {
+            // Create 1-dim matrix of size total_size.
+            std::cout << "Resizing flat_mat to size = " << total_size << std::endl;
+            flat_mat.resize(total_size);
+        }
+        int cur_pos = 0;
+        for (size_t i = 0; i < mat_list.size(); i++) {
+            const Variable<T>& temp = mat_list[i];
+            for (int backing_index = 0; backing_index < temp.size(); ++backing_index) {
+                //flat_mat[cur_pos + backing_index] = temp[backing_index];
+                flat_mat.data[cur_pos + backing_index] = temp.data[backing_index];
+                flat_mat.grad[cur_pos + backing_index] = temp.grad[backing_index];
+            }
+            cur_pos += temp.size();
+        }
+    }
+
     bool m_is_initialized;
     // Input port dictionaries.
-    // Maps from string name to Matrix reference.
-    std::map<std::string, std::reference_wrapper<const MatrixF>> m_input_port_data_map;
 
     // Store the most recent extents for each input port.
     std::map<std::string, std::vector<int>> m_input_port_extents_map;
@@ -936,8 +1076,7 @@ private:
     std::map<std::string, int> m_input_port_fan_out_map;
 
     // Output port dictionaries.
-    std::map<std::string, std::reference_wrapper<const MatrixF>> m_output_port_data_map;
-    std::map<std::string, std::reference_wrapper<MatrixF>> m_output_port_grad_map;
+    std::map<std::string, std::reference_wrapper<VariableF>> m_output_port_var_map;
     // Store the number of outgoing connections for each output port. This number shoud be 1 for each port. Otherwise,
     // there is a connection error.
     std::map<std::string, int> m_output_port_fan_out_map;

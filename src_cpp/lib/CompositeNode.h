@@ -108,11 +108,11 @@ public:
      * contained nodes.
      *
      */
-    virtual void deep_initialize() override {
+    virtual void initialize() override {
         // Re-connect input ports to internal nodes, if any.
         make_internal_input_port_connections();
         for (int i = 0; i < get_contained_node_count(); ++i) {
-            get_node(i).deep_initialize();
+            get_node(i).initialize();
         }
         set_initialized(true);
     }

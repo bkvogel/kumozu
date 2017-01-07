@@ -92,7 +92,8 @@ public:
             std::cout << get_name() << std::endl;
         }
         // Create the output port with default name.
-        create_output_port(m_output_forward, m_output_backward, DEFAULT_OUTPUT_PORT_NAME);
+        //create_output_port(m_output_forward, m_output_backward, DEFAULT_OUTPUT_PORT_NAME);
+        create_output_port(m_output_var, DEFAULT_OUTPUT_PORT_NAME);
     }
 
     /**
@@ -150,8 +151,9 @@ private:
     MatrixF m_temp_input_error;
     MatrixF m_empty_target;
     std::reference_wrapper<const MatrixF> m_target_activations;
-    MatrixF m_output_forward; // associated with the default output port
-    MatrixF m_output_backward; // associated with the default output port (and ignored but required)
+    //MatrixF m_output_forward; // associated with the default output port
+    //MatrixF m_output_backward; // associated with the default output port (and ignored but required)
+    VariableF m_output_var; // associated with the default output port
     bool m_has_target_activations;
 };
 

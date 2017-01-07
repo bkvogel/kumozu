@@ -348,9 +348,9 @@ int sample_multinomial_distribution(const MatrixF& pdf) {
     return dist(mersenne_twister_engine);
 }
 
-int error_count(const MatrixF& network_output, const MatrixI target_labels) {
-    const int num_classes = network_output.extent(0);
-    const int test_data_count = network_output.extent(1);
+int error_count(const MatrixF& predictions, const MatrixI target_labels) {
+    const int num_classes = predictions.extent(0);
+    const int test_data_count = predictions.extent(1);
     if (test_data_count != target_labels.extent(0)) {
         error_exit("error_count(): Inconsistent dimensions. Exiting.");
     }
@@ -358,10 +358,10 @@ int error_count(const MatrixF& network_output, const MatrixI target_labels) {
     for (int c = 0; c < test_data_count; ++c) {
         // Get max value for each column of network_output.
         int max_row = 0;
-        float max_val = network_output(0, c);
+        float max_val = predictions(0, c);
         for (int r = 1; r < num_classes; ++r) {
-            if (network_output(r, c) > max_val) {
-                max_val = network_output(r, c);
+            if (predictions(r, c) > max_val) {
+                max_val = predictions(r, c);
                 max_row = r;
             }
         }
@@ -1347,7 +1347,7 @@ void compute_weight_grad_sgd_minibatch(const MatrixF& X_error, MatrixF& W_grad, 
 }
 
 
-void update_weights_from_gradient(MatrixF& W, const MatrixF& W_grad, float alpha) {
+void update_parameters_sgd(MatrixF& W, const MatrixF& W_grad, float alpha) {
     check_dimensions(W, W_grad);
 #pragma omp parallel for
     for (int backing_index = 0; backing_index < W.size(); ++backing_index) {
@@ -1355,14 +1355,14 @@ void update_weights_from_gradient(MatrixF& W, const MatrixF& W_grad, float alpha
     }
 }
 
-void update_weights_from_decay(MatrixF& W, float decay_val) {
+void update_parameters_from_decay(MatrixF& W, float decay_val) {
 #pragma omp parallel for
     for (int backing_index = 0; backing_index < W.size(); ++backing_index) {
         W[backing_index] = W[backing_index] - decay_val*W[backing_index];
     }
 }
 
-void update_weights_from_gradient(MatrixF& W, const MatrixF& W_grad, float alpha, float lambda) {
+void update_parameters_sgd(MatrixF& W, const MatrixF& W_grad, float alpha, float lambda) {
     check_dimensions(W, W_grad);
 #pragma omp parallel for
     for (int backing_index = 0; backing_index < W.size(); ++backing_index) {
@@ -1371,7 +1371,7 @@ void update_weights_from_gradient(MatrixF& W, const MatrixF& W_grad, float alpha
 }
 
 
-void update_weights_from_gradient(MatrixF& W, const MatrixF& W_grad, float alpha, float lambda,
+void update_parameters_sgd(MatrixF& W, const MatrixF& W_grad, float alpha, float lambda,
                                   float sparsity_param, bool force_nonnegative) {
     check_dimensions(W, W_grad);
 
@@ -1407,11 +1407,13 @@ void update_weights_from_gradient(MatrixF& W, const MatrixF& W_grad, float alpha
 }
 
 
-// regular Rmsprop
-void update_weights_from_gradient_rmsprop_v3(MatrixF& W, const MatrixF& W_grad, MatrixF& W_grad_mean_square,
+void update_parameters_rmsprop(MatrixF& W, const MatrixF& W_grad, MatrixF& W_grad_mean_square,
                                              float alpha, float rho, float epsilon) {
     check_dimensions(W, W_grad);
-    check_dimensions(W, W_grad_mean_square);
+    // Resize the other matrices if necessary.
+    if (W.get_extents() != W_grad_mean_square.get_extents()) {
+        W_grad_mean_square.resize(W.get_extents());
+    }
 #pragma omp parallel for
     for (int i = 0; i < W.size(); ++i) {
         // Update sum of squares of gradients.
@@ -1428,11 +1430,17 @@ void update_weights_from_gradient_rmsprop_v3(MatrixF& W, const MatrixF& W_grad, 
 }
 
 
-void update_weights_from_gradient_rmsprop_momentum(MatrixF& W, const MatrixF& W_grad, MatrixF& W_grad_mean_square,
+void update_parameters_rmsprop_momentum(MatrixF& W, const MatrixF& W_grad, MatrixF& W_grad_mean_square,
                                                    MatrixF W_momentum, float alpha, float rho, float momentum,
                                                    float epsilon) {
     check_dimensions(W, W_grad);
-    check_dimensions(W, W_grad_mean_square);
+    // Resize the other matrices if necessary.
+    if (W.get_extents() != W_grad_mean_square.get_extents()) {
+        W_grad_mean_square.resize(W.get_extents());
+    }
+    if (W.get_extents() != W_momentum.get_extents()) {
+        W_momentum.resize(W.get_extents());
+    }
 #pragma omp parallel for
     for (int i = 0; i < W.size(); ++i) {
         // Update sum of squares of gradients.
@@ -1452,10 +1460,12 @@ void update_weights_from_gradient_rmsprop_momentum(MatrixF& W, const MatrixF& W_
     }
 }
 
-void update_weights_from_gradient_adagrad(MatrixF& W, const MatrixF& W_grad, MatrixF& W_grad_sum_square,
+void update_parameters_adagrad(MatrixF& W, const MatrixF& W_grad, MatrixF& W_grad_sum_square,
                                           float alpha) {
     check_dimensions(W, W_grad);
-    check_dimensions(W, W_grad_sum_square);
+    if (W.get_extents() != W_grad_sum_square.get_extents()) {
+        W_grad_sum_square.resize(W.get_extents());
+    }
     for (int i = 0; i < W.size(); ++i) {
         // Update sum of squares of gradients.
         W_grad_sum_square[i] += W_grad[i]*W_grad[i];

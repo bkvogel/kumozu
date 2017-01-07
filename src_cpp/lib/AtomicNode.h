@@ -102,7 +102,7 @@ public:
         }
     }
 
-    virtual void deep_initialize() override {
+    virtual void initialize() override {
         reinitialize();
         set_initialized(true);
     }
@@ -215,8 +215,8 @@ public:
     }
 
     virtual void zero_input_grad() override {
-        for (const auto& x : m_input_port_grad_map) {
-            auto& cur_input_backward = x.second.get();
+        for (const auto& x : m_input_port_var_map) {
+            auto& cur_input_backward = x.second.get().grad;
             set_value(cur_input_backward, 0.0f);
         }
     }

@@ -49,36 +49,35 @@ namespace kumozu {
     m_depth = input_extents.at(1);
     m_height = input_extents.at(2);
     m_width = input_extents.at(3);
-    m_output_data.resize(m_minibatch_size, m_depth, m_height, m_width);
-    m_output_grad.resize(m_minibatch_size, m_depth, m_height, m_width);
+    m_output_var.resize(m_minibatch_size, m_depth, m_height, m_width);
     m_state.resize(m_minibatch_size, m_depth, m_height, m_width);
   }
 
   void ImageActivationFunction::forward_propagate(const MatrixF& input_activations) {
     if (m_activation_type == ACTIVATION_TYPE::ReLU) {
-      compute_forward_relu(input_activations, m_output_data, m_state);
+      compute_forward_relu(input_activations, m_output_var.data, m_state);
     } else if (m_activation_type == ACTIVATION_TYPE::ReLU_decay_unused) {
-      compute_forward_relu(input_activations, m_output_data, m_state);
+      compute_forward_relu(input_activations, m_output_var.data, m_state);
     } else if (m_activation_type == ACTIVATION_TYPE::leakyReLU) {
-      compute_forward_leaky_relu(input_activations, m_output_data, m_state);
+      compute_forward_leaky_relu(input_activations, m_output_var.data, m_state);
     } else if (m_activation_type == ACTIVATION_TYPE::linear) {
-      compute_forward_identity_activation(input_activations, m_output_data, m_state);
+      compute_forward_identity_activation(input_activations, m_output_var.data, m_state);
     } else if (m_activation_type == ACTIVATION_TYPE::kmax) {
-      forward_3d_kmax(input_activations, m_output_data, m_state, m_box_depth, m_box_height, m_box_width, m_k);
+      forward_3d_kmax(input_activations, m_output_var.data, m_state, m_box_depth, m_box_height, m_box_width, m_k);
     } else if (m_activation_type == ACTIVATION_TYPE::kmax_decay_unused) {
-      forward_3d_kmax(input_activations, m_output_data, m_state, m_box_depth, m_box_height, m_box_width, m_k);
+      forward_3d_kmax(input_activations, m_output_var.data, m_state, m_box_depth, m_box_height, m_box_width, m_k);
     }
   }
 
   void ImageActivationFunction::back_propagate_activation_gradients(MatrixF& input_backward, const MatrixF& input_forward) {
     if (m_activation_type == ACTIVATION_TYPE::ReLU) {
-      compute_reverse_relu(input_backward, m_output_grad, m_state);
+      compute_reverse_relu(input_backward, m_output_var.grad, m_state);
     } else if (m_activation_type == ACTIVATION_TYPE::leakyReLU) {
-      compute_reverse_leaky_relu(input_backward, m_output_grad, m_state);
+      compute_reverse_leaky_relu(input_backward, m_output_var.grad, m_state);
     } else if (m_activation_type == ACTIVATION_TYPE::linear) {
-      compute_reverse_identity_activation(input_backward, m_output_grad, m_state);
+      compute_reverse_identity_activation(input_backward, m_output_var.grad, m_state);
     } else if (m_activation_type == ACTIVATION_TYPE::kmax) {
-      reverse_3d_kmax(input_backward, m_output_grad, m_state);
+      reverse_3d_kmax(input_backward, m_output_var.grad, m_state);
     }
   }
 

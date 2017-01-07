@@ -43,8 +43,8 @@ void BatchNormalization3D::reinitialize(std::vector<int> input_extents) {
     m_image_depth = input_extents.at(1);
     m_image_height = input_extents.at(2);
     m_image_width = input_extents.at(3);
-    m_output_data.resize(input_extents);
-    m_output_grad.resize(input_extents);
+    m_output_var.resize(input_extents);
+    //m_output_grad.resize(input_extents);
     m_input_sized_normalize_offset.resize(input_extents);
     m_input_sized_normalize_scale.resize(input_extents);
     m_temp_size_input.resize(input_extents);
@@ -228,7 +228,7 @@ void BatchNormalization3D::forward_propagate(const MatrixF& input_activations) {
     m_x_hat = m_centered_input;
     element_wise_multiply(m_x_hat, m_x_hat, m_input_sized_normalize_scale);
     //copy_matrix(m_output_forward, m_x_hat);
-    m_output_data = m_x_hat;
+    m_output_var.data = m_x_hat;
     if (m_enable_gamma_beta) {
         // Perform the "scale and shift" using learned gamma and beta parameters.
 
@@ -248,7 +248,7 @@ void BatchNormalization3D::forward_propagate(const MatrixF& input_activations) {
         }
         //assertion(m_var_running_avg(0) != 1, "oopsy3");
         // Perform scale: Note: W is gamma in the paper.
-        element_wise_multiply(m_output_data, m_output_data, m_W_expanded);
+        element_wise_multiply(m_output_var.data, m_output_var.data, m_W_expanded);
 
         // Expand bias to same size as input mini-batch:
         //const MatrixF& bias = get_bias();
@@ -265,7 +265,7 @@ void BatchNormalization3D::forward_propagate(const MatrixF& input_activations) {
         }
 
         // Perform shift: Note: m_bias is beta in the paper.
-        element_wise_sum(m_output_data, m_output_data, m_bias_expanded);
+        element_wise_sum(m_output_var.data, m_output_var.data, m_bias_expanded);
     }
 
     m_is_first_batch = false;
@@ -277,6 +277,7 @@ void BatchNormalization3D::back_propagate_paramater_gradients(const MatrixF& inp
 
     if (m_enable_gamma_beta) {
         auto& W = get_param("W");
+        auto& output_grad = m_output_var.grad;
         // Update gamma:
 #pragma omp parallel for
         for (int i = 0; i < m_image_depth; ++i) {
@@ -284,7 +285,7 @@ void BatchNormalization3D::back_propagate_paramater_gradients(const MatrixF& inp
             for (int j = 0; j < m_minibatch_size; ++j) {
                 for (int k = 0; k < m_image_height; ++k) {
                     for (int l = 0; l < m_image_width; ++l) {
-                        sum += m_output_grad(j,i,k,l)*m_x_hat(j,i,k,l);
+                        sum += output_grad(j,i,k,l)*m_x_hat(j,i,k,l);
                     }
                 }
             }
@@ -300,7 +301,7 @@ void BatchNormalization3D::back_propagate_paramater_gradients(const MatrixF& inp
             for (int j = 0; j < m_minibatch_size; ++j) {
                 for (int k = 0; k < m_image_height; ++k) {
                     for (int l = 0; l < m_image_width; ++l) {
-                        sum += m_output_grad(j,i,k,l);
+                        sum += output_grad(j,i,k,l);
                     }
                 }
             }
@@ -326,10 +327,10 @@ void BatchNormalization3D::back_propagate_activation_gradients(MatrixF& input_ba
                 }
             }
         }
-        element_wise_multiply(m_xhat_deltas, m_output_grad, m_W_expanded);
+        element_wise_multiply(m_xhat_deltas, m_output_var.grad, m_W_expanded);
     } else {
         //copy_matrix(m_xhat_deltas, m_output_backward);
-        m_xhat_deltas = m_output_grad;
+        m_xhat_deltas = m_output_var.grad;
     }
     map1(m_temp_size_input_1d, m_var_to_use, [=] (float var) {
         return -0.5f*std::pow(var + m_normalization_epsilon, -1.5f);

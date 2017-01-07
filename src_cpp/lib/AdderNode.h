@@ -40,22 +40,22 @@
 namespace kumozu {
 
 /**
-   * A Node the computes the element-wise sum of all "input forward" matrices associated with its input ports.
-   *
-   * This node is allowed to have an arbitrary number of input ports. It will have 1 outptut port with the default name.
-   * All matrices associated with
-   * the input ports must have the same dimensions. Arbitrary-dimensional matrices are supported. The matrices associated
-   * with the output port will have the same dimensions as those associated with the input.
-   *
-   * This node simply performs the element-wise sum of the "input forward" matrices over all of the input ports. The names
-   * of the input ports can be arbitrary.
-   *
-   * Usage:
-   *
-   * Obtain an instance of this class and call the create_input_port() functions of Node to create as many input ports as desired.
-   * Although the port names can be arbitrary, the user is required to specify the port name when more than 1 input port is used.
-   * If only 1 input port is created, this node will simply function as an identity function that will pass the input through unchanged.
-   */
+ * A Node that computes the element-wise sum of all "input forward" matrices associated with its input ports.
+ *
+ * This node is allowed to have an arbitrary number of input ports. It will have 1 outptut port with the default name.
+ * All matrices associated with
+ * the input ports must have the same dimensions. Arbitrary-dimensional matrices are supported. The matrices associated
+ * with the output port will have the same dimensions as those associated with the input.
+ *
+ * This node simply performs the element-wise sum of the "input forward" matrices over all of the input ports. The names
+ * of the input ports can be arbitrary.
+ *
+ * Usage:
+ *
+ * Obtain an instance of this class and call the create_input_port() functions of Node to create as many input ports as desired.
+ * Although the port names can be arbitrary, the user is required to specify the port name when more than 1 input port is used.
+ * If only 1 input port is created, this node will simply function as an identity function that will pass the input through unchanged.
+ */
 class AdderNode : public AtomicNode {
 
 public:
@@ -66,16 +66,16 @@ public:
     AdderNode(std::string name) :
         AtomicNode(name) {
         // Create the 1 output port.
-        create_output_port(m_output_forward, m_output_backward, DEFAULT_OUTPUT_PORT_NAME);
+        create_output_port(m_output_var, DEFAULT_OUTPUT_PORT_NAME);
     }
 
     /**
      * Set output forward activations to the sum over all input forward activations.
      */
     virtual void forward_propagate() override {
-        set_value(m_output_forward, 0.0f);
+        set_value(m_output_var.data, 0.0f);
         for_each_input_port_data([&] (const MatrixF& mat) {
-            element_wise_sum(m_output_forward, m_output_forward, mat);
+            element_wise_sum(m_output_var.data, m_output_var.data, mat);
         });
     }
 
@@ -85,7 +85,6 @@ public:
     virtual void back_propagate_activation_gradients() override {
         MatrixF& deltas = get_output_grad();
         for_each_input_port_grad([&] (MatrixF& mat) {
-            //copy_matrix(mat, deltas);
             mat = deltas;
         });
     }
@@ -97,11 +96,9 @@ public:
         // First verify that all input ports are associated with matrices of the same dimensions.
         m_input_extents.clear();
         for_each_input_port_data([&] (const MatrixF& mat) {
-            //std::cout << "in_mat:" << std::endl << mat << std::endl;
             if (m_input_extents.size() == 0) {
                 m_input_extents = mat.get_extents();
-                m_output_forward.resize(m_input_extents);
-                m_output_backward.resize(m_input_extents);
+                m_output_var.resize(m_input_extents);
             } else {
                 if (m_input_extents != mat.get_extents()) {
                     error_exit(get_name() + ": Error: Not all input matrices have the same extents.");
@@ -113,8 +110,9 @@ public:
 private:
 
     std::vector<int> m_input_extents; // Extents of each input port matrix.
-    MatrixF m_output_forward; // associated with the default output port
-    MatrixF m_output_backward; // associated with the default output port
+    //MatrixF m_output_forward; // associated with the default output port
+    //MatrixF m_output_backward; // associated with the default output port
+    VariableF m_output_var; // associated with the default output port
 
 };
 

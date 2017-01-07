@@ -36,6 +36,7 @@
 #include "Matrix_list.h"
 #include <algorithm>
 #include "Assertions.h"
+#include "Variable.h"
 
 namespace kumozu {
 
@@ -1967,72 +1968,6 @@ void mat_multiply_right_transpose_accumulate_naive(MatrixF& A, const MatrixF& B,
 
 
 /**
-   * Copy the elements from a list of Matrix into a single flat Matrix.
-   *
-   * Since it can be inconvinient to determine to determine the total number of elements in the matrix
-   * list before calling this function, it is not necessary to supply a "flat_mat" of the correct size.
-   * The supplied "flat_mat" will be resized to match the total number of elements.
-   *
-   * @param mat_list The list of matrices that will be copied from.
-   * @param flat_mat The matrix that will be copied into. This matrix will be resized to the same total
-   * number of elements in the matrix list if necessary.
-   */
-template <typename T>
-void copy_list_to_flat_matrix(const std::vector<Matrix<T>>& mat_list, Matrix<T>& flat_mat) {
-    // Do an initial pass through all matrices to determine the total number of elements.
-    int total_size = 0;
-    for (size_t i = 0; i < mat_list.size(); i++) {
-        const Matrix<T>& temp = mat_list[i];
-        total_size += temp.size();
-    }
-    // If the element count is different the size of the current flat_mat, then reinitialize.
-    if (total_size != flat_mat.size()) {
-        // Create 1-dim matrix of size total_size.
-        std::cout << "Resizing flat_mat to size = " << total_size << std::endl;
-        flat_mat.resize(total_size);
-    }
-    int cur_pos = 0;
-    for (size_t i = 0; i < mat_list.size(); i++) {
-        const Matrix<T>& temp = mat_list[i];
-        for (int backing_index = 0; backing_index < temp.size(); ++backing_index) {
-            flat_mat[cur_pos + backing_index] = temp[backing_index];
-        }
-        cur_pos += temp.size();
-    }
-}
-
-/**
-   * Copy the elements from a flat Matrix into a list of matrices.
-   *
-   * The size of "flat_mat" must be equal to the total number of elements in the matrix list. Otherwise,
-   * this function will exit with an error.
-   *
-   * @param mat_list The list of matrices that will be copied to.
-   * @param flat_mat The matrix that will be copied from.
-   */
-template <typename T>
-void copy_flat_matrix_to_list(std::vector<Matrix<T>>& mat_list, const Matrix<T>& flat_mat) {
-    // Do an initial pass through all matrices to determine the total number of elements.
-    int total_size = 0;
-    for (size_t i = 0; i < mat_list.size(); i++) {
-        Matrix<T>& temp = mat_list[i];
-        total_size += temp.size();
-    }
-    // If the element count is different the size of the current flat_mat, then exit with error.
-    if (total_size != flat_mat.size()) {
-        error_exit("copy_flat_matrix_to_list(): Supplied matrix list has different element count than supplied flat matrix.");
-    }
-    int cur_pos = 0;
-    for (size_t i = 0; i < mat_list.size(); i++) {
-        MatrixF& temp = mat_list[i];
-        for (int backing_index = 0; backing_index < temp.size(); ++backing_index) {
-            temp[backing_index] = flat_mat[cur_pos + backing_index];
-        }
-        cur_pos += temp.size();
-    }
-}
-
-/**
    * Sample from a multinomial distribution.
    *
    * Given a vector (Matrix) of pdf values, sample from this distribution and return
@@ -2068,8 +2003,7 @@ int sample_multinomial_distribution(const MatrixF& pdf);
  *              the range [0, N).
  * @return the number of errors in all of the predictions.
  */
-// fixme: rename network_output to predictions.
-int error_count(const MatrixF& network_output, const MatrixI target_labels);
+int error_count(const MatrixF& predictions, const MatrixI target_labels);
 
 
 /**
@@ -2722,61 +2656,93 @@ void compute_reverse_leaky_relu(MatrixF& in_vals, const MatrixF& out_vals, const
    */
 void compute_weight_grad_sgd_minibatch(const MatrixF& X_error, MatrixF& W_grad, const MatrixF& H, bool accumulate=true);
 
-/*
-   * Update the weights matrix W using the gradient W_grad and the learning rate alpha.
-   *
-   * W = W - alpha*W_grad
-   *
-   * is computed element-wise.
-   *
-   */
-void update_weights_from_gradient(MatrixF& W, const MatrixF& W_grad, float alpha);
+/**
+ * Update the weights matrix W using the gradient W_grad and the learning rate alpha.
+ *
+ * W = W - alpha*W_grad
+ *
+ * is computed element-wise.
+ *
+ */
+void update_parameters_sgd(MatrixF& W, const MatrixF& W_grad, float alpha);
 
-/*
-   * Set weight/activatin decay to the specified value.
-   *
-   * The weight decay for each weight or activation w_i is set according to:
-   *
-   * w_i = w_i - decay_val*w_i
-   */
-void update_weights_from_decay(MatrixF& W, float decay_val);
+/**
+ * Set weight/activatin decay to the specified value.
+ *
+ * The weight decay for each weight or activation w_i is set according to:
+ *
+ * w_i = w_i - decay_val*w_i
+ */
+void update_parameters_from_decay(MatrixF& W, float decay_val);
 
-/*
-   * Update the weights matrix W using the gradient W_grad and the learning rate alpha and
-   * weight decay lambda.
-   *
-   * W = W - alpha*W_grad -alpha*lambda*W
-   *
-   * is computed element-wise.
-   *
-   */
-void update_weights_from_gradient(MatrixF& W, const MatrixF& W_grad, float alpha, float lambda);
+/**
+ * Update the weights matrix W using the gradient W_grad and the learning rate alpha and
+ * weight decay lambda.
+ *
+ * W = W - alpha*W_grad -alpha*lambda*W
+ *
+ * is computed element-wise.
+ *
+ */
+void update_parameters_sgd(MatrixF& W, const MatrixF& W_grad, float alpha, float lambda);
 
-/*
-   * Update the weights matrix W using the gradient W_grad and the learning rate alpha.
-   *
-   * W = W - alpha*W_grad + ...
-   *
-   * is computed element-wise.
-   *
-   */
-void update_weights_from_gradient(MatrixF& W, const MatrixF& W_grad, float alpha, float lambda,
+/**
+ * Update the weights matrix W using the gradient W_grad and the learning rate alpha.
+ *
+ * W = W - alpha*W_grad + ...
+ *
+ * is computed element-wise.
+ *
+ */
+void update_parameters_sgd(MatrixF& W, const MatrixF& W_grad, float alpha, float lambda,
                                   float sparsity_param, bool force_nonnegative);
 
 
-void update_weights_from_gradient_rmsprop_v3(MatrixF& W, const MatrixF& W_grad, MatrixF& W_grad_mean_square,
+/**
+ * Rmsprop.
+ *
+ * @param W The parameters matrix.
+ * @param W_grad The gradients matrix.
+ * @param W_grad_mean_square Used to store running statistics. It will be set to the appropriate extents by
+ * this function and so it is fine for the caller to pass an uninitialized matrix.
+ * @param alpha in [0, 1].
+ * @param rho in [0, 1].
+ * @param epsilon A small value for numerical stability.
+ */
+void update_parameters_rmsprop(MatrixF& W, const MatrixF& W_grad, MatrixF& W_grad_mean_square,
                                              float alpha, float rho, float epsilon=1e-8f);
 
 
-/*
-   * Rmsprop with momentum.
-   */
-void update_weights_from_gradient_rmsprop_momentum(MatrixF& W, const MatrixF& W_grad, MatrixF& W_grad_mean_square,
+/**
+ * Rmsprop with momentum
+ *
+ *
+ * @param W The parameters matrix.
+ * @param W_grad The gradients matrix.
+ * @param W_grad_mean_square Used to store running statistics. It will be set to the appropriate extents by
+ * this function and so it is fine for the caller to pass an uninitialized matrix.
+ * @param W_momentum Used to store running statistics. It will be set to the appropriate extents by
+ * this function and so it is fine for the caller to pass an uninitialized matrix.
+ * @param alpha in [0, 1].
+ * @param rho in [0, 1].
+ * @param momentum in [0, 1].
+ * @param epsilon A small value for numerical stability.
+ */
+void update_parameters_rmsprop_momentum(MatrixF& W, const MatrixF& W_grad, MatrixF& W_grad_mean_square,
                                                    MatrixF W_momentum, float alpha, float rho, float momentum,
                                                    float epsilon=1e-8f);
 
 
-void update_weights_from_gradient_adagrad(MatrixF& W, const MatrixF& W_grad, MatrixF& W_grad_sum_square,
+/**
+ * Adagrad.
+ *
+ * @param W The parameters matrix.
+ * @param W_grad The gradients matrix.
+ * @param W_grad_sum_square Used to store running statistics. It will be set to the appropriate extents by
+ * this function and so it is fine for the caller to pass an uninitialized matrix.
+ * @param alpha
+ */
+void update_parameters_adagrad(MatrixF& W, const MatrixF& W_grad, MatrixF& W_grad_sum_square,
                                           float alpha);
 
 /*

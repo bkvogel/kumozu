@@ -54,7 +54,7 @@ void Node::forward() {
     // call reinitialize().
     //cout << get_name() << " : size of m_input_port_forward_map = " << m_input_port_forward_map.size() << endl;
     bool extents_changed = false;
-    for (const auto& x : m_input_port_data_map) {
+    for (const auto& x : m_input_port_var_map) {
         auto& prev_extents = m_input_port_extents_map[x.first];
         const auto& cur_extents = x.second.get().get_extents();
         if (cur_extents != prev_extents) {
@@ -67,7 +67,7 @@ void Node::forward() {
             std::cout << std::endl << "Initializing " << get_name() << ":" << std::endl;
         }
         // Initialize this node and all deeply-contained nodes (allocated storage for parameters, connect ports, etc.)
-        deep_initialize();
+        initialize();
 
     }
     // Recursively call forward computation.
@@ -88,29 +88,24 @@ void Node::back_propagate() {
 }
 
 
-void Node::create_input_port(const MatrixF& data, MatrixF& grad, std::string input_name) {
+void Node::create_input_port(VariableF& var, std::string input_name) {
     if (VERBOSE_MODE) {
         cout << get_name() << " : create_input_port(): with input port name: " << input_name << endl;
     }
-    if (m_input_port_data_map.find(input_name) != m_input_port_data_map.end()) {
-        m_input_port_data_map.erase(input_name);
+    if (m_input_port_var_map.find(input_name) != m_input_port_var_map.end()) {
+        m_input_port_var_map.erase(input_name);
     }
-    m_input_port_data_map.emplace(input_name , std::cref(data));
-    if (m_input_port_grad_map.find(input_name) != m_input_port_grad_map.end()) {
-        m_input_port_grad_map.erase(input_name);
-    }
-    m_input_port_grad_map.emplace(input_name, std::ref(grad));
+    m_input_port_var_map.emplace(input_name , std::ref(var));
     set_initialized(false);
 }
 
-void Node::create_input_port(const MatrixF& data, MatrixF& grad) {
-    create_input_port(data, grad, DEFAULT_INPUT_PORT_NAME);
+void Node::create_input_port(VariableF& var) {
+    create_input_port(var, DEFAULT_INPUT_PORT_NAME);
 }
 
 void Node::create_input_port(Node& parent, std::string parent_output, std::string input_name) {
-    const MatrixF& parent_out_mat = parent.get_output_data(parent_output);
-    MatrixF& parent_out_deltas_mat = parent.get_output_grad(parent_output);
-    create_input_port(parent_out_mat, parent_out_deltas_mat, input_name);
+    auto& parent_out_var = parent.get_output(parent_output);
+    create_input_port(parent_out_var, input_name);
 }
 
 void Node::create_input_port_this_name(Node& parent, std::string input_name) {
@@ -122,19 +117,13 @@ void Node::create_input_port_parent_name(Node& parent, std::string parent_output
 }
 
 void Node::connect_parent(Node& parent) {
-    const MatrixF& parent_out_mat = parent.get_output_data();
-    MatrixF& parent_out_deltas_mat = parent.get_output_grad();
-    create_input_port(parent_out_mat, parent_out_deltas_mat);
+    create_input_port(parent.get_output());
 }
 
 void Node::delete_input_port(std::string name) {
-    auto it = m_input_port_data_map.find(name);
-    if (it != m_input_port_data_map.end()) {
-        m_input_port_data_map.erase(it);
-    }
-    auto it2 = m_input_port_grad_map.find(name);
-    if (it2 != m_input_port_grad_map.end()) {
-        m_input_port_grad_map.erase(it2);
+    auto it = m_input_port_var_map.find(name);
+    if (it != m_input_port_var_map.end()) {
+        m_input_port_var_map.erase(it);
     }
     auto it3 = m_input_port_fan_out_map.find(name);
     if (it3 != m_input_port_fan_out_map.end()) {
@@ -148,26 +137,22 @@ void Node::delete_input_port(std::string name) {
 }
 
 void Node::delete_all_input_ports() {
-    m_input_port_data_map.clear();
-    m_input_port_grad_map.clear();
+    m_input_port_var_map.clear();
     m_input_port_fan_out_map.clear();
     m_input_port_extents_map.clear();
     set_initialized(false);
 }
 
-void Node::create_output_port(const MatrixF& data, MatrixF& grad, std::string output_name) {
-    if (m_output_port_data_map.find(output_name) != m_output_port_data_map.end()) {
+void Node::create_output_port(VariableF& var, std::string output_name) {
+    if (m_output_port_var_map.find(output_name) != m_output_port_var_map.end()) {
         error_exit("create_output_port(): Error: " + output_name + " is already an output.");
     }
-    m_output_port_data_map.emplace(output_name , std::cref(data));
-    m_output_port_grad_map.emplace(output_name, std::ref(grad));
+    m_output_port_var_map.emplace(output_name, std::ref(var));
     set_initialized(false);
 }
 
 void Node::create_output_port(Node& contained, std::string contained_output, std::string output_name) {
-    const MatrixF& contained_out_mat = contained.get_output_data(contained_output);
-    MatrixF& contained_out_deltas_mat = contained.get_output_grad(contained_output);
-    create_output_port(contained_out_mat, contained_out_deltas_mat, output_name);
+    create_output_port(contained.get_output(contained_output), output_name);
 }
 
 void Node::create_output_port_this_name(Node& contained, std::string output_name) {
@@ -182,33 +167,50 @@ void Node::create_output_port(Node& contained) {
     create_output_port(contained, DEFAULT_OUTPUT_PORT_NAME, DEFAULT_OUTPUT_PORT_NAME);
 }
 
-const MatrixF& Node::get_output_data(std::string name) const {
-    auto it = m_output_port_data_map.find(name);
-    if (it == m_output_port_data_map.end()) {
+VariableF& Node::get_output(std::string name) {
+    auto it = m_output_port_var_map.find(name);
+    if (it == m_output_port_var_map.end()) {
         error_exit("get_output_forward(): Error accessing output port: Node: " + get_name() + " : port: " + name + " does not exist.");
     }
     return it->second;
 }
 
-const MatrixF& Node::get_output_data() const {
+const VariableF& Node::get_output(std::string name) const {
+    auto it = m_output_port_var_map.find(name);
+    if (it == m_output_port_var_map.end()) {
+        error_exit("get_output_forward(): Error accessing output port: Node: " + get_name() + " : port: " + name + " does not exist.");
+    }
+    return it->second;
+}
+
+VariableF& Node::get_output() {
     if (get_output_port_count() != 1) {
         error_exit("get_output_forward(): " + get_name() + " should have 1 output port but instead has " + std::to_string(get_output_port_count()) + " ports.");
     }
-    return m_output_port_data_map.begin()->second;
+    return m_output_port_var_map.begin()->second;
+}
+
+const VariableF& Node::get_output() const {
+    if (get_output_port_count() != 1) {
+        error_exit("get_output_forward(): " + get_name() + " should have 1 output port but instead has " + std::to_string(get_output_port_count()) + " ports.");
+    }
+    return m_output_port_var_map.begin()->second;
+}
+
+const MatrixF& Node::get_output_data(std::string name) const {
+    return get_output(name).data;
+}
+
+const MatrixF& Node::get_output_data() const {
+    return get_output().data;
 }
 
 void Node::delete_output_port(std::string name) {
-    auto it = m_output_port_data_map.find(name);
-    if (it == m_output_port_data_map.end()) {
+    auto it = m_output_port_var_map.find(name);
+    if (it == m_output_port_var_map.end()) {
         error_exit("delete_output_port(): Error accessing output port: " + name + " does not exist.");
     }
-    m_output_port_data_map.erase(it);
-
-    auto it2 = m_output_port_grad_map.find(name);
-    if (it2 == m_output_port_grad_map.end()) {
-        error_exit("delete_output_port(): Error accessing output port: " + name + " does not exist.");
-    }
-    m_output_port_grad_map.erase(it2);
+    m_output_port_var_map.erase(it);
 
     auto it3 = m_output_port_fan_out_map.find(name);
     if (it3 == m_output_port_fan_out_map.end()) {
@@ -219,95 +221,85 @@ void Node::delete_output_port(std::string name) {
 }
 
 void Node::delete_all_output_ports() {
-    m_output_port_data_map.clear();
-    m_output_port_grad_map.clear();
+    m_output_port_var_map.clear();
     m_output_port_fan_out_map.clear();
     set_initialized(false);
 }
 
 const MatrixF& Node::get_output_grad(std::string name) const {
-    auto it = m_output_port_grad_map.find(name);
-    if (it == m_output_port_grad_map.end()) {
-        error_exit("get_output_forward(): Error accessing output port: node: " + get_name() + " : port: " + name + " does not exist.");
-    }
-    return it->second;
+    return get_output(name).grad;
 }
 
 MatrixF& Node::get_output_grad(std::string name) {
-    auto it = m_output_port_grad_map.find(name);
-    if (it == m_output_port_grad_map.end()) {
-        error_exit("get_output_forward(): Error accessing output port: node: " + get_name() + " : port: " + name + " does not exist.");
-    }
-    return it->second;
+    return get_output(name).grad;
 }
 
 const MatrixF& Node::get_output_grad() const {
-    if (get_output_port_count() != 1) {
-        error_exit("get_output_backward(): " + get_name() + " should have 1 output port but instead has "
-                   + std::to_string(get_output_port_count()) + " ports.");
-    }
-    return m_output_port_grad_map.begin()->second;
+    return get_output().grad;
 }
 
 MatrixF& Node::get_output_grad() {
-    if (get_output_port_count() != 1) {
-        error_exit("get_output_backward(): " + get_name() + " should have 1 output port but instead has "
-                   + std::to_string(get_output_port_count()) + " ports.");
-    }
-    return m_output_port_grad_map.begin()->second;
+    return get_output().grad;
 }
 
 std::vector<int> Node::get_output_extents(std::string name) const {
     return get_output_data(name).get_extents();
 }
 
-
 const MatrixF& Node::get_input_port_data(std::string name) const {
-    auto it = m_input_port_data_map.find(name);
-    if (it == m_input_port_data_map.end()) {
-        error_exit("get_input_port_forward(): Error accessing input port: node: " + get_name() + " : port: " + name + " does not exist.");
-    }
-    return it->second;
+    return get_input_port(name).data;
 }
 
 const MatrixF& Node::get_input_port_data() const {
-    if (get_input_port_count() != 1) {
-        error_exit("get_input_port_forward(): " + get_name() +
-                   " should have 1 input port but instead has " + std::to_string(get_input_port_count()) + " ports.");
-    }
-    return m_input_port_data_map.begin()->second;
+    return get_input_port().data;
 }
 
 const MatrixF& Node::get_input_port_grad(std::string name) const {
-    auto it = m_input_port_grad_map.find(name);
-    if (it == m_input_port_grad_map.end()) {
-        error_exit("get_input_port_backward(): Error accessing input port: node " + get_name() + " : port: " + name + " does not exist.");
+    return get_input_port(name).grad;
+}
+
+MatrixF& Node::get_input_port_grad(std::string name) {
+    return get_input_port(name).grad;
+}
+
+VariableF& Node::get_input_port(std::string name) {
+    auto it = m_input_port_var_map.find(name);
+    if (it == m_input_port_var_map.end()) {
+        error_exit("get_input_port_backward(): Error accessing input port: node: " + get_name() + " : port: " + name + " does not exist.");
     }
     return it->second;
 }
 
-MatrixF& Node::get_input_port_grad(std::string name) {
-    auto it = m_input_port_grad_map.find(name);
-    if (it == m_input_port_grad_map.end()) {
+const VariableF& Node::get_input_port(std::string name) const {
+    auto it = m_input_port_var_map.find(name);
+    if (it == m_input_port_var_map.end()) {
         error_exit("get_input_port_backward(): Error accessing input port: node: " + get_name() + " : port: " + name + " does not exist.");
     }
     return it->second;
 }
 
 MatrixF& Node::get_input_port_grad() {
-    if (get_input_port_count() != 1) {
-        error_exit("get_input_port_backward(): " + get_name() +
-                   " should have 1 input port but instead has " + std::to_string(get_input_port_count()) + " ports.");
-    }
-    return m_input_port_grad_map.begin()->second;
+    return get_input_port().grad;
 }
 
 const MatrixF& Node::get_input_port_grad() const {
+    return get_input_port().grad;
+}
+
+VariableF& Node::get_input_port() {
     if (get_input_port_count() != 1) {
         error_exit("get_input_port_backward(): " + get_name() +
                    " should have 1 input port but instead has " + std::to_string(get_input_port_count()) + " ports.");
     }
-    return m_input_port_grad_map.begin()->second;
+    return m_input_port_var_map.begin()->second;
+}
+
+const VariableF& Node::get_input_port() const {
+    if (get_input_port_count() != 1) {
+        error_exit("get_input_port_backward(): " + get_name() +
+                   " should have 1 input port but instead has " + std::to_string(get_input_port_count()) + " ports.");
+    }
+    return m_input_port_var_map.begin()->second;
 }
 
 void Node::set_train_mode(bool is_train) {
@@ -357,39 +349,34 @@ void Node::load_parameters(std::string name) {
     }
 }
 
-void Node::check_jacobian_weights(std::map<std::string, std::vector<int>> input_port_extents_map) {
+void Node::check_jacobian_parameters(std::map<std::string, std::vector<int>> input_port_extents_map) {
     cout << get_name() + ": Checking Jacobian for weights..." << endl;
     delete_all_input_ports();
-    // We need to create a Matrix for each input port in the map and then connect it to this Node as a new
+    // We need to create a Variable for each input port in the map and then connect it to this Node as a new
     // input port.
-    vector<MatrixF> input_forward_list;
-    vector<MatrixF> input_backward_list;
+    vector<VariableF> input_var_list;
 
-    input_forward_list.reserve(input_port_extents_map.size());
-    input_backward_list.reserve(input_port_extents_map.size());
+    input_var_list.reserve(input_port_extents_map.size());
     // Alocate whole vector to be safe. Even with the reserve, it might decide to realocate while adding elements?
     for (const auto& x: input_port_extents_map) {
         auto& input_extents = x.second;
-        input_forward_list.push_back(MatrixF(input_extents));
-        input_backward_list.push_back(MatrixF(input_extents));
+        input_var_list.push_back(VariableF(input_extents));
     }
     int total_size = 0;
     int i = 0;
     for (const auto& x: input_port_extents_map) {
-        create_input_port(input_forward_list.at(i), input_backward_list.at(i), x.first);
-        total_size += input_forward_list.at(i).size();
+        create_input_port(input_var_list.at(i), x.first);
+        total_size += input_var_list.at(i).size();
         ++i;
     }
 
     // Create random input activations for the layer.
-    MatrixF input_forward_flat(total_size);
-    randomize_uniform(input_forward_flat, 0.0f, 1.0f);
-    MatrixF input_backward_flat(total_size);
-    randomize_uniform(input_backward_flat, 0.0f, 1.0f);
+    VariableF input_var_flat(total_size);
+    randomize_uniform(input_var_flat.data, 0.0f, 1.0f);
+    randomize_uniform(input_var_flat.grad, 0.0f, 1.0f);
 
     // Copy from flat input matrix into the list of input matrices:
-    copy_flat_matrix_to_list(input_forward_list, input_forward_flat);
-    copy_flat_matrix_to_list(input_backward_list, input_backward_flat);
+    copy_flat_variable_to_list(input_var_list, input_var_flat);
 
     forward(); // Initialize node.
     // Now the output activations have been initialized to the correct sizes.
@@ -444,7 +431,6 @@ void Node::check_jacobian_weights(std::map<std::string, std::vector<int>> input_
         }
         // Now compute the Jacobian using the backprop function.
         MatrixF output_backwards_flat(output_forward_flat.size());
-        //MatrixF& grad_W = get_weight_gradient();
         MatrixF& grad_W = params.at(n)->grad;
         set_value(output_backwards_flat, 0.0f);
         for (int i=0; i < output_backwards_flat.size(); ++i) {
@@ -477,33 +463,28 @@ void Node::check_jacobian_input_grad(std::map<std::string, std::vector<int>> inp
     delete_all_input_ports();
     // We need to create a Matrix for each input port in the map and then connect it to this Node as a new
     // input port.
-    vector<MatrixF> input_forward_list;
-    vector<MatrixF> input_backward_list;
-    input_forward_list.reserve(input_port_extents_map.size());
-    input_backward_list.reserve(input_port_extents_map.size());
+    vector<VariableF> input_var_list;
+    input_var_list.reserve(input_port_extents_map.size());
     // Alocate whole vector to be safe. Even with the reserve, it might decide to realocate while adding elements?
     for (const auto& x: input_port_extents_map) {
         auto& input_extents = x.second;
-        input_forward_list.push_back(MatrixF(input_extents));
-        input_backward_list.push_back(MatrixF(input_extents));
+        input_var_list.push_back(VariableF(input_extents));
     }
     int total_size = 0;
     int i = 0;
     for (const auto& x: input_port_extents_map) {
-        create_input_port(input_forward_list.at(i), input_backward_list.at(i), x.first);
-        total_size += input_forward_list.at(i).size();
+        create_input_port(input_var_list.at(i), x.first);
+        total_size += input_var_list.at(i).size();
         ++i;
     }
 
     // Create random input activations for the layer.
-    MatrixF input_forward_flat(total_size);
-    randomize_uniform(input_forward_flat, 0.0f, 1.0f);
-    MatrixF input_backward_flat(total_size);
-    randomize_uniform(input_backward_flat, 0.0f, 1.0f);
+    VariableF input_var_flat(total_size);
+    randomize_uniform(input_var_flat.data, 0.0f, 1.0f);
+    randomize_uniform(input_var_flat.grad, 0.0f, 1.0f);
 
     // Copy from flat input matrix into the list of input matrices:
-    copy_flat_matrix_to_list(input_forward_list, input_forward_flat);
-    copy_flat_matrix_to_list(input_backward_list, input_backward_flat);
+    copy_flat_variable_to_list(input_var_list, input_var_flat);
 
     forward(); // Initialize node.
     // Now the output activations have been initialized to the correct sizes.
@@ -517,7 +498,7 @@ void Node::check_jacobian_input_grad(std::map<std::string, std::vector<int>> inp
     if (total_output_dim == 0) {
         error_exit(get_name() + ": Checking Jacobian for input error gradients: total_output_dim is 0!");
     }
-    const int total_input_dim = input_forward_flat.size();
+    const int total_input_dim = input_var_flat.size();
     // This will contain the Jacobian computed using finite differences method.
     MatrixF numerical_jacobian_input(total_output_dim, total_input_dim);
     // Randomize to make accidental matches less likely.
@@ -530,21 +511,25 @@ void Node::check_jacobian_input_grad(std::map<std::string, std::vector<int>> inp
 
     // Now compute the numerical Jacobian:
     // This will be computed one column at a time.
-    for (int j=0; j < input_forward_flat.size(); ++j) {
+    for (int j=0; j < input_var_flat.size(); ++j) {
         // j is column index int Jacobian matrix.
-        float orig = input_forward_flat[j];
-        input_forward_flat[j] += m_epsilon;
+        float orig = input_var_flat.data[j];
+        input_var_flat.data[j] += m_epsilon;
         // Now compute output of layer -> output_forward
-        copy_flat_matrix_to_list(input_forward_list, input_forward_flat);
+        // fixme: but this also copies into grad matrices. Only
+        // need to copy the data part.
+        copy_flat_variable_to_list(input_var_list, input_var_flat);
         forward();
         copy_individual_to_flat_output_forward(output_forward_flat);
         // Copy the output into column j of Jacobian.
         for (int i=0; i < output_forward_flat.size(); ++i) {
             numerical_jacobian_input(i,j) = output_forward_flat[i];
         }
-        input_forward_flat[j] = orig - m_epsilon;
+        input_var_flat.data[j] = orig - m_epsilon;
         // Now compute output of layer -> output_forward
-        copy_flat_matrix_to_list(input_forward_list, input_forward_flat);
+        // fixme: but this also copies into grad matrices. Only
+        // need to copy the data part.
+        copy_flat_variable_to_list(input_var_list, input_var_flat);
         forward();
         copy_individual_to_flat_output_forward(output_forward_flat);
         // Copy the output into column j of Jacobian.
@@ -553,7 +538,7 @@ void Node::check_jacobian_input_grad(std::map<std::string, std::vector<int>> inp
             numerical_jacobian_input(i,j) /= 2*m_epsilon;
         }
         // Put back original value.
-        input_forward_flat[j] = orig;
+        input_var_flat.data[j] = orig;
     }
     // Now compute the Jacobian using the backprop function.
     MatrixF output_backwards_flat(output_forward_flat.size());
@@ -566,10 +551,10 @@ void Node::check_jacobian_input_grad(std::map<std::string, std::vector<int>> inp
         zero_parameter_gradients();
         zero_input_grad();
         back_propagate();
-        copy_list_to_flat_matrix(input_backward_list, input_backward_flat);
-
-        for (int j=0; j < input_forward_flat.size(); ++j) {
-            backprop_jacobian_input(i,j) = input_backward_flat[j];
+        // fixme: this also copies into data, but only need to copy the gradients part.
+        copy_list_to_flat_variable(input_var_list, input_var_flat);
+        for (int j=0; j < input_var_flat.size(); ++j) {
+            backprop_jacobian_input(i,j) = input_var_flat.grad[j];
         }
         output_backwards_flat[i] = 0.0f;
     }
@@ -586,10 +571,10 @@ void Node::check_jacobian_input_grad(std::map<std::string, std::vector<int>> inp
     cout << "PASSED" << endl;
 }
 
-void Node::check_jacobian_weights(std::vector<int> input_extents) {
+void Node::check_jacobian_parameters(std::vector<int> input_extents) {
     std::map<std::string, std::vector<int>> input_port_extents_map;
     input_port_extents_map[DEFAULT_INPUT_PORT_NAME] = input_extents;
-    check_jacobian_weights(input_port_extents_map);
+    check_jacobian_parameters(input_port_extents_map);
 }
 
 
@@ -605,8 +590,8 @@ void Node::copy_flat_output_backward_to_individual(const MatrixF& flat_output_ba
     // Do an initial pass through all output matrices to determine the total number of elements.
     int total_size = 0;
     //
-    for (auto& x: m_output_port_grad_map) {
-        auto& temp_mat = x.second.get();
+    for (auto& x: m_output_port_var_map) {
+        auto& temp_mat = x.second.get().grad;
         total_size += temp_mat.size();
     }
     // If the element count is different the size of the current flat_mat, then exit with error.
@@ -614,8 +599,8 @@ void Node::copy_flat_output_backward_to_individual(const MatrixF& flat_output_ba
         error_exit("copy_flat_output_backward_to_many(): Supplied matrix list has different element count than supplied flat matrix.");
     }
     int cur_pos = 0;
-    for (auto& x: m_output_port_grad_map) {
-        auto& temp_mat = x.second.get();
+    for (auto& x: m_output_port_var_map) {
+        auto& temp_mat = x.second.get().grad;
         for (int backing_index = 0; backing_index < temp_mat.size(); ++backing_index) {
             temp_mat[backing_index] = flat_output_backward[cur_pos + backing_index];
         }
@@ -627,8 +612,8 @@ void Node::copy_individual_to_flat_output_forward(MatrixF& flat_output_forward) 
     // Do an initial pass through all output matrices to determine the total number of elements.
     int total_size = 0;
     //
-    for (auto& x: m_output_port_data_map) {
-        auto& temp_mat = x.second.get();
+    for (auto& x: m_output_port_var_map) {
+        auto& temp_mat = x.second.get().data;
         total_size += temp_mat.size();
     }
     // If the element count is different the size of the current flat_mat, then exit with error.
@@ -639,8 +624,8 @@ void Node::copy_individual_to_flat_output_forward(MatrixF& flat_output_forward) 
         flat_output_forward.resize(total_size);
     }
     int cur_pos = 0;
-    for (auto& x: m_output_port_data_map) {
-        auto& temp_mat = x.second.get();
+    for (auto& x: m_output_port_var_map) {
+        auto& temp_mat = x.second.get().data;
         for (int backing_index = 0; backing_index < temp_mat.size(); ++backing_index) {
             flat_output_forward[cur_pos + backing_index] = temp_mat[backing_index];
         }

@@ -54,8 +54,7 @@ void ColumnActivationFunction::reinitialize(std::vector<int> input_extents) {
         }
     }
     const int dim_output = input_extents.at(0)/m_maxout_factor;
-    m_output_data.resize(dim_output, input_extents.at(1));
-    m_output_grad.resize(dim_output, input_extents.at(1));
+    m_output_var.resize(dim_output, input_extents.at(1));
     m_state.resize(dim_output, input_extents.at(1));
     if (VERBOSE_MODE) {
         std::cout << "dim_input = " << input_extents.at(0) << std::endl;
@@ -67,28 +66,28 @@ void ColumnActivationFunction::reinitialize(std::vector<int> input_extents) {
 void ColumnActivationFunction::forward_propagate(const MatrixF& input_forward) {
     //reinitialize(input_forward.get_extents());
     if (m_activation_type == ACTIVATION_TYPE::ReLU) {
-        compute_forward_relu(input_forward, m_output_data, m_state);
+        compute_forward_relu(input_forward, m_output_var.data, m_state);
     } else if (m_activation_type == ACTIVATION_TYPE::ReLU_decay_unused) {
         // ReLU and ReLU_decay_unused use excatly the same forward activation.
-        compute_forward_relu(input_forward, m_output_data, m_state);
+        compute_forward_relu(input_forward, m_output_var.data, m_state);
     } else if (m_activation_type == ACTIVATION_TYPE::leakyReLU) {
-        compute_forward_leaky_relu(input_forward, m_output_data, m_state);
+        compute_forward_leaky_relu(input_forward, m_output_var.data, m_state);
     } else if (m_activation_type == ACTIVATION_TYPE::identity) {
-        compute_forward_identity_activation(input_forward, m_output_data, m_state);
+        compute_forward_identity_activation(input_forward, m_output_var.data, m_state);
     } else if (m_activation_type == ACTIVATION_TYPE::maxout) {
-        forward_maxout(input_forward, m_output_data, m_state);
+        forward_maxout(input_forward, m_output_var.data, m_state);
     } else if (m_activation_type == ACTIVATION_TYPE::maxout_decay_unused) {
         // maxout and maxout_decay_unused use excatly the same forward activation.
-        forward_maxout(input_forward, m_output_data, m_state);
+        forward_maxout(input_forward, m_output_var.data, m_state);
     }  else if (m_activation_type == ACTIVATION_TYPE::kmax) {
-        compute_forward_kmax_v2(input_forward, m_output_data, m_state, m_partition_count, m_k);
+        compute_forward_kmax_v2(input_forward, m_output_var.data, m_state, m_partition_count, m_k);
     } else if (m_activation_type == ACTIVATION_TYPE::kmax_decay_unused) {
         // kmax and kmax_decay_unused use excatly the same forward activation.
-        compute_forward_kmax_v2(input_forward, m_output_data, m_state, m_partition_count, m_k);
+        compute_forward_kmax_v2(input_forward, m_output_var.data, m_state, m_partition_count, m_k);
     } else if (m_activation_type == ACTIVATION_TYPE::tanh) {
-        compute_forward_tanh(input_forward, m_output_data);
+        compute_forward_tanh(input_forward, m_output_var.data);
     } else if (m_activation_type == ACTIVATION_TYPE::sigmoid) {
-        compute_forward_sigmoid(input_forward, m_output_data);
+        compute_forward_sigmoid(input_forward, m_output_var.data);
     } else {
         error_exit("forward_propagate(): Unrecognized activation type!");
     }
@@ -96,26 +95,26 @@ void ColumnActivationFunction::forward_propagate(const MatrixF& input_forward) {
 
 void ColumnActivationFunction::back_propagate_activation_gradients(MatrixF& input_grad, const MatrixF& input_data) {
     if (m_activation_type == ACTIVATION_TYPE::ReLU) {
-        compute_reverse_relu(input_grad, m_output_grad, m_state);
+        compute_reverse_relu(input_grad, m_output_var.grad, m_state);
     } else if (m_activation_type == ACTIVATION_TYPE::leakyReLU) {
-        compute_reverse_leaky_relu(input_grad, m_output_grad, m_state);
+        compute_reverse_leaky_relu(input_grad, m_output_var.grad, m_state);
     } else if (m_activation_type == ACTIVATION_TYPE::identity) {
-        compute_reverse_identity_activation(input_grad, m_output_grad, m_state);
+        compute_reverse_identity_activation(input_grad, m_output_var.grad, m_state);
     } else if (m_activation_type == ACTIVATION_TYPE::maxout) {
-        compute_reverse_maxout(input_grad, m_output_grad, m_state);
+        compute_reverse_maxout(input_grad, m_output_var.grad, m_state);
     } else if (m_activation_type == ACTIVATION_TYPE::maxout_decay_unused) {
-        compute_reverse_maxout_decay_unused(input_grad, input_data, m_output_grad,
+        compute_reverse_maxout_decay_unused(input_grad, input_data, m_output_var.grad,
                                             m_state, m_decay_unused_penalty);
     } else if (m_activation_type == ACTIVATION_TYPE::kmax) {
-        compute_reverse_kmax_v2(input_grad, m_output_grad, m_state, m_partition_count, m_k);
+        compute_reverse_kmax_v2(input_grad, m_output_var.grad, m_state, m_partition_count, m_k);
     } else if (m_activation_type == ACTIVATION_TYPE::kmax_decay_unused) {
         // kmax and kmax_decay_unused use excatly the same forward activation.
-        compute_reverse_kmax_decay_unused(input_grad, input_data, m_output_grad,
+        compute_reverse_kmax_decay_unused(input_grad, input_data, m_output_var.grad,
                                           m_state, m_partition_count, m_k, m_decay_unused_penalty);
     }  else if (m_activation_type == ACTIVATION_TYPE::tanh) {
-        compute_reverse_tanh(input_grad, m_output_data, m_output_grad);
+        compute_reverse_tanh(input_grad, m_output_var.data, m_output_var.grad);
     } else if (m_activation_type == ACTIVATION_TYPE::sigmoid) {
-        compute_reverse_sigmoid(input_grad, m_output_data, m_output_grad);
+        compute_reverse_sigmoid(input_grad, m_output_var.data, m_output_var.grad);
     } else {
         error_exit("back_propagate_deltas(): Unrecognized activation type!");
     }

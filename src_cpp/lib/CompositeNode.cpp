@@ -104,10 +104,9 @@ void CompositeNode::make_internal_input_port_connections() {
             cout << "Connecting input port: " << input_name << " of " << get_name()  << " to input port: "
                  << contained_input << " of contained node: " << contained_node.get_name() << endl;
         }
-        const MatrixF& this_input_forward = get_input_port_data(input_name);
-        MatrixF& this_input_backward = get_input_port_grad(input_name);
+        auto& this_input_var = get_input_port(input_name);
         contained_node.delete_input_port(contained_input);
-        contained_node.create_input_port(this_input_forward, this_input_backward, contained_input);
+        contained_node.create_input_port(this_input_var, contained_input);
     }
     if (VERBOSE_MODE) {
         cout << endl;

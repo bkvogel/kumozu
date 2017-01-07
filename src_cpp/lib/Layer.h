@@ -146,7 +146,8 @@ public:
         // Create the 1 output port.
         if (get_output_port_count() == 0) {
             // Create the output port with default name.
-            create_output_port(m_output_data, m_output_grad, DEFAULT_OUTPUT_PORT_NAME);
+            //create_output_port(m_output_data, m_output_grad, DEFAULT_OUTPUT_PORT_NAME);
+            create_output_port(m_output_var, DEFAULT_OUTPUT_PORT_NAME);
         }
     }
 
@@ -282,10 +283,7 @@ protected: // todo: remove protected?
      */
     virtual void reinitialize(std::vector<int> input_extents) = 0;
 
-    
-
-    MatrixF m_output_data; // associated with the default output port
-    MatrixF m_output_grad; // associated with the default output port
+    VariableF m_output_var; // associated with the default output port
 
 private:
 

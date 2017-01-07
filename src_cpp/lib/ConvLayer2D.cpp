@@ -42,19 +42,15 @@ void ConvLayer2D::reinitialize(std::vector<int> input_extents) {
     m_image_depth = input_extents.at(1);
     m_image_height = input_extents.at(2);
     m_image_width = input_extents.at(3);
-    m_output_data.resize(m_minibatch_size, m_filter_count, m_image_height, m_image_width);
-    m_output_grad.resize(m_minibatch_size, m_filter_count, m_image_height, m_image_width);
+    m_output_var.resize(m_minibatch_size, m_filter_count, m_image_height, m_image_width);
     const std::vector<int> new_W_extents = {m_filter_count, m_image_depth, m_conv_filter_height, m_conv_filter_width};
     auto& W = get_param("W");
     auto& bias = get_param("bias");
     if (new_W_extents != W.get_extents()) {
         W.resize(new_W_extents);
         m_temp_size_W.resize(new_W_extents);
-        //get_weight_gradient().resize(new_W_extents);
         bias.resize(m_filter_count);
         m_temp_size_bias.resize(m_filter_count);
-        //get_bias_gradient().resize(m_filter_count);
-
         const float std_dev_init = 1.0f/std::sqrt(static_cast<float>(m_image_depth*m_conv_filter_height*m_conv_filter_width)); // default
         randomize_uniform(W.data, -std_dev_init, std_dev_init); // default
         //randomize_uniform(m_bias, -std_dev_init, std_dev_init);
@@ -93,7 +89,7 @@ void ConvLayer2D::forward_propagate(const MatrixF& input_activations) {
     //convolve_3d_filter_with_bias_minibatch(m_output_forward, get_weights(), get_bias(), input_activations);
 
     // optimized version
-    convolve_3d_filter_with_bias_minibatch_optimized(m_output_data, W.data, bias.data, input_activations, m_temp_Z2, m_temp_A1, m_temp_W);
+    convolve_3d_filter_with_bias_minibatch_optimized(m_output_var.data, W.data, bias.data, input_activations, m_temp_Z2, m_temp_A1, m_temp_W);
 
 }
 
@@ -104,9 +100,9 @@ void ConvLayer2D::back_propagate_paramater_gradients(const MatrixF& input_activa
     //compute_3d_weight_grad_convolutive_minibatch(get_weight_gradient(), m_output_backward, input_activations);
 
     // optimized version
-    compute_3d_weight_grad_convolutive_minibatch_optimized(W.grad, m_output_grad, input_activations, m_temp_Z2, m_temp_A1, m_temp_W);
+    compute_3d_weight_grad_convolutive_minibatch_optimized(W.grad, m_output_var.grad, input_activations, m_temp_Z2, m_temp_A1, m_temp_W);
 
-    compute_bias_grad_convolutive_minibatch(bias.grad, m_output_grad);
+    compute_bias_grad_convolutive_minibatch(bias.grad, m_output_var.grad);
 }
 
 
@@ -119,14 +115,14 @@ void ConvLayer2D::back_propagate_activation_gradients(MatrixF& input_backward, c
         //compute_3d_convolutive_deltas_minibatch(input_backward, m_W_fixed_random, m_output_backward);
 
         // optimized version
-        compute_3d_convolutive_deltas_minibatch_optimized(input_backward, m_W_fixed_random, m_output_grad, m_temp_Z2, m_temp_A1, m_temp_W);
+        compute_3d_convolutive_deltas_minibatch_optimized(input_backward, m_W_fixed_random, m_output_var.grad, m_temp_Z2, m_temp_A1, m_temp_W);
     } else {
         auto& W = get_param("W");
         // naive version
         //compute_3d_convolutive_deltas_minibatch(input_backward, get_weights(), m_output_backward);
 
         // optimized version
-        compute_3d_convolutive_deltas_minibatch_optimized(input_backward, W.data, m_output_grad, m_temp_Z2, m_temp_A1, m_temp_W);
+        compute_3d_convolutive_deltas_minibatch_optimized(input_backward, W.data, m_output_var.grad, m_temp_Z2, m_temp_A1, m_temp_W);
     }
 }
 

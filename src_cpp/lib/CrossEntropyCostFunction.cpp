@@ -46,8 +46,7 @@ void CrossEntropyCostFunction::reinitialize() {
     m_col_sums.resize(m_minibatch_size);
 
     // The output activations will only contain 1 value: the cost
-    m_output_forward.resize(1);
-    m_output_backward.resize(1);
+    m_output_var.resize(1);
 }
 
 void CrossEntropyCostFunction::forward_propagate() {
@@ -108,17 +107,17 @@ void CrossEntropyCostFunction::forward_propagate() {
         int n = target_activations(m);
         cost -= std::log(m_mu(n, m));
     }
-    m_output_forward[0] = cost;
+    m_output_var.data[0] = cost;
     // Only the gradient-checking functions should ever modify the output_backward activations, so
     // this is probably safe.
-    set_value(m_output_backward, 1.0f);
+    set_value(m_output_var.grad, 1.0f);
 }
 
 
 void CrossEntropyCostFunction::back_propagate_activation_gradients() {
     //copy_matrix(get_input_port_backward(), m_temp_input_error);
     get_input_port_grad() = m_temp_input_error;
-    const float out_back = m_output_backward[0];
+    const float out_back = m_output_var.grad[0];
     scale(get_input_port_grad(), get_input_port_grad(), out_back);
 }
 

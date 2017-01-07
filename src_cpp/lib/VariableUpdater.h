@@ -1,5 +1,5 @@
-#ifndef _UPDATER_DEP_H
-#define _UPDATER_DEP_H
+#ifndef _VARIABLE_UPDATER_H
+#define _VARIABLE_UPDATER_H
 /*
  * Copyright (c) 2005-2015, Brian K. Vogel
  * All rights reserved.
@@ -36,11 +36,13 @@
 #include <iostream>
 #include "Constants.h"
 #include "Utilities.h"
+#include "Variable.h"
 
 
 namespace kumozu {
 
-/*
+/**
+ * fixme
    * An instance of this class is associated with a pair of matrices: W and W_grad. An "update()"
    * function is provided that can then be used to update the values in W from the gradients in W_grad.
    *
@@ -64,11 +66,12 @@ namespace kumozu {
    * Implementation note: Although another option would be to have a distinct subclass for each update algorithm,
    * we choose here to make this class support all available update algorithms.
    */
-class UpdaterDeprecated {
+// todo: move specific optimization algrithms into a subclass for each algorithm.
+class VariableUpdater {
 
 public:
 
-    UpdaterDeprecated() {}
+    VariableUpdater() {}
 
     /*
      * If no "mode-setting" methods are called, update will apply a
@@ -76,11 +79,9 @@ public:
      *
      * Parameters:
      *
-     * input_extents: Size of W, which is also the size of grad_W.
+     *
      */
-    UpdaterDeprecated(const std::vector<int>& input_extents, std::string name):
-        m_momentum_W {input_extents},
-        m_sum_square_grad_W {input_extents},
+    VariableUpdater(std::string name):
         m_name {name},
         m_learning_rate {0.01f}, // default learning rate.
         m_weight_decay {0.0f},
@@ -106,6 +107,10 @@ public:
                    * grad_W: The matrix containing the gradients, which must be the same size as W.
                    */
     void update(MatrixF& W, const MatrixF& grad_W);
+
+    void update(VariableF& var);
+
+
 
     //////////////////////////////////////////////////////////////////////////////////////////////////
     //
@@ -188,4 +193,4 @@ private:
 
 }
 
-#endif /* _UPDATER_DEP_H */
+#endif /* _VARIABLE_UPDATER_H */

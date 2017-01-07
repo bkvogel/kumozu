@@ -39,8 +39,7 @@ void LinearLayer::reinitialize(std::vector<int> input_extents) {
     m_input_layer_units = input_extents.at(0);
     m_output_layer_units = m_dim_output;
     m_minibatch_size = input_extents.at(1);
-    m_output_data.resize(m_dim_output, m_minibatch_size);
-    m_output_grad.resize(m_dim_output, m_minibatch_size);
+    m_output_var.resize(m_dim_output, m_minibatch_size);
     const std::vector<int> new_W_extents = {m_dim_output, m_input_layer_units};
     auto& W = get_param("W");
     auto& bias = get_param("bias");
@@ -49,12 +48,8 @@ void LinearLayer::reinitialize(std::vector<int> input_extents) {
         // size should not cause W to change size.
         W.resize(new_W_extents);
         m_temp_size_W.resize(new_W_extents);
-        //get_weight_gradient().resize(new_W_extents);
-        // If we reinitialize W, must reinitialize bias as well.
         bias.resize(m_dim_output);
         m_temp_size_bias.resize(m_dim_output);
-        //get_bias_gradient().resize(m_dim_output);
-
         const float std_dev_init = 1.0f/std::sqrt(m_input_layer_units); // default
         randomize_uniform(W.data, -std_dev_init, std_dev_init); // default
         //const float std_dev_init = 2.0f*std::sqrt(2.0f)/std::sqrt(m_input_layer_units);
@@ -75,22 +70,22 @@ void LinearLayer::forward_propagate(const MatrixF& input_data) {
     if (!m_enable_bias) {
         set_value(bias.data, 0.0f);
     }
-    do_product_update(m_output_data, W.data, input_data, bias.data);
+    do_product_update(m_output_var.data, W.data, input_data, bias.data);
 }
 
 void LinearLayer::back_propagate_paramater_gradients(const MatrixF& input_data) {
     auto& W = get_param("W");
     auto& bias = get_param("bias");
-    compute_weight_grad_sgd_minibatch(m_output_grad, W.grad, input_data);
-    compute_bias_grad_sgd_minibatch(m_output_grad, bias.grad);
+    compute_weight_grad_sgd_minibatch(m_output_var.grad, W.grad, input_data);
+    compute_bias_grad_sgd_minibatch(m_output_var.grad, bias.grad);
 }
 
 void LinearLayer::back_propagate_activation_gradients(MatrixF& input_grad, const MatrixF& input_data) {
     if (m_use_fixed_random_back_prop) {
-        do_backprop_update_sgd_minibatch(m_output_grad, m_W_fixed_random, input_grad); // fixed-random backpropagation
+        do_backprop_update_sgd_minibatch(m_output_var.grad, m_W_fixed_random, input_grad); // fixed-random backpropagation
     } else {
         auto& W = get_param("W");
-        do_backprop_update_sgd_minibatch(m_output_grad, W.data, input_grad); // Usual backpropagation
+        do_backprop_update_sgd_minibatch(m_output_var.grad, W.data, input_grad); // Usual backpropagation
     }
 }
 

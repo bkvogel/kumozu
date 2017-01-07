@@ -66,8 +66,6 @@
 // Uncomment to enable assertion checking.
 //#undef NDEBUG
 
-//#include <assert.h>
-
 using namespace std;
 
 namespace kumozu {
@@ -126,13 +124,10 @@ void mnist_example_1() {
 
     const bool is_enable_bias_linear_layers = false;
 
-    //SequentialNetwork network("sequential network 1");
     SequentialLayer network("sequential network 1");
 
     ImageActivationFunction::ACTIVATION_TYPE box_activation_type = ImageActivationFunction::ACTIVATION_TYPE::leakyReLU;
-    //BoxActivationFunction::ACTIVATION_TYPE box_activation_type = BoxActivationFunction::ACTIVATION_TYPE::ReLU;
     ColumnActivationFunction::ACTIVATION_TYPE col_activation_type = ColumnActivationFunction::ACTIVATION_TYPE::leakyReLU;
-    //ColumnActivationFunction::ACTIVATION_TYPE col_activation_type = ColumnActivationFunction::ACTIVATION_TYPE::ReLU;
 
     // Notes:
     // Pooling region extents are (depth, height, width) where depth is the number of convolution filter channels. Therefore,
@@ -145,7 +140,6 @@ void mnist_example_1() {
     const vector<int> pooling_region_step_sizes1 = {1, 1, 1};
     ConvLayer2D conv_layer1(filter_count1, filter_height1, filter_width1, is_enable_bias_linear_layers, "Conv Layer 1");
     conv_layer1.enable_fixed_random_back_prop(conv_fixed_rand);
-    //conv_layer1.enable_bias(is_enable_bias_linear_layers);
     network.schedule_layer(conv_layer1);
     BatchNormalization3D batch_norm3d_1(enable_gamma_beta, batch_norm_momentum, "Batch Normalization 3d 1");
     network.schedule_layer(batch_norm3d_1);
@@ -161,7 +155,6 @@ void mnist_example_1() {
     const int filter_count2 = 64; //
     ConvLayer2D conv_layer2(filter_count2, filter_height2, filter_width2, is_enable_bias_linear_layers, "Conv Layer 2");
     conv_layer2.enable_fixed_random_back_prop(conv_fixed_rand);
-    //conv_layer2.enable_bias(is_enable_bias_linear_layers);
     network.schedule_layer(conv_layer2);
     BatchNormalization3D batch_norm3d_2(enable_gamma_beta, batch_norm_momentum, "Batch Normalization 3d 2");
     network.schedule_layer(batch_norm3d_2);
@@ -179,7 +172,6 @@ void mnist_example_1() {
     const int filter_count3 = 128; // 128
     ConvLayer2D conv_layer3(filter_count3, filter_height3, filter_width3, is_enable_bias_linear_layers, "Conv Layer 3");
     conv_layer3.enable_fixed_random_back_prop(conv_fixed_rand);
-    //conv_layer3.enable_bias(is_enable_bias_linear_layers);
     network.schedule_layer(conv_layer3);
     BatchNormalization3D batch_norm3d_3(enable_gamma_beta, batch_norm_momentum, "Batch Normalization 3d 3");
     network.schedule_layer(batch_norm3d_3);
@@ -197,7 +189,6 @@ void mnist_example_1() {
     const int filter_count4 = 128; // 128
     ConvLayer2D conv_layer4(filter_count4, filter_height4, filter_width4, is_enable_bias_linear_layers, "Conv Layer 4");
     conv_layer4.enable_fixed_random_back_prop(conv_fixed_rand);
-    //conv_layer4.enable_bias(is_enable_bias_linear_layers);
     network.schedule_layer(conv_layer4);
     BatchNormalization3D batch_norm3d_4(enable_gamma_beta, batch_norm_momentum, "Batch Normalization 3d 4");
     network.schedule_layer(batch_norm3d_4);
@@ -215,7 +206,6 @@ void mnist_example_1() {
     const int filter_count5 = 256; // 128
     ConvLayer2D conv_layer5(filter_count5, filter_height5, filter_width5, is_enable_bias_linear_layers, "Conv Layer 5");
     conv_layer5.enable_fixed_random_back_prop(conv_fixed_rand);
-    //conv_layer5.enable_bias(is_enable_bias_linear_layers);
     network.schedule_layer(conv_layer5);
     BatchNormalization3D batch_norm3d_5(enable_gamma_beta, batch_norm_momentum, "Batch Normalization 3d 5");
     network.schedule_layer(batch_norm3d_5);
@@ -233,7 +223,6 @@ void mnist_example_1() {
     const int filter_count6 = 256; //
     ConvLayer2D conv_layer6(filter_count6, filter_height6, filter_width6, is_enable_bias_linear_layers, "Conv Layer 6");
     conv_layer6.enable_fixed_random_back_prop(conv_fixed_rand);
-    //conv_layer6.enable_bias(is_enable_bias_linear_layers);
     network.schedule_layer(conv_layer6);
     BatchNormalization3D batch_norm3d_6(enable_gamma_beta, batch_norm_momentum, "Batch Normalization 3d 6");
     network.schedule_layer(batch_norm3d_6);
@@ -251,7 +240,6 @@ void mnist_example_1() {
     const int filter_count7 = 256; //
     ConvLayer2D conv_layer7(filter_count7, filter_height7, filter_width7, is_enable_bias_linear_layers, "Conv Layer 7");
     conv_layer7.enable_fixed_random_back_prop(conv_fixed_rand);
-    //conv_layer7.enable_bias(is_enable_bias_linear_layers);
     network.schedule_layer(conv_layer7);
     BatchNormalization3D batch_norm3d_7(enable_gamma_beta, batch_norm_momentum, "Batch Normalization 3d 7");
     network.schedule_layer(batch_norm3d_7);
@@ -305,12 +293,11 @@ void mnist_example_1() {
     MinibatchTrainer<float, int> trainer(full_train_images, 0, target_training_labels, 0, minibatch_size);
     trainer.enable_shuffling(true);
 
-    const MatrixF &train_input_mini = trainer.get_input_batch();
-    const Matrix<int> &train_output_mini = trainer.get_output_batch();
+    VariableF &train_input_mini = trainer.get_input_batch();
+    const MatrixI &train_output_mini = trainer.get_output_batch_mat();
     cost_func.set_target_activations(train_output_mini);
-    MatrixF input_backward = train_input_mini;
     // Connect the input activations and deltas to the network.
-    network.create_input_port(train_input_mini, input_backward);
+    network.create_input_port(train_input_mini);
     // Initialize the network:
     network.forward();
 
@@ -318,24 +305,15 @@ void mnist_example_1() {
     if (false) {
         network.load_parameters("mnist_model_1");
     }
-    //MatrixF& W = network.get_weights();
-    //Updater weights_updater(W.get_extents(), "Weights Updater");
     Updater updater(network.get_params());
-    //weights_updater.set_mode_rmsprop_momentum(rms_prop_rate_weights, 0.9f, 0.9f);
-    //weights_updater.set_mode_rmsprop(rms_prop_rate_weights, 0.9f);
     updater.set_mode_constant_learning_rate(learning_rate_weights); //
     updater.set_flag_weight_decay(weight_decay, enable_weight_decay);
-    //MatrixF& bias = network.get_bias();
-    //Updater bias_updater(bias.get_extents(), "Bias Updater");
-
-    //MatrixF& W_grad = network.get_weight_gradient();
-    //MatrixF& bias_grad = network.get_bias_gradient();
 
     // For testing:
     MinibatchTrainer<float, int> tester(full_test_images, 0, target_testing_labels, 0, minibatch_size);
     tester.enable_shuffling(true); // Not necessary to shuffle the test set but does not hurt.
-    const MatrixF &test_input_mini = tester.get_input_batch();
-    const Matrix<int> &test_output_mini = tester.get_output_batch();
+    VariableF &test_input_mini = tester.get_input_batch();
+    const MatrixI &test_output_mini = tester.get_output_batch_mat();
     int train_epochs = 0;
     network.set_train_mode(true);
 
@@ -351,15 +329,9 @@ void mnist_example_1() {
     while (train_epochs < 125) { // 100-150 epochs is good
         cerr << ".";
         bool end_epoch = trainer.next(); // Get next training mini-batch
-
-        //network.forward(train_input_mini);
         network.forward();
-        //train_loss_accumulator.accumulate(cost_func.forward(network.get_output_forward(), train_output_mini));
-        //cost_func.forward();
         train_loss_accumulator.accumulate(cost_func.get_output_data()[0]);
         train_accumulator.accumulate(error_count(linear_laye2.get_output_data(), train_output_mini));
-        //cost_func.back_propagate(network.get_output_backward(), network.get_output_forward(), train_output_mini);
-        //network.back_propagate(input_backward, train_input_mini);
         network.back_propagate();
         updater.update();
 
@@ -377,15 +349,12 @@ void mnist_example_1() {
             test_loss_accumulator.reset();
             network.set_train_mode(false);
             // Now connect the test input activations and deltas to the network.
-            network.create_input_port(test_input_mini, input_backward);
+            network.create_input_port(test_input_mini);
             cost_func.set_target_activations(test_output_mini);
             bool done = false;
             while (!done) {
                 done = tester.next(); // Get next test mini-batch
-                //network.forward(test_input_mini);
                 network.forward();
-                //test_loss_accumulator.accumulate(cost_func.forward(network.get_output_forward(), test_output_mini));
-                //cost_func.forward();
                 test_loss_accumulator.accumulate(cost_func.get_output_data()[0]);
                 test_accumulator.accumulate(error_count(linear_laye2.get_output_data(), test_output_mini));
             }
@@ -394,7 +363,7 @@ void mnist_example_1() {
             cout << "Test examples: " << test_accumulator.get_counter() << endl;
             test_errors.push_back(test_accumulator.get_mean());
             // Connect the input activations and deltas to the network.
-            network.create_input_port(train_input_mini, input_backward);
+            network.create_input_port(train_input_mini);
             cost_func.set_target_activations(train_output_mini);
             // Display plots?
             if (true) {
@@ -410,7 +379,7 @@ void mnist_example_1() {
 
                 // Plot an input image to network:
                 const int image_index = 0; // arbitrary choice
-                MatrixF one_image = select(test_input_mini, 0, image_index);
+                MatrixF one_image = select(test_input_mini.data, 0, image_index);
                 scale(one_image, one_image, 255.0f);
                 plot_images_greyscale_3dim(plot_activations, one_image, "Input test image");
 
@@ -468,12 +437,9 @@ void mnist_example_1() {
             updater.set_mode_constant_learning_rate(learning_rate_weights);
             learning_rate_bias *= 0.97f;
             cout << "New learning rate bias: " << learning_rate_bias << endl;
-            //bias_updater.set_mode_constant_learning_rate(learning_rate_bias); //
             weight_decay *= 0.97f;
             cout << "New weight decay: " << weight_decay << endl;
             updater.set_flag_weight_decay(weight_decay, enable_weight_decay);
-            //bias_updater.set_flag_weight_decay(weight_decay, enable_weight_decay);
-
         }
     }
 
@@ -527,12 +493,8 @@ void cifar10_example_1() {
     //
 
     const int minibatch_size = 100; // try 10-200
-
-
     const int dim_fully_connected_hidden = 512; // 512
-
     const float batch_norm_momentum = 0.01f;
-
     const int class_label_count = 1 + static_cast<int>(max_value(target_testing_labels));
     cout << "Class label count = " << class_label_count << endl;
 
@@ -566,7 +528,6 @@ void cifar10_example_1() {
     const vector<int> pooling_region_step_sizes1 = {1, 1, 1};
     ConvLayer2D conv_layer1(filter_count1, filter_height1, filter_width1, is_enable_bias_linear_layers, "Conv Layer 1");
     conv_layer1.enable_fixed_random_back_prop(conv_fixed_rand);
-    //conv_layer1.enable_bias(is_enable_bias_linear_layers);
     network.schedule_layer(conv_layer1);
     BatchNormalization3D batch_norm3d_1(enable_gamma_beta, batch_norm_momentum, "Batch Normalization 3d 1");
     network.schedule_layer(batch_norm3d_1);
@@ -582,7 +543,6 @@ void cifar10_example_1() {
     const int filter_count2 = 64; //
     ConvLayer2D conv_layer2(filter_count2, filter_height2, filter_width2, is_enable_bias_linear_layers, "Conv Layer 2");
     conv_layer2.enable_fixed_random_back_prop(conv_fixed_rand);
-    //conv_layer2.enable_bias(is_enable_bias_linear_layers);
     network.schedule_layer(conv_layer2);
     BatchNormalization3D batch_norm3d_2(enable_gamma_beta, batch_norm_momentum, "Batch Normalization 3d 2");
     network.schedule_layer(batch_norm3d_2);
@@ -600,7 +560,6 @@ void cifar10_example_1() {
     const int filter_count3 = 128; // 128
     ConvLayer2D conv_layer3(filter_count3, filter_height3, filter_width3, is_enable_bias_linear_layers, "Conv Layer 3");
     conv_layer3.enable_fixed_random_back_prop(conv_fixed_rand);
-    //conv_layer3.enable_bias(is_enable_bias_linear_layers);
     network.schedule_layer(conv_layer3);
     BatchNormalization3D batch_norm3d_3(enable_gamma_beta, batch_norm_momentum, "Batch Normalization 3d 3");
     network.schedule_layer(batch_norm3d_3);
@@ -618,7 +577,6 @@ void cifar10_example_1() {
     const int filter_count4 = 128; // 128
     ConvLayer2D conv_layer4(filter_count4, filter_height4, filter_width4, is_enable_bias_linear_layers, "Conv Layer 4");
     conv_layer4.enable_fixed_random_back_prop(conv_fixed_rand);
-    //conv_layer4.enable_bias(is_enable_bias_linear_layers);
     network.schedule_layer(conv_layer4);
     BatchNormalization3D batch_norm3d_4(enable_gamma_beta, batch_norm_momentum, "Batch Normalization 3d 4");
     network.schedule_layer(batch_norm3d_4);
@@ -636,7 +594,6 @@ void cifar10_example_1() {
     const int filter_count5 = 256; // 128
     ConvLayer2D conv_layer5(filter_count5, filter_height5, filter_width5, is_enable_bias_linear_layers, "Conv Layer 5");
     conv_layer5.enable_fixed_random_back_prop(conv_fixed_rand);
-    //conv_layer5.enable_bias(is_enable_bias_linear_layers);
     network.schedule_layer(conv_layer5);
     BatchNormalization3D batch_norm3d_5(enable_gamma_beta, batch_norm_momentum, "Batch Normalization 3d 5");
     network.schedule_layer(batch_norm3d_5);
@@ -654,7 +611,6 @@ void cifar10_example_1() {
     const int filter_count6 = 256; //
     ConvLayer2D conv_layer6(filter_count6, filter_height6, filter_width6, is_enable_bias_linear_layers, "Conv Layer 6");
     conv_layer6.enable_fixed_random_back_prop(conv_fixed_rand);
-    //conv_layer6.enable_bias(is_enable_bias_linear_layers);
     network.schedule_layer(conv_layer6);
     BatchNormalization3D batch_norm3d_6(enable_gamma_beta, batch_norm_momentum, "Batch Normalization 3d 6");
     network.schedule_layer(batch_norm3d_6);
@@ -672,7 +628,6 @@ void cifar10_example_1() {
     const int filter_count7 = 256; //
     ConvLayer2D conv_layer7(filter_count7, filter_height7, filter_width7, is_enable_bias_linear_layers, "Conv Layer 7");
     conv_layer7.enable_fixed_random_back_prop(conv_fixed_rand);
-    //conv_layer7.enable_bias(is_enable_bias_linear_layers);
     network.schedule_layer(conv_layer7);
     BatchNormalization3D batch_norm3d_7(enable_gamma_beta, batch_norm_momentum, "Batch Normalization 3d 7");
     network.schedule_layer(batch_norm3d_7);
@@ -709,7 +664,6 @@ void cifar10_example_1() {
     const int filter_count9 = 512;
     ConvLayer2D conv_layer9(filter_count9, filter_height9, filter_width9, is_enable_bias_linear_layers, "Conv Layer 9");
     conv_layer9.enable_fixed_random_back_prop(conv_fixed_rand);
-    //conv_layer9.enable_bias(is_enable_bias_linear_layers);
     network.schedule_layer(conv_layer9);
     BatchNormalization3D batch_norm3d_9(enable_gamma_beta, batch_norm_momentum, "Batch Normalization 3d 9");
     network.schedule_layer(batch_norm3d_9);
@@ -727,7 +681,6 @@ void cifar10_example_1() {
     const int filter_count10 = 512;
     ConvLayer2D conv_layer10(filter_count10, filter_height10, filter_width10, is_enable_bias_linear_layers, "Conv Layer 10");
     conv_layer10.enable_fixed_random_back_prop(conv_fixed_rand);
-    //conv_layer10.enable_bias(is_enable_bias_linear_layers);
     network.schedule_layer(conv_layer10);
     BatchNormalization3D batch_norm3d_10(enable_gamma_beta, batch_norm_momentum, "Batch Normalization 3d 10");
     network.schedule_layer(batch_norm3d_10);
@@ -745,7 +698,6 @@ void cifar10_example_1() {
     const int filter_count11 = 512;
     ConvLayer2D conv_layer11(filter_count11, filter_height11, filter_width11, is_enable_bias_linear_layers, "Conv Layer 11");
     conv_layer11.enable_fixed_random_back_prop(conv_fixed_rand);
-    //conv_layer11.enable_bias(is_enable_bias_linear_layers);
     network.schedule_layer(conv_layer11);
     BatchNormalization3D batch_norm3d_11(enable_gamma_beta, batch_norm_momentum, "Batch Normalization 3d 11");
     network.schedule_layer(batch_norm3d_11);
@@ -763,7 +715,6 @@ void cifar10_example_1() {
     const int filter_count12 = 512;
     ConvLayer2D conv_layer12(filter_count12, filter_height12, filter_width12, is_enable_bias_linear_layers, "Conv Layer 12");
     conv_layer12.enable_fixed_random_back_prop(conv_fixed_rand);
-    //conv_layer12.enable_bias(is_enable_bias_linear_layers);
     network.schedule_layer(conv_layer12);
     BatchNormalization3D batch_norm3d_12(enable_gamma_beta, batch_norm_momentum, "Batch Normalization 3d 12");
     network.schedule_layer(batch_norm3d_12);
@@ -781,7 +732,6 @@ void cifar10_example_1() {
     const int filter_count13 = 512;
     ConvLayer2D conv_layer13(filter_count13, filter_height13, filter_width13, is_enable_bias_linear_layers, "Conv Layer 13");
     conv_layer13.enable_fixed_random_back_prop(conv_fixed_rand);
-    //conv_layer13.enable_bias(is_enable_bias_linear_layers);
     network.schedule_layer(conv_layer13);
     BatchNormalization3D batch_norm3d_13(enable_gamma_beta, batch_norm_momentum, "Batch Normalization 3d 13");
     network.schedule_layer(batch_norm3d_13);
@@ -838,35 +788,25 @@ void cifar10_example_1() {
     MinibatchTrainer<float, int> trainer(full_train_images, 0, target_training_labels, 0, minibatch_size);
     trainer.enable_shuffling(true);
 
-    const MatrixF &train_input_mini = trainer.get_input_batch();
-    const Matrix<int> &train_output_mini = trainer.get_output_batch();
+    VariableF &train_input_mini = trainer.get_input_batch();
+    const MatrixI &train_output_mini = trainer.get_output_batch_mat();
     cost_func.set_target_activations(train_output_mini);
-    MatrixF input_backward = train_input_mini;
     // Initialize the network:
-    network.create_input_port(train_input_mini, input_backward);
+    network.create_input_port(train_input_mini);
     network.forward();
     // Optionally load saved parameters:
     if (false) {
         network.load_parameters("cifar_model_1");
     }
-    //MatrixF& W = network.get_weights();
-    //Updater weights_updater(W.get_extents(), "Weights Updater");
     Updater updater(network.get_params());
-    //weights_updater.set_mode_rmsprop_momentum(rms_prop_rate_weights, 0.9f, 0.9f);
-    //weights_updater.set_mode_rmsprop(rms_prop_rate_weights, 0.9f);
     updater.set_mode_constant_learning_rate(learning_rate_weights); //
     updater.set_flag_weight_decay(weight_decay, enable_weight_decay);
-    //MatrixF& bias = network.get_bias();
-
-
-    //MatrixF& W_grad = network.get_weight_gradient();
-    //MatrixF& bias_grad = network.get_bias_gradient();
 
     // For testing:
     MinibatchTrainer<float, int> tester(full_test_images, 0, target_testing_labels, 0, minibatch_size);
     tester.enable_shuffling(true); // Not necessary to shuffle the test set but does not hurt.
-    const MatrixF &test_input_mini = tester.get_input_batch();
-    const Matrix<int> &test_output_mini = tester.get_output_batch();
+    VariableF &test_input_mini = tester.get_input_batch();
+    const MatrixI &test_output_mini = tester.get_output_batch_mat();
     int train_epochs = 0;
     network.set_train_mode(true);
 
@@ -884,14 +824,10 @@ void cifar10_example_1() {
         bool end_epoch = trainer.next(); // Get next training mini-batch
 
         network.forward();
-        //train_loss_accumulator.accumulate(cost_func.forward(network.get_output_forward(), train_output_mini));
-        //cost_func.forward();
         train_loss_accumulator.accumulate(cost_func.get_output_data()[0]);
         train_accumulator.accumulate(error_count(linear_laye2.get_output_data(), train_output_mini));
-        //cost_func.back_propagate(network.get_output_backward(), network.get_output_forward(), train_output_mini);
         network.back_propagate();
         updater.update();
-        //bias_updater.update();
         if (end_epoch) {
             cout << endl << "---------------" << endl;
             //network.print_paramater_stats(); // enable for debugging info
@@ -906,14 +842,12 @@ void cifar10_example_1() {
             test_loss_accumulator.reset();
             network.set_train_mode(false);
             // Now connect the test input activations and deltas to the network.
-            network.create_input_port(test_input_mini, input_backward);
+            network.create_input_port(test_input_mini);
             cost_func.set_target_activations(test_output_mini);
             bool done = false;
             while (!done) {
                 done = tester.next(); // Get next test mini-batch
                 network.forward();
-                //test_loss_accumulator.accumulate(cost_func.forward(network.get_output_forward(), test_output_mini));
-                //cost_func.forward();
                 test_loss_accumulator.accumulate(cost_func.get_output_data()[0]);
                 test_accumulator.accumulate(error_count(linear_laye2.get_output_data(), test_output_mini));
             }
@@ -922,7 +856,7 @@ void cifar10_example_1() {
             cout << "Test examples: " << test_accumulator.get_counter() << endl;
             test_errors.push_back(test_accumulator.get_mean());
             // Connect the input activations and deltas to the network.
-            network.create_input_port(train_input_mini, input_backward);
+            network.create_input_port(train_input_mini);
             cost_func.set_target_activations(train_output_mini);
             // Display plots?
             if (true) {
@@ -938,7 +872,7 @@ void cifar10_example_1() {
 
                 // Plot an input image to network:
                 const int image_index = 0; // arbitrary choice
-                MatrixF one_image = select(test_input_mini, 0, image_index);
+                MatrixF one_image = select(test_input_mini.data, 0, image_index);
                 scale(one_image, one_image, 255.0f);
                 plot_image_rgb(plot_activations, one_image, "Input test image");
 
@@ -1027,12 +961,9 @@ void cifar10_example_1() {
             updater.set_mode_constant_learning_rate(learning_rate_weights);
             learning_rate_bias *= 0.97f;
             cout << "New learning rate bias: " << learning_rate_bias << endl;
-            //bias_updater.set_mode_constant_learning_rate(learning_rate_bias); //
             weight_decay *= 0.97f;
             cout << "New weight decay: " << weight_decay << endl;
             updater.set_flag_weight_decay(weight_decay, enable_weight_decay);
-            //bias_updater.set_flag_weight_decay(weight_decay, enable_weight_decay);
-
         }
     }
 

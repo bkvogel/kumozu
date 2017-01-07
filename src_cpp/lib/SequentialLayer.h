@@ -43,7 +43,7 @@ namespace kumozu {
 /**
  * A Node that is a container for a sequence of Layer nodes.
  *
- * This class corresponds to a composite node with 1 input port and 1 output port in which one or more
+ * A SequentialLayer is a composite node with 1 input port and 1 output port in which one or more
  * contained layers are connected serially to form a feed-forward graph.
  *
  * It is possible to nest instances of this class, such that one or more of the contained nodes may also
@@ -52,7 +52,6 @@ namespace kumozu {
  * Usage:
  *
  * Create an instance of this class and add layers using the add_layer() or schedule_layer() functions.
- *
  *
  */
 class SequentialLayer : public CompositeNode {

@@ -138,7 +138,6 @@ public:
         m_adder {"Adder"},
         m_tanh {ColumnActivationFunction::ACTIVATION_TYPE::tanh, "tanh activation"},
         m_splitter{2, "Splitter"}
-      //m_linear_output {output_dim, "Linear output"}
     {
         // This node is a "composite node" since it will contain a network subgraph.
         // We now spcecify the subgraph:
@@ -170,14 +169,12 @@ public:
     }
 
     void initialize_params() {
-        MatrixF& W1 = m_linear_x_t.get_param("W").data;
-        randomize_uniform(W1, -0.08f, 0.08f); // Karpathy-recommended
-        MatrixF& bias1 = m_linear_x_t.get_param("bias").data;
-        randomize_uniform(bias1, -0.08f, 0.08f); // Karpathy-recommended
-        MatrixF& W2 = m_linear_h_t_prev.get_param("W").data;
-        randomize_uniform(W2, -0.08f, 0.08f); // Karpathy-recommended
-        MatrixF& bias2 = m_linear_h_t_prev.get_param("bias").data;
-        randomize_uniform(bias2, -0.08f, 0.08f); // Karpathy-recommended
+        for (auto& param : m_linear_x_t.get_params()) {
+            randomize_uniform(param->data, -0.08f, 0.08f);
+        }
+        for (auto& param : m_linear_h_t_prev.get_params()) {
+            randomize_uniform(param->data, -0.08f, 0.08f);
+        }
     }
 
 private:
@@ -683,10 +680,9 @@ public:
 
     // Optionally initialize parameters using the values recommended by Karpathy in [1].
     void initialize_params() {
-        MatrixF& W = m_linear.get_param("W").data;
-        randomize_uniform(W, -0.08f, 0.08f);
-        MatrixF& bias = m_linear.get_param("bias").data;
-        randomize_uniform(bias, -0.08f, 0.08f);
+        for (auto& param : m_linear.get_params()) {
+            randomize_uniform(param->data, -0.08f, 0.08f);
+        }
         // todo: set only the forget gate part of bias to 1.0f
     }
 
@@ -1178,10 +1174,10 @@ public:
      *
      * @param minibatch_size mini-batch size.
      */
-    std::map<std::string, std::unique_ptr<MatrixF>> make_hidden_state_matrices(int minibatch_size) {
-        std::map<std::string, std::unique_ptr<MatrixF>> hidden_mat_map;
+    std::map<std::string, std::unique_ptr<VariableF>> make_hidden_state_variables(int minibatch_size) {
+        std::map<std::string, std::unique_ptr<VariableF>> hidden_mat_map;
         for (std::string hidden_port : m_hidden_port_names) {
-            hidden_mat_map.emplace(hidden_port, std::make_unique<MatrixF>(m_rnn_dim, minibatch_size));
+            hidden_mat_map.emplace(hidden_port, std::make_unique<VariableF>(m_rnn_dim, minibatch_size));
         }
         return hidden_mat_map;
     }
@@ -1354,8 +1350,8 @@ private:
 //using FullSlice = RNN1LayerSlice; // 1-layer Vanilla RNN
 //using FullSlice = LSTM1LayerSlice; // 1-layer LSTM
 //using FullSlice = LSTM1LayerSliceV2; // 1-layer LSTM + dropout
-//using FullSlice = LSTM2LayerSlice; // 2-layer LSTM
-using FullSlice =   LSTM2LayerSliceV2; // 2-layer LSTM + dropout
+using FullSlice = LSTM2LayerSlice; // 2-layer LSTM
+//using FullSlice =   LSTM2LayerSliceV2; // 2-layer LSTM + dropout
 // Check that gradients are computed correctly for LSTMNode.
 void check_gradients_LSTMNode() {
     // Internal size of RNN:
@@ -1373,8 +1369,7 @@ void check_gradients_LSTMNode() {
     input_port_extents_map1["x_t"] = x_t_extents;
     input_port_extents_map1["h_t"] = h_t_extents;
     input_port_extents_map1["c_t"] = h_t_extents;
-    slice.check_jacobian_weights(input_port_extents_map1);
-    //slice.check_jacobian_bias(input_port_extents_map1);
+    slice.check_jacobian_parameters(input_port_extents_map1);
     slice.check_jacobian_input_grad(input_port_extents_map1);
     cout << "Exiting." << endl;
     exit(0);
@@ -1400,23 +1395,20 @@ public:
     void sample(int gen_char_count, float temperature) {
         const int minibatch_size = 1;
         // Create the hidden state matrices and connect them to input ports of the slice.
-        std::map<std::string, std::unique_ptr<MatrixF>> name_to_hidden_forward_matrix = m_slice.make_hidden_state_matrices(minibatch_size); // todo: make typedef
-        std::map<std::string, std::unique_ptr<MatrixF>> name_to_hidden_backward_matrix = m_slice.make_hidden_state_matrices(minibatch_size);
-        for (auto& x : name_to_hidden_forward_matrix) {
+        auto name_to_hidden_vars = m_slice.make_hidden_state_variables(minibatch_size);
+        for (auto& x : name_to_hidden_vars) {
             string port_name = x.first;
-            MatrixF& hidden_forward = *x.second;
-            MatrixF& hidden_backward = *name_to_hidden_backward_matrix[port_name];
-            m_slice.create_input_port(hidden_forward, hidden_backward, port_name);
+            auto& hidden_var = *x.second;
+            m_slice.create_input_port(hidden_var, port_name);
         }
 
-        MatrixF input_forward(m_slice.get_in_out_dim(), minibatch_size);
-        MatrixF input_backward(m_slice.get_in_out_dim(), minibatch_size);
-        m_slice.create_input_port(input_forward, input_backward, "x_t"); // Input port for slice.
+        VariableF input_var(m_slice.get_in_out_dim(), minibatch_size);
+        m_slice.create_input_port(input_var, "x_t"); // Input port for slice.
         MatrixI target_activations(minibatch_size);
         m_slice.set_target_activations(target_activations);
 
         // Seed character: Set to whatever character you want.
-        input_forward(0) = 1.0f;
+        input_var.data(0) = 1.0f;
 
         MatrixF temperature_probs;
         cout << "Generating text:" << endl << endl;
@@ -1424,7 +1416,6 @@ public:
             m_slice.forward();
             const MatrixF& probabilities = m_slice.get_softmax_output();
             // Use Karpathy's method for modifying the distribution temperature:
-            //copy_matrix(temperature_probs, probabilities);
             temperature_probs = probabilities;
             element_wise_ln(temperature_probs, temperature_probs);
             scale(temperature_probs, temperature_probs, 1.0f/temperature);
@@ -1442,14 +1433,13 @@ public:
                 error_exit("Index not in char map!");
             }
 
-            set_value(input_forward, 0.0f);
-            input_forward(index_chosen) = 1.0f; // Character for next time slice.
+            set_value(input_var.data, 0.0f);
+            input_var.data(index_chosen) = 1.0f; // Character for next time slice.
             // Copy hidden state output into hidden state input for next slice.
-            for (auto& x : name_to_hidden_forward_matrix) {
+            for (auto& x : name_to_hidden_vars) {
                 string port_name = x.first;
-                MatrixF& input_forward = *x.second;
+                MatrixF& input_forward = (x.second)->data;
                 const MatrixF& output_forward = m_slice.get_output_data(port_name);
-                //copy_matrix(input_forward, output_forward);
                 input_forward = output_forward;
             }
         }
@@ -1469,15 +1459,11 @@ void check_gradients_FullSlice() {
     const int rnn_dim = 5;
     const int output_dim = 3; // Number of unique characters
     const int local_char_dim = 4;
-    const float dropout_prob_keep = 0.0f;
-    //FullSlice slice(rnn_dim, output_dim, dropout_prob_keep, "Slice 0");
     FullSlice slice(rnn_dim, output_dim, "Slice 0");
     MatrixI target_activations(local_minibatch_size);
     slice.set_target_activations(target_activations);
 
     const vector<int> x_t_extents = {local_char_dim, local_minibatch_size};
-    MatrixF x_t_foward(x_t_extents);
-    MatrixF x_t_backward(x_t_extents);
 
     const vector<int> h_t_extents = {rnn_dim, local_minibatch_size};
     std::map<std::string, std::vector<int>> input_port_extents_map1;
@@ -1485,8 +1471,7 @@ void check_gradients_FullSlice() {
     for (auto hidden_port : slice.get_hidden_port_names()) {
         input_port_extents_map1[hidden_port] = h_t_extents;
     }
-    slice.check_jacobian_weights(input_port_extents_map1);
-    //slice.check_jacobian_bias(input_port_extents_map1);
+    slice.check_jacobian_parameters(input_port_extents_map1);
     slice.check_jacobian_input_grad(input_port_extents_map1);
     cout << "Exiting." << endl;
     exit(0);
@@ -1516,8 +1501,7 @@ void check_gradients_SliceUnroller_FullSlice() {
         auto& slice = rnn.get_slice(i);
         slice.set_target_activations(target_activations);
     }
-    rnn.check_jacobian_weights(input_port_extents_map);
-    //rnn.check_jacobian_bias(input_port_extents_map);
+    rnn.check_jacobian_parameters(input_port_extents_map);
     rnn.check_jacobian_input_grad(input_port_extents_map);
     cout << "Exiting." << endl;
     exit(0);
@@ -1563,11 +1547,11 @@ void lstm_example() {
     const int rnn_dim = 256; // good size 256 or greater
     // Set up learning rates.
     //float learning_rate_weights = 1e-2f; // 1e-3 -  1e-5
-    float rms_prop_rate_weights = 5e-3f; //2e-3f
+    float rms_prop_rate_weights = 2e-3f; //2e-3f
 
     float weight_decay = 1e-5f; //
     const bool enable_weight_decay = true;
-    const float dropout_prob_keep = 0.5f; // Dropout probability of keeping an activation.
+    //const float dropout_prob_keep = 0.5f; // Dropout probability of keeping an activation.
 
     // Check gradients:
     const bool check_gradients_slice = false;
@@ -1602,33 +1586,28 @@ void lstm_example() {
     FullSlice& slice_0 = rnn_train.get_slice(0);
     // Create the hidden state matrices and connect them to input ports of the slice.
     // For training:
-    auto name_to_hidden_forward_matrix_train = slice_0.make_hidden_state_matrices(minibatch_size); // todo: make typedef/alias
-    auto name_to_hidden_backward_matrix_train = slice_0.make_hidden_state_matrices(minibatch_size);
-    for (auto& x : name_to_hidden_forward_matrix_train) {
+    auto name_to_hidden_var_train = slice_0.make_hidden_state_variables(minibatch_size); // todo: make typedef/alias
+    //auto name_to_hidden_backward_matrix_train = slice_0.make_hidden_state_matrices(minibatch_size);
+    for (auto& x : name_to_hidden_var_train) {
         string port_name = x.first;
-        MatrixF& hidden_forward = *x.second;
-        MatrixF& hidden_backward = *name_to_hidden_backward_matrix_train[port_name];
-        rnn_train.create_input_port(hidden_forward, hidden_backward, port_name);
+        VariableF& hidden_var = *x.second;
+        rnn_train.create_input_port(hidden_var, port_name);
     }
-    //const int minibatch_size_test = minibatch_size; // Mini-batch size for testing.
     const int minibatch_size_test = 10; // Mini-batch size for testing.
     // For testing:
-    auto name_to_hidden_forward_matrix_test = slice_0.make_hidden_state_matrices(minibatch_size_test); // todo: make typedef/alias
-    auto name_to_hidden_backward_matrix_test = slice_0.make_hidden_state_matrices(minibatch_size_test);
-    for (auto& x : name_to_hidden_forward_matrix_test) {
+    auto name_to_hidden_var_test = slice_0.make_hidden_state_variables(minibatch_size_test); // todo: make typedef/alias
+    //auto name_to_hidden_backward_matrix_test = slice_0.make_hidden_state_variables(minibatch_size_test);
+    for (auto& x : name_to_hidden_var_test) {
         string port_name = x.first;
-        MatrixF& hidden_forward = *x.second;
-        MatrixF& hidden_backward = *name_to_hidden_backward_matrix_test[port_name];
-        rnn_test.create_input_port(hidden_forward, hidden_backward, port_name);
+        VariableF& hidden_var = *x.second;
+        rnn_test.create_input_port(hidden_var, port_name);
     }
 
     // Connect matrices from train_getter to the RNN:
     for (int i = 0; i < num_slices; ++i) {
         //cout << "slice = " << i << endl;
-        const MatrixF& input_forward = train_getter.get_input_forward_batch(i);
-        MatrixF& input_backward = train_getter.get_input_backward_batch(i);
-        rnn_train.create_input_port(input_forward, input_backward, "x_t_" + std::to_string(i));
-
+        VariableF& input_var = train_getter.get_input_forward_batch(i);
+        rnn_train.create_input_port(input_var, "x_t_" + std::to_string(i));
         const MatrixI& target_activations = train_getter.get_output_class_index_batch(i);
         auto& slice = rnn_train.get_slice(i);
         slice.set_target_activations(target_activations);
@@ -1640,10 +1619,8 @@ void lstm_example() {
     // Connect matrices from test_getter to the RNN:
     for (int i = 0; i < num_slices; ++i) {
         //cout << "slice = " << i << endl;
-        const MatrixF& input_forward = test_getter.get_input_forward_batch(i);
-        MatrixF& input_backward = test_getter.get_input_backward_batch(i);
-        rnn_test.create_input_port(input_forward, input_backward, "x_t_" + std::to_string(i));
-
+        VariableF& input_var = test_getter.get_input_forward_batch(i);
+        rnn_test.create_input_port(input_var, "x_t_" + std::to_string(i));
         const MatrixI& target_activations = test_getter.get_output_class_index_batch(i);
         auto& slice = rnn_test.get_slice(i);
         slice.set_target_activations(target_activations);
@@ -1654,7 +1631,6 @@ void lstm_example() {
 
     rnn_train.forward(); // Initialize network.
     rnn_test.forward();
-    //MatrixF& W = rnn_train.get_weights();
     auto params = rnn_train.get_params();
     cout << "params size = " << params.size() << endl;
 
@@ -1665,21 +1641,7 @@ void lstm_example() {
     weights_updater.set_mode_rmsprop(rms_prop_rate_weights, 0.9f);
     weights_updater.set_flag_weight_decay(weight_decay, enable_weight_decay);
     //cout << "W size = " << W.size() << endl;
-
-    // To use Karpathy initial parameters, uncomment:
-    //FullSlice& slice0 = rnn_train.get_slice(0);
-    //slice0.initialize_params();
-
-    //MatrixF& bias = rnn_train.get_bias();
-
-
-    //MatrixF& W_grad = rnn_train.get_weight_gradient();
-    //MatrixF& bias_grad = rnn_train.get_bias_gradient();
-    //MatrixRefVectorF& W_grad_list = rnn_train.get_weights_gradient_list();
-    //MatrixRefVectorF& bias_grad_list = rnn_train.get_bias_gradient_list();
     
-    
-    //FullSlice slice_clone(rnn_dim, char_dim, 0.0f, "Slice Clone");
     FullSlice slice_clone(rnn_dim, char_dim, "Slice Clone");
     slice_clone.set_shared(rnn_train.get_slice(0));
     SliceSampler slice_sampler(slice_clone, train_getter.get_idx_to_char_map());
@@ -1692,18 +1654,14 @@ void lstm_example() {
     const int max_eochs = 50;
     while (train_epochs < max_eochs) {
         cerr << ".";
-
-        //print_stats(W, "W");
         bool end_epoch = train_getter.next(); // Get next training mini-batch
-        //train_getter.print_current_minibatch();
         rnn_train.forward();
 
         // Copy hidden state from end of RNN to the 1st slice.
-        for (auto& x : name_to_hidden_forward_matrix_train) {
+        for (auto& x : name_to_hidden_var_train) {
             string port_name = x.first;
-            MatrixF& input_forward = *x.second;
+            MatrixF& input_forward = x.second->data;
             const MatrixF& output_forward = rnn_train.get_output_data(port_name);
-            //copy_matrix(input_forward, output_forward);
             input_forward = output_forward;
         }
 
@@ -1715,31 +1673,15 @@ void lstm_example() {
         rnn_train.back_propagate();
         for (int i = 0; i < params.size(); ++i) {
             auto& W_grad = params.at(i)->grad;
-            //if (i == 0) {
-            //    print_stats(W_grad, "Debug: W_grad");
-            //}
             scale(W_grad, W_grad, 1.0f/static_cast<float>(num_slices));
             clip_to_range(W_grad, -5.0f, 5.0f);
         }
-        if (VERBOSE_MODE) {
-            auto& W_data = params.at(0)->data;
-            //print_stats(W_data, "Before update: W_grad");
-        }
         weights_updater.update();
-        if (VERBOSE_MODE) {
-            auto& W_data = params.at(0)->data;
-            //print_stats(W_data, "After: W_grad");
-        }
-
 
         if ((batch_counter % 10) == 0) {
             cout << batch_counter << " (epoch " << train_epochs << ") Train loss: " << train_loss_accumulator.get_mean() << endl;
             train_loss_accumulator.reset();
         }
-
-        //cout << "fixme" << endl;
-        //rnn_train.copy_params_to(rnn_test);
-
 
         if (end_epoch) {
             //print_stats(W_grad, "W_grad");
@@ -1748,29 +1690,21 @@ void lstm_example() {
             //network.print_paramater_stats(); // enable for debugging info
             test_loss_accumulator.reset();
             // Copy parameters from training RNN to test RNN.
-            //MatrixF& W_test = rnn_test.get_weights();
-            //copy_matrix(W_test, W);
-            //copy(rnn_test.get_weights_list(), rnn_train.get_weights_list());
-            //copy(rnn_test.get_bias_list(), rnn_train.get_bias_list());
             rnn_train.copy_params_to(rnn_test);
-            //MatrixF& bias_test = rnn_test.get_bias();
-            //copy_matrix(bias_test, bias);
-
             bool done = false;
             // Zero out the initial hidden state vectors:
-            for (auto& x : name_to_hidden_forward_matrix_test) {
+            for (auto& x : name_to_hidden_var_test) {
                 string port_name = x.first;
-                MatrixF& input_forward = *x.second;
+                MatrixF& input_forward = x.second->data;
                 set_value(input_forward, 0.0f);
             }
             while (!done) {
                 done = test_getter.next(); // Get next test mini-batch
                 rnn_test.forward();
-
                 // Copy hidden state from end of RNN to the 1st slice.
-                for (auto& x : name_to_hidden_forward_matrix_test) {
+                for (auto& x : name_to_hidden_var_test) {
                     string port_name = x.first;
-                    MatrixF& input_forward = *x.second;
+                    MatrixF& input_forward = x.second->data;
                     const MatrixF& output_forward = rnn_test.get_output_data(port_name);
                     //copy_matrix(input_forward, output_forward);
                     input_forward = output_forward;
@@ -1798,9 +1732,9 @@ void lstm_example() {
                 cout << endl << "Setting new learning rate: " << rms_prop_rate_weights << endl;
             }
             // Zero out the initial hidden state vectors:
-            for (auto& x : name_to_hidden_forward_matrix_train) {
+            for (auto& x : name_to_hidden_var_train) {
                 string port_name = x.first;
-                MatrixF& input_forward = *x.second;
+                MatrixF& input_forward = x.second->data;
                 set_value(input_forward, 0.0f);
             }
             train_epochs++;

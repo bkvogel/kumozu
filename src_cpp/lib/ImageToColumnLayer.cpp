@@ -47,17 +47,16 @@ namespace kumozu {
     for (int i=1; i < static_cast<int>(input_extents.size()); ++i) {
       column_dim *= input_extents.at(i);
     }
-    m_output_data.resize(column_dim, m_minibatch_size);
-    m_output_grad.resize(column_dim, m_minibatch_size);
+    m_output_var.resize(column_dim, m_minibatch_size);
   }
 
 
   void ImageToColumnLayer::forward_propagate(const MatrixF& input_activations) {
-    multi_dim_minibatch_to_column_minibatch(m_output_data, input_activations);
+    multi_dim_minibatch_to_column_minibatch(m_output_var.data, input_activations);
   }
 
   void ImageToColumnLayer::back_propagate_activation_gradients(MatrixF& input_backward, const MatrixF& input_forward) {
-    column_minibatch_to_multi_dim_minibatch(m_output_grad, input_backward);
+    column_minibatch_to_multi_dim_minibatch(m_output_var.grad, input_backward);
   }
 
 

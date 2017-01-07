@@ -44,8 +44,7 @@ void MSECostFunction::reinitialize() {
     m_temp_size_input.resize(input_extents);
 
     // The output activations will only contain 1 value: the cost
-    m_output_forward.resize(1);
-    m_output_backward.resize(1);
+    m_output_var.resize(1);
 }
 
 void MSECostFunction::forward_propagate() {
@@ -60,16 +59,17 @@ void MSECostFunction::forward_propagate() {
     apply(m_temp_size_input, [] (float a) {
         return a*a;
     });
-    m_output_forward[0] = 0.5*sum(m_temp_size_input);
+    //m_output_forward[0] = 0.5*sum(m_temp_size_input);
+    m_output_var.data[0] = 0.5*sum(m_temp_size_input);
     // Only the gradient-checking functions should ever modify the output_backward activations, so
     // this is probably safe.
-    set_value(m_output_backward, 1.0f);
+    set_value(m_output_var.grad, 1.0f);
 }
 
 void MSECostFunction::back_propagate_activation_gradients() {
     //copy_matrix(get_input_port_backward(), m_temp_input_error);
     get_input_port_grad() = m_temp_input_error;
-    const float out_back = m_output_backward[0];
+    const float out_back = m_output_var.grad[0];
     scale(get_input_port_grad(), get_input_port_grad(), out_back);
 }
 

@@ -39,7 +39,7 @@
 
 namespace kumozu {
 
-  /**
+/**
    * This is a cross entropy cost function in a neural network.
    *
    * It is assumed that the layer before this cost function is in instance of LinearLayer, so that
@@ -82,23 +82,24 @@ namespace kumozu {
    * This can be accomplished by placing everything (all nodes, including the cost function(s)) inside
    * a composite node. See the unit tests for an example.
    */
-  class CrossEntropyCostFunction : public AtomicNode {
+class CrossEntropyCostFunction : public AtomicNode {
 
-  public:
+public:
 
-  CrossEntropyCostFunction(std::string name) :
-    AtomicNode(name),
-      m_target_activations {m_empty_target},
-      m_has_target_activations {false}
-      {
+    CrossEntropyCostFunction(std::string name) :
+        AtomicNode(name),
+        m_target_activations {m_empty_target},
+        m_has_target_activations {false}
+    {
         if (VERBOSE_MODE) {
-          std::cout << get_name() << std::endl;
+            std::cout << get_name() << std::endl;
         }
         // Create the output port with default name.
-        create_output_port(m_output_forward, m_output_backward, DEFAULT_OUTPUT_PORT_NAME);
-      }
+        //create_output_port(m_output_forward, m_output_backward, DEFAULT_OUTPUT_PORT_NAME);
+        create_output_port(m_output_var, DEFAULT_OUTPUT_PORT_NAME);
+    }
 
-      /**
+    /**
        * Supply the target activations.
        *
        * The target activations contain the target values (i.e., assumed true/correct values) corresponding
@@ -116,12 +117,12 @@ namespace kumozu {
        * @param target_activations A 1-D matrix of size minibatch_size. target_activations(i) contains the integer-valued
        *                     class label in the range [0, class_count-1].
        */
-      void set_target_activations(const MatrixI& target_activations) {
+    void set_target_activations(const MatrixI& target_activations) {
         m_target_activations = std::cref(target_activations);
         m_has_target_activations = true;
-      }
+    }
 
-      /**
+    /**
        * Compute the output activations as a function of input activations.
        *
        * The computed cost will be returned in the output forward activations.
@@ -130,58 +131,59 @@ namespace kumozu {
        * be called to set the target activations. Otherwise, the program will exit with
        * an error.
        */
-      virtual void forward_propagate() override;
+    virtual void forward_propagate() override;
 
-      /**
+    /**
        * Back-propagate errors to compute new values for input_backward.
        *
        */
-      virtual void back_propagate_activation_gradients() override;
+    virtual void back_propagate_activation_gradients() override;
 
-      /**
+    /**
        * Reinitialize this node.
        *
        */
-      virtual void reinitialize() override;
+    virtual void reinitialize() override;
 
-      /**
-       * Return the cost function value. 
+    /**
+       * Return the cost function value.
        *
        * This function should be called after calling forward().
        */
-      float get_cost() {
-	if (m_output_forward.size() != 1) {
-	  error_exit("print_cost(): Error: output activations have wrong size.");
-	}
-	return m_output_forward(0);
-      }
-      
-      /**
+    float get_cost() {
+        if (m_output_var.size() != 1) {
+            error_exit("print_cost(): Error: output activations have wrong size.");
+        }
+        return m_output_var.data(0);
+    }
+
+    /**
        * Return the matrix of probabilities, which is the output of the softmax function.
        *
        * Note that this is a function only of the input activations only. The values of the
        * target activations do not matter.
        */
-      const MatrixF& get_softmax_output() const {
-	return m_mu;
-      }
+    const MatrixF& get_softmax_output() const {
+        return m_mu;
+    }
 
-  private:
+private:
 
-      int m_minibatch_size;
-      MatrixF m_exp_input;
-      MatrixF m_mu;
-      MatrixF m_col_sums;
-      MatrixF m_temp_input_error;
+    int m_minibatch_size;
+    MatrixF m_exp_input;
+    MatrixF m_mu;
+    MatrixF m_col_sums;
+    MatrixF m_temp_input_error;
 
-      MatrixI m_empty_target;
-      std::reference_wrapper<const MatrixI> m_target_activations;
-      MatrixF m_output_forward; // associated with the default output port
-      MatrixF m_output_backward; // associated with the default output port (and ignored but required)
-      //std::vector<int> m_input_extents;
-      bool m_has_target_activations;
+    MatrixI m_empty_target;
+    std::reference_wrapper<const MatrixI> m_target_activations;
+    //MatrixF m_output_forward; // associated with the default output port
+    //MatrixF m_output_backward; // associated with the default output port (and ignored but required)
+    VariableF m_output_var; // associated with the default output port
+    //std::vector<int> m_input_extents;
+    bool m_has_target_activations;
 
-  };
+};
 
 }
 

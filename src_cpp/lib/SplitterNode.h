@@ -40,7 +40,7 @@
 
 namespace kumozu {
 
-  /**
+/**
    * A Node with 1 input port and possibly several output ports that simply copies the input to each output port.
    *
    * This node is allowed to have an arbitrary number of output ports. It will have 1 inptut port with the default name.
@@ -60,9 +60,9 @@ namespace kumozu {
    * Be sure to connect exactly 1 input port (any name is allowed) before calling forward() for the first time.
    * Otherwise, the program will exit with an error.
    */
-  class SplitterNode : public AtomicNode {
+class SplitterNode : public AtomicNode {
 
-  public:
+public:
 
     /**
      * Create a new instance with the specified node name and create the output port with default name.
@@ -74,65 +74,75 @@ namespace kumozu {
      * If the network uses updated values of the outputs in the backward pass, such as a positive factor network (PFN),
      * set to true.
      */
-  SplitterNode(int output_port_count, std::string name, bool pfn_mode=false) :
-    AtomicNode{name},
-      m_pfn_mode {pfn_mode}
-      {
-      for (int i = 0; i < output_port_count; ++i) {
-	m_output_ports_forward.push_back(std::move(std::make_unique<MatrixF>()));
-	m_output_ports_backward.push_back(std::move(std::make_unique<MatrixF>()));
-	create_output_port(*m_output_ports_forward.back(), *m_output_ports_backward.back(), std::to_string(i));
-      }
+    SplitterNode(int output_port_count, std::string name, bool pfn_mode=false) :
+        AtomicNode{name},
+        m_pfn_mode {pfn_mode}
+    {
+        for (int i = 0; i < output_port_count; ++i) {
+            //m_output_ports_forward.push_back(std::move(std::make_unique<MatrixF>()));
+            //m_output_ports_backward.push_back(std::move(std::make_unique<MatrixF>()));
+            m_output_ports_var.push_back(std::move(std::make_unique<VariableF>()));
+            //create_output_port(*m_output_ports_forward.back(), *m_output_ports_backward.back(), std::to_string(i));
+            create_output_port(*m_output_ports_var.back(), std::to_string(i));
+        }
     }
 
     /**
      * Set output forward activations to the sum over all input forward activations.
      */
     virtual void forward_propagate() override {
-      const MatrixF& input_forward_mat = get_input_port_data();
-      for (size_t i = 0; i < m_output_ports_forward.size(); ++i) {
-	MatrixF& out_forward_mat = *m_output_ports_forward.at(i);
-    //copy_matrix(out_forward_mat, input_forward_mat);
-    out_forward_mat = input_forward_mat;
-      }
+        const MatrixF& input_forward_mat = get_input_port_data();
+        for (size_t i = 0; i < m_output_ports_var.size(); ++i) {
+            //MatrixF& out_forward_mat = *m_output_ports_forward.at(i);
+            MatrixF& out_forward_mat = m_output_ports_var.at(i)->data;
+            //copy_matrix(out_forward_mat, input_forward_mat);
+            out_forward_mat = input_forward_mat;
+        }
     }
 
     /**
-     * 
+     *
      */
     virtual void back_propagate_activation_gradients() override {
-      MatrixF& input_backward_mat = get_input_port_grad();
-      const float scale_factor = 1.0f/static_cast<float>(get_output_port_count());
-      set_value(input_backward_mat, 0.0f);
-      for (size_t i = 0; i < m_output_ports_backward.size(); ++i) {
-	const MatrixF& out_backward_mat = *m_output_ports_backward.at(i);
-	element_wise_sum(input_backward_mat, input_backward_mat, out_backward_mat);
-      }
-      if (m_pfn_mode) {
-	scale(input_backward_mat, input_backward_mat, scale_factor);
-      }
+        MatrixF& input_backward_mat = get_input_port_grad();
+        const float scale_factor = 1.0f/static_cast<float>(get_output_port_count());
+        set_value(input_backward_mat, 0.0f);
+        for (size_t i = 0; i < m_output_ports_var.size(); ++i) {
+            //const MatrixF& out_backward_mat = *m_output_ports_backward.at(i);
+            const MatrixF& out_backward_mat = m_output_ports_var.at(i)->grad;
+            element_wise_sum(input_backward_mat, input_backward_mat, out_backward_mat);
+        }
+        if (m_pfn_mode) {
+            scale(input_backward_mat, input_backward_mat, scale_factor);
+        }
     }
 
     /**
      * Resize output ports to be same size as the input port.
      */
     virtual void reinitialize() override {
-      std::vector<int> input_extents = get_input_port_data().get_extents();
-      // Set output matrices to have same extents as input matrix.
-      for (size_t i = 0; i < m_output_ports_forward.size(); ++i) {
-	MatrixF& out_forward_mat = *m_output_ports_forward.at(i);
-	out_forward_mat.resize(input_extents);
-	MatrixF& out_backward_mat = *m_output_ports_backward.at(i);
-	out_backward_mat.resize(input_extents);
-      }
+        std::vector<int> input_extents = get_input_port_data().get_extents();
+        // Set output matrices to have same extents as input matrix.
+        for (size_t i = 0; i < m_output_ports_var.size(); ++i) {
+            m_output_ports_var.at(i)->resize(input_extents);
+        }
+        /*
+        for (size_t i = 0; i < m_output_ports_forward.size(); ++i) {
+            MatrixF& out_forward_mat = *m_output_ports_forward.at(i);
+            out_forward_mat.resize(input_extents);
+            MatrixF& out_backward_mat = *m_output_ports_backward.at(i);
+            out_backward_mat.resize(input_extents);
+        }
+        */
     }
 
-  private:
+private:
 
-    std::vector<std::unique_ptr<MatrixF>> m_output_ports_forward;
-    std::vector<std::unique_ptr<MatrixF>> m_output_ports_backward;
+    //std::vector<std::unique_ptr<MatrixF>> m_output_ports_forward;
+    //std::vector<std::unique_ptr<MatrixF>> m_output_ports_backward;
+    std::vector<std::unique_ptr<VariableF>> m_output_ports_var;
     bool m_pfn_mode;
-  };
+};
 
 }
 

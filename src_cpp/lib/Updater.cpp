@@ -82,16 +82,16 @@ void Updater::update() {
 
         if (0 == m_current_mode) {
             // Constant learning rate
-            update_weights_from_gradient(W, grad_W, m_learning_rate);
+            update_parameters_sgd(W, grad_W, m_learning_rate);
         } else if (1 == m_current_mode) {
             // Constant learning rate.
             //update_weights_from_gradient(W, grad_W, m_learning_rate, m_weight_decay);
         } else if (2 == m_current_mode) {
             // Rmsprop
-            update_weights_from_gradient_rmsprop_v3(W, grad_W, sum_square_grad_W, m_rmsprop_learning_rate, m_rho);
+            update_parameters_rmsprop(W, grad_W, sum_square_grad_W, m_rmsprop_learning_rate, m_rho);
         } else if (3 == m_current_mode) {
             // Rmsprop with momentum
-            update_weights_from_gradient_rmsprop_momentum(W, grad_W, sum_square_grad_W, momentum_W, m_rmsprop_learning_rate, m_rho, m_momentum);
+            update_parameters_rmsprop_momentum(W, grad_W, sum_square_grad_W, momentum_W, m_rmsprop_learning_rate, m_rho, m_momentum);
         }
 
         // flags:
@@ -100,7 +100,7 @@ void Updater::update() {
         }
         if (m_enable_weight_decay) {
             // Enable weight/activation decay.
-            update_weights_from_decay(W, m_weight_decay);
+            update_parameters_from_decay(W, m_weight_decay);
         }
         if (m_prevent_zero_epsilon > 0) {
             MatrixF& small_random = *m_prevent_zero_list.at(n);

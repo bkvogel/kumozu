@@ -79,18 +79,17 @@ public:
         m_axis {axis}
     {
         // Create the 1 output port.
-        create_output_port(m_output_data, m_output_grad, DEFAULT_OUTPUT_PORT_NAME);
+        create_output_port(m_output_var, DEFAULT_OUTPUT_PORT_NAME);
     }
 
     /**
      * Set output forward activations to the concatenation over all input forward activations.
      */
     virtual void forward_propagate() override {
-        set_value(m_output_data, 0.0f);
+        set_value(m_output_var.data, 0.0f);
         int axis_offset = 0;
         for_each_input_port_data([&] (const MatrixF& mat) {
-            //copy_small_to_large_mat_2d(mat, m_output_data, row_offset, 0);
-            copy_along_axis(mat, m_output_data, axis_offset, m_axis);
+            copy_along_axis(mat, m_output_var.data, axis_offset, m_axis);
             axis_offset += mat.extent(0);
         });
     }
@@ -131,14 +130,12 @@ public:
             out_axis_dim += mat.extent(m_axis);
         });
         m_out_extents.at(m_axis) = out_axis_dim;
-        m_output_data.resize(m_out_extents);
-        m_output_grad.resize(m_out_extents);
+        m_output_var.resize(m_out_extents);
     }
 
 private:
 
-    MatrixF m_output_data; // associated with the default output port
-    MatrixF m_output_grad; // associated with the default output port
+    VariableF m_output_var; // associated with the default output port
     std::vector<int> m_out_extents;
     int m_axis;
 };

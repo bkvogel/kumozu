@@ -56,8 +56,7 @@ namespace kumozu {
     const int out_dim_1 = static_cast<int>(ceil(static_cast<float>(dim1_in)/static_cast<float>(step_1)));
     const int out_dim_2 = static_cast<int>(ceil(static_cast<float>(dim2_in)/static_cast<float>(step_2)));
 
-    m_output_data.resize(minibatch_size, out_dim_0, out_dim_1, out_dim_2);
-    m_output_grad.resize(minibatch_size, out_dim_0, out_dim_1, out_dim_2);
+    m_output_var.resize(minibatch_size, out_dim_0, out_dim_1, out_dim_2);
     m_state.resize(minibatch_size, out_dim_0, out_dim_1, out_dim_2, 3);
 
 
@@ -78,7 +77,7 @@ namespace kumozu {
     std::cout << std::endl;
 
     std::cout << indent << "Pooling output extents (minibatch_size, depth_out, height_out, width_out):" << std::endl << indent;
-    for (auto i : m_output_data.get_extents()) {
+    for (auto i : m_output_var.get_extents()) {
       std::cout << i << " ";
     }
     std::cout << std::endl;
@@ -86,12 +85,12 @@ namespace kumozu {
   }
 
   void PoolingLayer::forward_propagate(const MatrixF& input_activations) {
-    forward_maxout_3d(input_activations, m_output_data, m_state,
+    forward_maxout_3d(input_activations, m_output_var.data, m_state,
                       m_pooling_region_extents, m_pooling_region_step_sizes);
   }
 
   void PoolingLayer::back_propagate_activation_gradients(MatrixF& input_backward, const MatrixF& input_forward) {
-    reverse_maxout_3d(input_backward, m_output_grad, m_state,
+    reverse_maxout_3d(input_backward, m_output_var.grad, m_state,
                       m_pooling_region_extents, m_pooling_region_step_sizes);
   }
 
