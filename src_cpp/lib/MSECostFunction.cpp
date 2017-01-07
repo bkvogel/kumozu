@@ -39,7 +39,6 @@ namespace kumozu {
 void MSECostFunction::reinitialize() {
     std::vector<int> input_extents = get_input_port_data().get_extents();
     m_minibatch_size =  input_extents.at(1);
-
     m_temp_input_error.resize(input_extents);
     m_temp_size_input.resize(input_extents);
 
@@ -59,7 +58,6 @@ void MSECostFunction::forward_propagate() {
     apply(m_temp_size_input, [] (float a) {
         return a*a;
     });
-    //m_output_forward[0] = 0.5*sum(m_temp_size_input);
     m_output_var.data[0] = 0.5*sum(m_temp_size_input);
     // Only the gradient-checking functions should ever modify the output_backward activations, so
     // this is probably safe.

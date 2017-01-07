@@ -43,50 +43,50 @@
 namespace kumozu {
 
 /**
-   * Unroll a recurrent neural network (RNN) slice many times to create an unrolled network.
-   *
-   * Starting with a single slice of an RNN having type T, unroll the slice "num_slices" times.
-   * All slices in the unrolled network other than the first slice will share parameters with the
-   * first slice.
-   *
-   * Notes:
-   *
-   * It is assumed that the type parameter T refers to a sub-class of Node that implements the following functions:
-   *
-   *
-   * const std::vector<string>& get_hidden_port_names() :
-   *
-   * Returns a list of the names of the ports that should be connected from one time
-   * slice to the next. These are the "hidden state" (lateral) activations of the RNN.
-   * It is assumed that each port name in this list is both an input port and an output
-   * port of the slice. For example, if "h_t" is a port name in this list, then output port "h_t" of
-   * slice_t will be connected to input port "h_t" of slice_t+1.
-   *
-   *
-   * const std::vector<string>& get_input_port_names() :
-   *
-   * Returns a list of the input ports of a slice that should also be connected to
-   * corresponding input ports of this slice unroller. These are the "vertical input activations."
-   * This should not include any of the ports returned
-   * by get_hidden_port_names(). For a given time slice index "i", each input port in
-   * this list will be connected to a corresponding input port of the slice unroller with "_i" appended as
-   * of suffix to the port name. For example, if "x_t" is a port in this list, then for each time slice "i",
-   * an input port will be added to the slice unroller with the name "x_t_i". Thus, for N time slices,
-   * the slice unroller would have input ports named "x_t_0", "x_t_1", "x_t_2", ..., "x_t_N-1".
-   *
-   *
-   * const std::vector<string>& get_output_port_names() :
-   *
-   * Returns a list of the output ports of a slice that should also be connected to
-   * corresponding output ports of this slice unroller. These are the "vertical output activations."
-   * This should not include any of the ports returned
-   * by get_hidden_port_names(). For a given time slice index "i", each output port in
-   * this list will be connected to a corresponding output port of the slice unroller with "_i" appended as
-   * of suffix to the port name. For example, if "y_t" is a port in this list, then for each time slice "i",
-   * an output port will be added to the slice unroller with the name "y_t_i". Thus, for N time slices,
-   * the slice unroller would have output ports named "y_t_0", "y_t_1", "y_t_2", ..., "y_t_N-1".
-   *
-   */
+ * Unroll a recurrent neural network (RNN) slice many times to create an unrolled network.
+ *
+ * Starting with a single slice of an RNN having type T, unroll the slice "num_slices" times.
+ * All slices in the unrolled network other than the first slice will share parameters with the
+ * first slice.
+ *
+ * Notes:
+ *
+ * It is assumed that the type parameter T refers to a sub-class of Node that implements the following functions:
+ *
+ *
+ * const std::vector<string>& get_hidden_port_names() :
+ *
+ * Returns a list of the names of the ports that should be connected from one time
+ * slice to the next. These are the "hidden state" (lateral) activations of the RNN.
+ * It is assumed that each port name in this list is both an input port and an output
+ * port of the slice. For example, if "h_t" is a port name in this list, then output port "h_t" of
+ * slice_t will be connected to input port "h_t" of slice_t+1.
+ *
+ *
+ * const std::vector<string>& get_input_port_names() :
+ *
+ * Returns a list of the input ports of a slice that should also be connected to
+ * corresponding input ports of this slice unroller. These are the "vertical input activations."
+ * This should not include any of the ports returned
+ * by get_hidden_port_names(). For a given time slice index "i", each input port in
+ * this list will be connected to a corresponding input port of the slice unroller with "_i" appended as
+ * of suffix to the port name. For example, if "x_t" is a port in this list, then for each time slice "i",
+ * an input port will be added to the slice unroller with the name "x_t_i". Thus, for N time slices,
+ * the slice unroller would have input ports named "x_t_0", "x_t_1", "x_t_2", ..., "x_t_N-1".
+ *
+ *
+ * const std::vector<string>& get_output_port_names() :
+ *
+ * Returns a list of the output ports of a slice that should also be connected to
+ * corresponding output ports of this slice unroller. These are the "vertical output activations."
+ * This should not include any of the ports returned
+ * by get_hidden_port_names(). For a given time slice index "i", each output port in
+ * this list will be connected to a corresponding output port of the slice unroller with "_i" appended as
+ * of suffix to the port name. For example, if "y_t" is a port in this list, then for each time slice "i",
+ * an output port will be added to the slice unroller with the name "y_t_i". Thus, for N time slices,
+ * the slice unroller would have output ports named "y_t_0", "y_t_1", "y_t_2", ..., "y_t_N-1".
+ *
+ */
 template <typename T>
 class SliceUnroller : public CompositeNode {
 

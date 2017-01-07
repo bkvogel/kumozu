@@ -146,7 +146,6 @@ public:
         // Create the 1 output port.
         if (get_output_port_count() == 0) {
             // Create the output port with default name.
-            //create_output_port(m_output_data, m_output_grad, DEFAULT_OUTPUT_PORT_NAME);
             create_output_port(m_output_var, DEFAULT_OUTPUT_PORT_NAME);
         }
     }
@@ -260,7 +259,6 @@ protected: // todo: remove protected?
     virtual void forward_propagate(const MatrixF& input_data) = 0;
 
 
-
     /**
      * Reinitialize the layer based on the supplied new input extent values.
      * This must be called before the layer can be used and must also be called whenever the
@@ -288,8 +286,6 @@ protected: // todo: remove protected?
 private:
 
     std::vector<int> m_input_extents;
-
-
 };
 
 }

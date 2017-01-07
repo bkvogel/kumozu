@@ -93,23 +93,28 @@ public:
     }
 
     /*
-                   * Update the elements in the supplied MatrixF W using the gradients in
-                   * the supplied MatrixF grad_W.
-                   *
-                   * Depending on the current update mode, it is possible that the updated values may
-                   * also be influenced by the history of past gradients supplied to this method
-                   * up until now.
-                   *
-                   * Parameters:
-                   *
-                   * W: The matrix to be updated.
-                   *
-                   * grad_W: The matrix containing the gradients, which must be the same size as W.
-                   */
+     * Update the elements in the supplied MatrixF W using the gradients in
+     * the supplied MatrixF grad_W.
+     *
+     * Depending on the current update mode, it is possible that the updated values may
+     * also be influenced by the history of past gradients supplied to this method
+     * up until now.
+     *
+     * Parameters:
+     *
+     * W: The matrix to be updated.
+     *
+     * grad_W: The matrix containing the gradients, which must be the same size as W.
+     */
+    // deprecated. Use the function that takes a Variable instead.
     void update(MatrixF& W, const MatrixF& grad_W);
 
+    /**
+     * Update the parameters in the variable from the gradients.
+     *
+     * @param var
+     */
     void update(VariableF& var);
-
 
 
     //////////////////////////////////////////////////////////////////////////////////////////////////

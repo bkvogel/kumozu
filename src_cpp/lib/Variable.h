@@ -60,11 +60,7 @@ namespace kumozu {
  *
  */
 // Todo: The current implementation is not able to enforce that the 2 contained matrices always
-// have the same extents. However, we can potentially enforce this if we do the following:
-// Modify the Matrix class to share the extents of another Matrix instance B. Then when B's
-// extents change, the shared matrix will also resize itself to have the same extents.
-// The function to add would be share_extents(). We could then have grad.share_extents(data);
-// Each matrix data and grad could share each other's extents, being careful not to introduce cycles.
+// have the same extents. However, we can potentially enforce this.
 template<typename T>
 class Variable {
 
@@ -200,7 +196,6 @@ public:
 using VariableF = Variable<float>;
 using VariableD = Variable<double>;
 using VariableI = Variable<int>;
-
 
 }
 

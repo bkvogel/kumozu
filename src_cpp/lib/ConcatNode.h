@@ -103,7 +103,6 @@ public:
         MatrixF& deltas = get_output_grad();
         int axis_offset = 0;
         for_each_input_port_grad([&] (MatrixF& mat) {
-            //copy_large_to_small_mat_2d(mat, deltas, row_offset, 0);
             extract_along_axis(mat, deltas, axis_offset, m_axis);
             axis_offset += mat.extent(0);
         });
@@ -120,7 +119,7 @@ public:
                 m_out_extents = mat.get_extents();
             } else {
                 const auto& temp_extents = mat.get_extents();
-                for (int n = 0; n < m_out_extents.size(); ++n) {
+                for (auto n = 0; n < m_out_extents.size(); ++n) {
                     if (n != m_axis) {
                         assertion(temp_extents.at(n) == m_out_extents.at(n),
                                   "reinitialize(): Not all input matrices have matching non-axis dimensions.");

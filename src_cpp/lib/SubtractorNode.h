@@ -39,10 +39,10 @@
 
 namespace kumozu {
 
-  /**
+/**
    * A Node the computes the element-wise subtraction between the two "input forward" matrices associated with its input ports.
    *
-   * This node is allowed to have exactly two input ports names "plus" and "minus." It will have 1 outptut port with the default name.. 
+   * This node is allowed to have exactly two input ports names "plus" and "minus." It will have 1 outptut port with the default name..
    * All matrices associated with
    * the input ports must have the same dimensions. Arbitrary-dimensional matrices are supported. The matrices associated
    * with the output port will have the same dimensions as those associated with the input.
@@ -54,75 +54,69 @@ namespace kumozu {
    * Usage:
    *
    * Obtain an instance of this class and call the create_input_port() functions of Node to create the two input ports with the
-   * names "plus" and "minus." An instance of this class will expect these 2 input ports to exist by the time forward() is 
+   * names "plus" and "minus." An instance of this class will expect these 2 input ports to exist by the time forward() is
    * called for the first time. Otherwise, an error will occur.
    */
-  class SubtractorNode : public AtomicNode {
+class SubtractorNode : public AtomicNode {
 
-  public:
+public:
 
     /**
      * Create a new instance with the specified node name and create the output port with default name.
      */
-  SubtractorNode(std::string name) :
-    AtomicNode(name),
-      m_plus {"plus"},
-      m_minus {"minus"}
-      {
-	// Create the 1 output port.
-    create_output_port(m_output_var, DEFAULT_OUTPUT_PORT_NAME);
+    SubtractorNode(std::string name) :
+        AtomicNode(name),
+        m_plus {"plus"},
+        m_minus {"minus"}
+    {
+        // Create the 1 output port.
+        create_output_port(m_output_var, DEFAULT_OUTPUT_PORT_NAME);
     }
 
     /**
      * Set output forward activations to the sum over all input forward activations.
      */
     virtual void forward_propagate() override {
-      const MatrixF& plus_forward = get_input_port_data(m_plus);
-      const MatrixF& minus_forward = get_input_port_data(m_minus);
-      //element_wise_difference(m_output_forward, plus_forward, minus_forward);
-      element_wise_difference(m_output_var.data, plus_forward, minus_forward);
+        const MatrixF& plus_forward = get_input_port_data(m_plus);
+        const MatrixF& minus_forward = get_input_port_data(m_minus);
+        element_wise_difference(m_output_var.data, plus_forward, minus_forward);
     }
 
     /**
-     * 
+     *
      */
     virtual void back_propagate_activation_gradients() override {
-      MatrixF& deltas = get_output_grad();
-      MatrixF& plus_deltas = get_input_port_grad(m_plus);
-      //copy_matrix(plus_deltas, deltas);
-      plus_deltas = deltas;
-      MatrixF& minus_deltas = get_input_port_grad(m_minus);
-      //copy_matrix(minus_deltas, deltas);
-      minus_deltas = deltas;
-      scale(minus_deltas, minus_deltas, -1.0f);
+        MatrixF& deltas = get_output_grad();
+        MatrixF& plus_deltas = get_input_port_grad(m_plus);
+        plus_deltas = deltas;
+        MatrixF& minus_deltas = get_input_port_grad(m_minus);
+        minus_deltas = deltas;
+        scale(minus_deltas, minus_deltas, -1.0f);
     }
 
     /**
      * Check that all input ports are the same size.
      */
     virtual void reinitialize() override {
-      // First verify that all input ports are associated with matrices of the same dimensions.
-      m_input_extents = get_input_port_data(m_plus).get_extents();
-      m_output_var.resize(m_input_extents);
-      //m_output_backward.resize(m_input_extents);
-      if (m_input_extents != get_input_port_data(m_minus).get_extents()) {
-	error_exit(get_name() + ": Error: plus and minux ports have different extents.");
-      }
-      if (get_input_port_count() != 2) {
-	error_exit(get_name() + ": Error: Was expecting 2 input ports but found: " + std::to_string(get_input_port_count()));
-      }
+        // First verify that all input ports are associated with matrices of the same dimensions.
+        m_input_extents = get_input_port_data(m_plus).get_extents();
+        m_output_var.resize(m_input_extents);
+        if (m_input_extents != get_input_port_data(m_minus).get_extents()) {
+            error_exit(get_name() + ": Error: plus and minux ports have different extents.");
+        }
+        if (get_input_port_count() != 2) {
+            error_exit(get_name() + ": Error: Was expecting 2 input ports but found: " + std::to_string(get_input_port_count()));
+        }
     }
 
-  private:
+private:
 
     std::vector<int> m_input_extents; // Extents of each input port matrix.
-    //MatrixF m_output_forward; // associated with the default output port
-    //MatrixF m_output_backward; // associated with the default output port
     VariableF m_output_var; // associated with the default output port
     std::string m_plus;
     std::string m_minus;
 
-  };
+};
 
 }
 

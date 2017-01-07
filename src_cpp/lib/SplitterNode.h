@@ -79,10 +79,7 @@ public:
         m_pfn_mode {pfn_mode}
     {
         for (int i = 0; i < output_port_count; ++i) {
-            //m_output_ports_forward.push_back(std::move(std::make_unique<MatrixF>()));
-            //m_output_ports_backward.push_back(std::move(std::make_unique<MatrixF>()));
             m_output_ports_var.push_back(std::move(std::make_unique<VariableF>()));
-            //create_output_port(*m_output_ports_forward.back(), *m_output_ports_backward.back(), std::to_string(i));
             create_output_port(*m_output_ports_var.back(), std::to_string(i));
         }
     }
@@ -93,9 +90,7 @@ public:
     virtual void forward_propagate() override {
         const MatrixF& input_forward_mat = get_input_port_data();
         for (size_t i = 0; i < m_output_ports_var.size(); ++i) {
-            //MatrixF& out_forward_mat = *m_output_ports_forward.at(i);
             MatrixF& out_forward_mat = m_output_ports_var.at(i)->data;
-            //copy_matrix(out_forward_mat, input_forward_mat);
             out_forward_mat = input_forward_mat;
         }
     }
@@ -108,7 +103,6 @@ public:
         const float scale_factor = 1.0f/static_cast<float>(get_output_port_count());
         set_value(input_backward_mat, 0.0f);
         for (size_t i = 0; i < m_output_ports_var.size(); ++i) {
-            //const MatrixF& out_backward_mat = *m_output_ports_backward.at(i);
             const MatrixF& out_backward_mat = m_output_ports_var.at(i)->grad;
             element_wise_sum(input_backward_mat, input_backward_mat, out_backward_mat);
         }
@@ -126,20 +120,10 @@ public:
         for (size_t i = 0; i < m_output_ports_var.size(); ++i) {
             m_output_ports_var.at(i)->resize(input_extents);
         }
-        /*
-        for (size_t i = 0; i < m_output_ports_forward.size(); ++i) {
-            MatrixF& out_forward_mat = *m_output_ports_forward.at(i);
-            out_forward_mat.resize(input_extents);
-            MatrixF& out_backward_mat = *m_output_ports_backward.at(i);
-            out_backward_mat.resize(input_extents);
-        }
-        */
     }
 
 private:
 
-    //std::vector<std::unique_ptr<MatrixF>> m_output_ports_forward;
-    //std::vector<std::unique_ptr<MatrixF>> m_output_ports_backward;
     std::vector<std::unique_ptr<VariableF>> m_output_ports_var;
     bool m_pfn_mode;
 };

@@ -2250,8 +2250,6 @@ void backward_max_product_input_gradient(const MatrixF& x_grad, const MatrixF& W
                                          bool accumulate=true);
 
 
-
-
 /**
  * Compute the forward max-product blend [1].
  *
@@ -3189,9 +3187,6 @@ void clip_to_range(Matrix<T>& A, T min_val, T max_val) {
         }
     });
 }
-
-
-
 
 
 /**

@@ -59,7 +59,6 @@
 #include "BatchNormalization3D.h"
 #include "SequentialLayer.h"
 #include "AdderNode.h"
-//#include "MeanNode.h"
 #include "SubtractorNode.h"
 #include "MultiplyerNode.h"
 #include "SplitterNode.h"
@@ -103,7 +102,6 @@ void test_mat_mult() {
     // Compute using simple but likely correct version:
     mat_multiply_naive(Ac, Bc, Cc);
     std::cout << "Ac = " << std::endl << Ac << std::endl;
-    //cout << "Bc = " << endl << Bc << endl;
     float tolerance = 1.0e-6;
     assert_almost_equal(A, Ac, tolerance);
 
@@ -150,10 +148,6 @@ void benchmark_mat_mult()  {
 
     // Check result with slow version:
     mat_multiply_naive(Ac, Bc, Cc);
-
-    //cout << "Ac = " << endl << Ac << endl;
-
-
     float tolerance = 1.0e-4;
     assert_almost_equal(A, Ac, tolerance);
     std::cout << "done" << std::endl;
@@ -187,9 +181,7 @@ void stress_test_forward_prop()   {
     int loop_count = 1000; // 1000
     for (int n = 0; n != loop_count; ++n) {
         mat_multiply_blas(A, B, C); //
-        //scale(A, A, 0.98765f);
         compute_forward_relu(A, out_values, out_indices);
-        //compute_reverse_relu(Ac, out_values, out_indices);
         if ((n % 500) == 0) {
             std::cout << "n = " << n << std::endl;
         }
@@ -825,19 +817,6 @@ void test_optimized_convolutive_deltas() {
 void test_optimized_weight_grad_convolutive()  {
     cout << "test_optimized_weight_grad_convolutive()..." << endl;
     const float pass_relative_error = 5e-3f; // Relative error must be below this to pass.
-
-    /*
-    // Number of samples in a mini-batch.
-    const int minibatch_size = 128;
-    // Create X with random values.
-    const int image_height = 32;
-    const int image_width = 32;
-    const int conv_filter_height = 5; // Convolution filter height
-    const int conv_filter_width = 5; // Convolution filter width
-    const int filter_count = 64; // 1 // Number of convolutional filters.
-    */
-
-
     // Number of samples in a mini-batch.
     const int minibatch_size = 32;
     // Create X with random values.
@@ -851,8 +830,6 @@ void test_optimized_weight_grad_convolutive()  {
     MatrixF deltas_Z2(minibatch_size, filter_count, image_height, image_width);
     randomize_uniform(deltas_Z2, -1.0f, 1.0f);
     MatrixF grad_W_true(filter_count, conv_filter_height, conv_filter_width);
-    //MatrixF bias(filter_count);
-    //randomize_uniform(bias, -1.0f, 1.0f); //
     MatrixF A1(minibatch_size, image_height, image_width);
     randomize_uniform(A1, -1.0f, 1.0f);
 
@@ -1271,7 +1248,6 @@ void test_SequentialLayer() {
     // Check weights gradients.
     seq_net.check_jacobian_parameters(input_extents);
     // Now check bias gradients
-    //seq_net.check_jacobian_bias(input_extents);
     // Now check input error gradients
     seq_net.check_jacobian_input_grad(input_extents);
 }
@@ -1338,8 +1314,6 @@ void test_SequentialLayer3() {
 
     // Check weights gradients.
     seq_net.check_jacobian_parameters(input_extents);
-    // Now check bias gradients
-    //seq_net.check_jacobian_bias(input_extents);
     // Now check input error gradients
     seq_net.check_jacobian_input_grad(input_extents);
 }
@@ -1365,8 +1339,6 @@ void test_SequentialLayer4() {
 
     // Check weights gradients.
     seq_net.check_jacobian_parameters(input_extents);
-    // Now check bias gradients
-    //seq_net.check_jacobian_bias(input_extents);
     // Now check input error gradients
     seq_net.check_jacobian_input_grad(input_extents);
 }
@@ -1380,10 +1352,6 @@ void test_SequentialLayer_shared_parameters() {
 
     SequentialLayer seq_net("sequential layer 1");
     const vector<int> input_extents = {dim_input, minibatch_size};
-    //MatrixF input_activations(input_extents);
-    //randomize_uniform(input_activations, 0.0f, 1.0f);
-    //MatrixF input_backwards(input_extents);
-    //seq_net.create_input_port(input_activations, input_backwards);
     LinearLayer lin_layer(dim_output, "Linear Layer 1");
     seq_net.schedule_layer(lin_layer);
 
@@ -1393,8 +1361,6 @@ void test_SequentialLayer_shared_parameters() {
 
     // Check weights gradients.
     seq_net.check_jacobian_parameters(input_extents);
-    // Now check bias gradients
-    //seq_net.check_jacobian_bias(input_extents);
     // Now check input error gradients
     seq_net.check_jacobian_input_grad(input_extents);
     //
@@ -1412,8 +1378,6 @@ void test_jacobian_LinearLayer() {
 
     // Check weights gradients.
     layer.check_jacobian_parameters(input_extents);
-    // Now check bias gradients
-    //layer.check_jacobian_bias(input_extents);
     // Now check input error gradients
     layer.check_jacobian_input_grad(input_extents);
 
@@ -1435,8 +1399,6 @@ void test_jacobian_LinearLayer_Node() {
     // Check weights gradients.
     //layer.check_jacobian_weights(input_extents);
     layer.check_jacobian_parameters(input_port_extents_map);
-    // Now check bias gradients
-    //layer.check_jacobian_bias(input_port_extents_map);
     // Now check input error gradients
     layer.check_jacobian_input_grad(input_port_extents_map);
 
@@ -1455,8 +1417,6 @@ void test_jacobian_ImageToColumnLayer() {
 
     // Check weights gradients.
     layer.check_jacobian_parameters(input_extents);
-    // Now check bias gradients
-    //layer.check_jacobian_bias(input_extents);
     // Now check input error gradients
     layer.check_jacobian_input_grad(input_extents);
 
@@ -1475,8 +1435,6 @@ void test_jacobian_BoxActivationFunction() {
 
     // Check weights gradients.
     layer.check_jacobian_parameters(input_extents);
-    // Now check bias gradients
-    //layer.check_jacobian_bias(input_extents);
     // Now check input error gradients
     layer.check_jacobian_input_grad(input_extents);
 
@@ -1517,11 +1475,6 @@ void test_jacobian_ColumnActivationFunction() {
 
 void test_jacobian_PoolingLayer() {
     cout << "test_jacobian_PoolingLayer()..." << endl;
-    //const int minibatch_size = 4;
-    //const int depth = 8;
-    //const int height = 10;
-    //const int width = 12;
-
     const int minibatch_size = 4;
     const int depth = 8;
     const int height = 6; // 4 works
@@ -1535,8 +1488,6 @@ void test_jacobian_PoolingLayer() {
 
     // Check weights gradients.
     layer.check_jacobian_parameters(input_extents);
-    // Now check bias gradients
-    //layer.check_jacobian_bias(input_extents);
     // Now check input error gradients
     layer.check_jacobian_input_grad(input_extents);
 
@@ -1577,10 +1528,8 @@ void test_Dropout1D() {
     int unit_count = 5;
     int minibatch_size = 4;
     VariableF input_activations(unit_count, minibatch_size);
-    //MatrixF input_activations(unit_count, minibatch_size);
     randomize_uniform(input_activations.data, 0.0f, 1.0f);
     cout << "input_activations:" << endl << input_activations.data << endl;
-    //MatrixF input_backwards(unit_count, minibatch_size);
     randomize_uniform(input_activations.grad, 0.0f, 1.0f);
     drop1d.create_input_port(input_activations);
 
@@ -1622,11 +1571,9 @@ void test_Dropout3D() {
     const int depth = 2;
     const int height = 2;
     const int width = 2;
-    //MatrixF input_activations(minibatch_size, depth, height, width);
     VariableF input_activations(minibatch_size, depth, height, width);
     randomize_uniform(input_activations.data, 0.0f, 1.0f);
     cout << "input_activations:" << endl << input_activations.data << endl;
-    //MatrixF input_backwards(input_activations.get_extents());
     randomize_uniform(input_activations.grad, 0.0f, 1.0f);
     dropout.create_input_port(input_activations);
     
@@ -1670,7 +1617,6 @@ void test_BatchNormalization1D() {
     VariableF input_activations(input_extents);
     randomize_uniform(input_activations.data, 0.0f, 1.0f);
     cout << "input_activations:" << endl << input_activations.data << endl;
-    //MatrixF input_backwards(input_extents);
     normalizer.create_input_port(input_activations);
 
     //for (int i = 0; i < 200; ++i) {
@@ -1683,7 +1629,6 @@ void test_BatchNormalization1D() {
     cout << "output_forward:" << endl << output_forward << endl;
 
     // Compute mean of output:
-    //float mean = sum(output_forward)/output_forward.size();
     MatrixF actual_means(dim_input);
     for (int i = 0; i < dim_input; ++i) {
         for (int j = 0; j < minibatch_size; ++j) {
@@ -1719,8 +1664,6 @@ void test_BatchNormalization1D() {
 
     // Check weights gradients.
     normalizer2.check_jacobian_parameters(input_extents); // Will pass if momentum set to 1.0
-    // Now check bias gradients
-    //normalizer2.check_jacobian_bias(input_extents); // Will pass if momentum set to 1.0
     // Now check input error gradients
     normalizer2.check_jacobian_input_grad(input_extents);
 }
@@ -1744,9 +1687,7 @@ void test_BatchNormalization3D() {
     normalizer.set_train_mode(true);
     VariableF input_activations(input_extents);
     randomize_normal(input_activations.data, true_mean, true_std);
-    //randomize_uniform(input_activations, 0.0f, 1.0f);
     cout << "input_activations:" << endl << input_activations.data << endl;
-    //MatrixF input_backwards(input_extents);
     normalizer.create_input_port(input_activations);
 
     for (int i = 0; i < 100; ++i) {
@@ -1761,7 +1702,6 @@ void test_BatchNormalization3D() {
     cout << "output_data:" << endl << output_data << endl;
 
     // Compute mean of output:
-
     MatrixF actual_means(image_depth);
     for (int i = 0; i < image_depth; ++i) {
         for (int j = 0; j < minibatch_size; ++j) {
@@ -1808,8 +1748,6 @@ void test_BatchNormalization3D() {
 
     // Check weights gradients.
     normalizer2.check_jacobian_parameters(input_extents); // Will pass if momentum set to 1.0
-    // Now check bias gradients
-    //normalizer2.check_jacobian_bias(input_extents); // Will pass if momentum set to 1.0
     // Now check input error gradients
     normalizer2.check_jacobian_input_grad(input_extents);
 }
@@ -1894,18 +1832,6 @@ void test_Node_shared_parameters2() {
     const int filter_height = 3;
     const int filter_width = 4;
     const int dim_output = 7;
-
-
-    /*
-    const int minibatch_size = 1;
-    const int image_depth = 3;
-    const int image_height = 5;
-    const int image_width = 55;
-    const int filter_count = 2;
-    const int filter_height = 3;
-    const int filter_width = 4;
-    const int dim_output = 3;
-    */
 
     TestNet net1(filter_count, filter_height, filter_width, dim_output, "1");
     TestNet net2(filter_count, filter_height, filter_width, dim_output, "2");
@@ -2003,31 +1929,14 @@ void test_Node_copy_paramaters() {
     const int filter_width = 4;
     const int dim_output = 7;
 
-
-
-    /*
-    const int minibatch_size = 1;
-    const int image_depth = 3;
-    const int image_height = 5;
-    const int image_width = 55;
-    const int filter_count = 2;
-    const int filter_height = 3;
-    const int filter_width = 4;
-    const int dim_output = 3;
-    */
-
     TestNet net1(filter_count, filter_height, filter_width, dim_output, "1");
     TestNet net2(filter_count, filter_height, filter_width, dim_output, "2");
 
     const vector<int> input_extents = {minibatch_size, image_depth, image_height, image_width};
     VariableF input_activations(input_extents);
     randomize_uniform(input_activations.data, 0.0f, 1.0f);
-    //MatrixF input_backwards(input_extents);
-
     net1.create_input_port(input_activations);
     net2.create_input_port(input_activations);
-
-
     net1.forward(); // Initialize
     net1.copy_params_to(net2);
     auto& net1_out = net1.get_output_data();
@@ -2091,8 +2000,6 @@ void test_multi_port_node() {
 
     // Check weights gradients.
     composite_node.check_jacobian_parameters(input_port_extents_map);
-    // Now check bias gradients
-    //composite_node.check_jacobian_bias(input_port_extents_map);
     // Now check input error gradients
     composite_node.check_jacobian_input_grad(input_port_extents_map);
 }
@@ -2106,20 +2013,14 @@ void test_AdderNode() {
     VariableF input_forward1(input_extents);
     set_value(input_forward1.data, 1.0f);
     cout << "Input 1: " << endl << input_forward1.data << endl;
-    //MatrixF input_backward1(input_extents);
     adder.create_input_port(input_forward1, "in1");
 
     VariableF input_forward2(input_extents);
     set_value(input_forward2.data, 2.0f);
     cout << "Input 2: " << endl << input_forward2.data << endl;
-    //MatrixF input_backward2(input_extents);
     adder.create_input_port(input_forward2, "in2");
-
-    //adder.reinitialize();
     adder.forward();
-
     cout << "Output: " << endl << adder.get_output_data() << endl;
-    
     // Check gradients:
     std::map<std::string, std::vector<int>> input_port_extents_map;
     input_port_extents_map["in1"] = input_extents;
@@ -2127,8 +2028,6 @@ void test_AdderNode() {
 
     // Check weights gradients.
     adder.check_jacobian_parameters(input_port_extents_map);
-    // Now check bias gradients
-    //adder.check_jacobian_bias(input_port_extents_map);
     // Now check input error gradients
     adder.check_jacobian_input_grad(input_port_extents_map);
 }
@@ -2215,13 +2114,11 @@ void test_ConcatNode() {
     VariableF input_forward1(dim1a, minibatch_size);
     set_value(input_forward1.data, 1.0f);
     cout << "Input 1: " << endl << input_forward1.data << endl;
-    //MatrixF input_backward1(input_forward1.get_extents());
     concat.create_input_port(input_forward1, "in1");
 
     VariableF input_forward2(dim1b, minibatch_size);
     set_value(input_forward2.data, 2.0f);
     cout << "Input 2: " << endl << input_forward2.data << endl;
-    //MatrixF input_backward2(input_forward2.get_extents());
     concat.create_input_port(input_forward2, "in2");
 
     concat.forward();
@@ -2235,8 +2132,6 @@ void test_ConcatNode() {
 
     // Check weights gradients.
     concat.check_jacobian_parameters(input_port_extents_map);
-    // Now check bias gradients
-    //concat.check_jacobian_bias(input_port_extents_map);
     // Now check input error gradients
     concat.check_jacobian_input_grad(input_port_extents_map);
 }
@@ -2251,19 +2146,14 @@ void test_SubtractorNode() {
     VariableF input_forward1(input_extents);
     set_value(input_forward1.data, 1.0f);
     cout << "Input 1: " << endl << input_forward1.data << endl;
-    //MatrixF input_backward1(input_extents);
     suber.create_input_port(input_forward1, "plus");
 
     VariableF input_forward2(input_extents);
     set_value(input_forward2.data, 2.0f);
     cout << "Input 2: " << endl << input_forward2.data << endl;
-    //MatrixF input_backward2(input_extents);
     suber.create_input_port(input_forward2, "minus");
-
     suber.forward();
-
     cout << "Output: " << endl << suber.get_output_data() << endl;
-    
     // Check gradients:
     std::map<std::string, std::vector<int>> input_port_extents_map;
     input_port_extents_map["plus"] = input_extents;
@@ -2271,8 +2161,6 @@ void test_SubtractorNode() {
 
     // Check weights gradients.
     suber.check_jacobian_parameters(input_port_extents_map);
-    // Now check bias gradients
-    //suber.check_jacobian_bias(input_port_extents_map);
     // Now check input error gradients
     suber.check_jacobian_input_grad(input_port_extents_map);
 }
@@ -2286,19 +2174,16 @@ void test_MultiplyerNode() {
     VariableF input_forward1(input_extents);
     set_value(input_forward1.data, 2.0f);
     cout << "Input 1: " << endl << input_forward1.data << endl;
-    //MatrixF input_backward1(input_extents);
     multiplyer.create_input_port(input_forward1, "in1");
 
     VariableF input_forward2(input_extents);
     set_value(input_forward2.data, 3.0f);
     cout << "Input 2: " << endl << input_forward2.data << endl;
-    //MatrixF input_backward2(input_extents);
     multiplyer.create_input_port(input_forward2, "in2");
 
     VariableF input_forward3(input_extents);
     set_value(input_forward3.data, 4.0f);
     cout << "Input 3: " << endl << input_forward3.data << endl;
-    //MatrixF input_backward3(input_extents);
     multiplyer.create_input_port(input_forward3, "in3");
 
     multiplyer.forward();
@@ -2313,8 +2198,6 @@ void test_MultiplyerNode() {
 
     // Check weights gradients.
     multiplyer.check_jacobian_parameters(input_port_extents_map);
-    // Now check bias gradients
-    //multiplyer.check_jacobian_bias(input_port_extents_map);
     // Now check input error gradients
     multiplyer.check_jacobian_input_grad(input_port_extents_map);
 }
@@ -2329,7 +2212,6 @@ void test_SplitterNode() {
     VariableF input_forward(input_extents);
     randomize_uniform(input_forward.data, 0.0f, 1.0f);
     cout << "Input: " << endl << input_forward.data << endl;
-    //MatrixF input_backward(input_extents);
     splitter.create_input_port(input_forward);
 
     splitter.forward();
@@ -2356,7 +2238,6 @@ void test_SplitterNode2() {
     VariableF input_forward(input_extents);
     set_value(input_forward.data, 3.0f);
     cout << "Input data: " << endl << input_forward.data << endl;
-    //MatrixF input_backward(input_extents);
     splitter.create_input_port(input_forward);
     splitter.forward();
     for (int i = 0; i < output_port_count; ++i) {
@@ -2380,7 +2261,6 @@ void test_ExtractorNode() {
     ExtractorNode extractor(partition_sizes, "Splitter");
     randomize_uniform(input_forward.data, -1.0f, 1.0f);
     cout << "Input: " << endl << input_forward.data << endl;
-    //MatrixF input_backward(input_extents);
     extractor.create_input_port(input_forward);
     extractor.forward();
     for (int i = 0; i < output_port_count; ++i) {
@@ -2478,7 +2358,6 @@ void test_rnn_slice() {
 
     // Now check the Jacobians:
     slice.check_jacobian_parameters(input_port_extents_map);
-    //slice.check_jacobian_bias(input_port_extents_map);
     slice.check_jacobian_input_grad(input_port_extents_map);
 }
 
@@ -2581,12 +2460,8 @@ void test_simple_rnn() {
     const int minibatch_size = 2;
     const vector<int> x_t_extents = {char_dim, minibatch_size};
     VariableF x_t_var(x_t_extents);
-    //MatrixF x_t_backward(x_t_extents);
-
     const vector<int> h_t_extents = {rnn_dim, minibatch_size};
     VariableF h_t_prev_var(h_t_extents);
-    //MatrixF h_t_prev_backward(h_t_extents);
-
     // Now create the input ports for a slice:
     slice.create_input_port(x_t_var, "x_t");
     slice.create_input_port(h_t_prev_var, "h_t_prev");
@@ -2599,7 +2474,6 @@ void test_simple_rnn() {
         input_port_extents_map1["x_t"] = x_t_extents;
         input_port_extents_map1["h_t_prev"] = h_t_extents;
         slice.check_jacobian_parameters(input_port_extents_map1);
-        //slice.check_jacobian_bias(input_port_extents_map1);
         slice.check_jacobian_input_grad(input_port_extents_map1);
     }
 
@@ -2669,7 +2543,6 @@ void test_simple_rnn() {
             input_port_extents_map[std::to_string(i)] = x_t_extents;
         }
         rnn.check_jacobian_parameters(input_port_extents_map);
-        //rnn.check_jacobian_bias(input_port_extents_map);
         rnn.check_jacobian_input_grad(input_port_extents_map);
     }
 
@@ -2677,9 +2550,6 @@ void test_simple_rnn() {
 
 void test_char_rnn_minibatch_getter() {
     cout << "test_char_rnn_minibatch_getter()" << endl;
-
-    //string text = "abcde";
-    //string text = "abcde abcde ";
     string text = "This is an example input string.";
 
     const int minibatch_size = 2;
@@ -2713,21 +2583,6 @@ void test_char_rnn_minibatch_getter() {
     getter.next();
     cout << endl << "next " << endl << endl;
     getter.print_current_minibatch();
-
-
-    //for (int n = 0; n < num_slices; ++n) {
-    //const MatrixF& input_forward = getter.get_input_forward_batch(n);
-    //cout << "Slice: " << n << " : input_foward" << endl << input_forward << endl;
-
-    //const MatrixF& output_1_hot = getter.get_output_1_hot_batch(n);
-    //cout << "Slice: " << n << " : output_1_hot" << endl << output_1_hot << endl;
-
-    //const MatrixI& output_class_index = getter.get_output_class_index_batch(n);
-    //cout << "Slice: " << n << " : output_class_index" << endl << output_class_index << endl;
-    //cout << "--------------------" << endl;
-    //}
-
-
 }
 
 void test_multi_rgb_plots() {

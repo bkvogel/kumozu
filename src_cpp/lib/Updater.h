@@ -188,7 +188,6 @@ public:
 private:
 
     std::vector<std::shared_ptr<VariableF>> m_parameters_list;
-
     std::vector<std::unique_ptr<MatrixF>> m_momentum_list;
     std::vector<std::unique_ptr<MatrixF>> m_sum_square_grad_list;
     std::string m_name;
