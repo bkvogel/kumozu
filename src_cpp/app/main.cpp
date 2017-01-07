@@ -101,7 +101,7 @@ int main(int argc, char* argv[]) {
                 //nmf_mnist_example_1();
             }
             else if (methodName == "debug") {
-                test_BatchNormalization3D();
+                //call debug function here.
             }
         }
     }

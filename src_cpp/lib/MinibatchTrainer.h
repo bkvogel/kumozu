@@ -126,7 +126,9 @@ public:
         std::cout << "Using mini-batch size = " << m_minibatch_size << std::endl;
 
         m_input_var_mini.data = narrow(m_input_full, m_example_index_dimension_input, 0, m_minibatch_size);
+        m_input_var_mini.resize(m_input_var_mini.data.get_extents());
         m_output_var_mini.data = narrow(m_output_full, m_example_index_dimension_output, 0, m_minibatch_size);
+        m_output_var_mini.resize(m_output_var_mini.data.get_extents());
         // Optional: only allow a minibatch size that evenly divides into the number of examples.
         if ((m_example_count % m_minibatch_size) != 0) {
             std::cerr << "Warning: Number of examples divided by mini-batch size must have 0 remainder." << std::endl;

@@ -299,8 +299,6 @@ public:
      * @param input_name The name of a new input to this node that will be created by this function and connected to
      * the supplied matrices.
      */
-    //todo: pass Variable instead of 2 matrices.
-    //void create_input_port(const MatrixF &data, MatrixF &grad, std::string input_name);
     void create_input_port(VariableF& var, std::string input_name);
 
     /**
@@ -317,14 +315,8 @@ public:
      *
      * In all cases, calling this function will cause is_initialized() to return false.
      *
-     * @param data An input activations matrix to connect to a new input port. This is a read-only matrix
-     * that contains the activations for the forward pass.
-     *
-     * @param grad An input gradients matrix to connect to a new input port. This matrix will
-     * be written to during the backward pass.
+     * @param var An input activations variable to connect to a new input port.
      */
-    //todo: pass Variable instead of 2 matrices.
-    //void create_input_port(const MatrixF &data, MatrixF &grad);
     void create_input_port(VariableF& var);
 
     /**
@@ -546,7 +538,7 @@ public:
      * This function can be called if the node has exactly 1 output
      * port.
      *
-     * @return A reference to the output activations (data part only).
+     * @return A reference to the output activations.
      */
     VariableF& get_output();
 
@@ -556,7 +548,7 @@ public:
      * This function can be called if the node has exactly 1 output
      * port.
      *
-     * @return A reference to the output activations (data part only).
+     * @return A reference to the output activations.
      */
     const VariableF& get_output() const;
 
@@ -864,7 +856,6 @@ public:
     template<typename Func>
     void for_each_input_port(Func f) {
         for (const auto &x : m_input_port_var_map) {
-            //const MatrixF &data_mat = m_input_port_data_map.at(x.first).get();
             const MatrixF &data_mat = x.second.get().data;
             MatrixF &grad_mat = x.second.get().grad;
             f(data_mat, grad_mat);
@@ -891,8 +882,26 @@ public:
      */
     MatrixF &get_input_port_grad(std::string name);
 
+    /**
+     * Return the input activations associated with the input port of this node
+     * with the specified name.
+     *
+     * @param name The name of the input port of this node.
+     *
+     * @return A reference to the associated input activations (data and
+     * gradients).
+     */
     VariableF& get_input_port(std::string name);
 
+    /**
+     * Return the input activations associated with the input port of this node
+     * with the specified name.
+     *
+     * @param name The name of the input port of this node.
+     *
+     * @return A reference to the associated input activations (data and
+     * gradients).
+     */
     const VariableF& get_input_port(std::string name) const;
 
     /**
@@ -973,7 +982,6 @@ protected:
 
     bool m_is_train;
     bool m_is_shared;
-    //std::map<std::string, std::reference_wrapper<MatrixF>> m_input_port_grad_map;
     std::map<std::string, std::reference_wrapper<VariableF>> m_input_port_var_map;
 
 private:
@@ -1021,7 +1029,6 @@ private:
         for (size_t i = 0; i < mat_list.size(); i++) {
             Variable<T>& temp = mat_list[i];
             for (int backing_index = 0; backing_index < temp.size(); ++backing_index) {
-                //temp[backing_index] = flat_mat[cur_pos + backing_index];
                 temp.data[backing_index] = flat_mat.data[cur_pos + backing_index];
                 temp.grad[backing_index] = flat_mat.grad[cur_pos + backing_index];
             }
@@ -1058,7 +1065,6 @@ private:
         for (size_t i = 0; i < mat_list.size(); i++) {
             const Variable<T>& temp = mat_list[i];
             for (int backing_index = 0; backing_index < temp.size(); ++backing_index) {
-                //flat_mat[cur_pos + backing_index] = temp[backing_index];
                 flat_mat.data[cur_pos + backing_index] = temp.data[backing_index];
                 flat_mat.grad[cur_pos + backing_index] = temp.grad[backing_index];
             }
