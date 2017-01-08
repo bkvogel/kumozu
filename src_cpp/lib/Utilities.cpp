@@ -343,7 +343,11 @@ void mat_multiply_right_transpose_accumulate_naive(MatrixF& A, const MatrixF& B,
 int sample_multinomial_distribution(const MatrixF& pdf) {
     static std::random_device rand_dev;
     static std::mt19937 mersenne_twister_engine(rand_dev());
-    const vector<float>& pdf_vec = pdf.get_backing_vector();
+    vector<float> pdf_vec;
+    pdf_vec.reserve(pdf.size());
+    for (auto i = 0; i < pdf.size(); ++i) {
+        pdf_vec.push_back(pdf[i]);
+    }
     std::discrete_distribution<> dist(pdf_vec.begin(), pdf_vec.end());
     return dist(mersenne_twister_engine);
 }
@@ -1587,6 +1591,8 @@ void do_product_update(MatrixF& X, const MatrixF& W, const MatrixF& H, float upd
 void do_product_update(MatrixF& X, const MatrixF& W, const MatrixF& H, const MatrixF& b) {
     check_matrix_factorization_dimensions(X, W, H);
     if (b.size() != X.extent(0)) {
+        std::cout << "size of bias " << b.size() << std::endl;
+        std::cout << "Expected size of bias: " << X.extent(0) << std::endl;
         error_exit("Supplied bias matrix is wrong size.");
     }
     // X = W * H

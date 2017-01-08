@@ -85,6 +85,7 @@ void test_mat_mult() {
     MatrixF A(rows_A, cols_A);
 
     MatrixF B(rows_A, cols_B);
+    cout << "B size: " << B.size() << endl;
     randomize_uniform(B,-1.0f, 1.0f);
     MatrixF C(cols_B, cols_A);
     randomize_uniform(C,-1.0f, 1.0f);
@@ -97,7 +98,7 @@ void test_mat_mult() {
     // Compute using BLAS:
     mat_multiply_blas(A, B, C);
     std::cout << "A = " << std::endl << A << std::endl;
-    //cout << "B = " << endl << B << endl;
+    cout << "B = " << endl << B << endl;
 
     // Compute using simple but likely correct version:
     mat_multiply_naive(Ac, Bc, Cc);
@@ -389,6 +390,7 @@ void test_MatrixF1D() {
     for (int i=0; i < dim0; ++i) {
         mat_1d(i) = i*i - 1234;
     }
+    cout << "mat_1d: " << mat_1d << endl;
     // Read and verify data:
     for (int i=0; i < dim0; ++i) {
         float read_val = mat_1d(i);
@@ -1208,11 +1210,22 @@ void test_select() {
 
 void test_jacobian_ConvLayer3D() {
     cout << "test_jacobian_ConvLayer3D()..." << endl;
+    /*
     const int minibatch_size = 4;
     const int image_depth = 3;
     const int image_height = 13;
     const int image_width = 15;
     const int filter_count = 5;
+    const int filter_height = 3;
+    const int filter_width = 4;
+    */
+
+    // fixme
+    const int minibatch_size = 1;
+    const int image_depth = 3;
+    const int image_height = 7;
+    const int image_width = 8;
+    const int filter_count = 2;
     const int filter_height = 3;
     const int filter_width = 4;
 
@@ -2611,17 +2624,17 @@ void test_variable() {
 }
 
 void run_all_tests() {
-    test_mat_mult();
-    test_mat_multiply_left_transpose();
-    test_mat_multiply_left_transpose_accumulate();
-    test_mat_multiply_right_transpose();
-    test_mat_multiply_right_transpose_accumulate();
     test_MatrixF1D();
     test_MatrixF2D();
     test_MatrixF3D();
     test_MatrixF4D();
     test_MatrixF5D();
     test_MatrixF6D();
+    test_mat_mult();
+    test_mat_multiply_left_transpose();
+    test_mat_multiply_left_transpose_accumulate();
+    test_mat_multiply_right_transpose();
+    test_mat_multiply_right_transpose_accumulate();
     test_MatrixResize();
     test_copy_to_from_submatrix();
     test_compute_kmax();

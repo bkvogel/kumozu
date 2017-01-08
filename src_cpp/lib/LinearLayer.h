@@ -99,13 +99,8 @@ public:
     // Item 33 in Effective C++, 3rd edition:
     using Node::back_propagate_paramater_gradients;
     using Node::back_propagate_activation_gradients;
-
-
     virtual void back_propagate_paramater_gradients(const MatrixF& input_data) override;
-
-
     virtual void back_propagate_activation_gradients(MatrixF& input_grad, const MatrixF& input_data) override;
-
 
 private:
     int m_dim_output;

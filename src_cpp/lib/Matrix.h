@@ -61,17 +61,18 @@ void resized();
 
 
 /**
- * A dense N-dimensional matrix of type T, sometimes also called a "tensor" or
- * "multi-dimensional array."
+ * A dense N-dimensional matrix of numeric type T.
  *
- * This matrix is backed by a 1-D array of templated type T that uses C-style
- * order (as opposed to Fortran) where T must be a numeric type such as float. For a 2D matrix,
+ * This matrix is backed by a 1-dimensional array of templated type T that uses C-style
+ * order (as opposed to Fortran-style) where T must be a numeric type such as float. For a 2D matrix,
  * this corresponds to row-major ordering.
  *
  * Currently, 1 to 6-dimensional matrices
  * are supported and it is striaghtforward to add support for higher order matrices.
  *
- * A new matrix is initialized to all zeros by default.
+ * A new matrix of a specified size is initialized to all zeros by default. If the default
+ * constructor is used, the matrix will initialy be empty, having size 0 and order 0 but it
+ * can be resized to the desired extents later by calling "resize()."
  *
  * Views are not currently supported. That is, it is not currently possible for two distinct Matrix
  * objects to share the same underlying backing array. However, this feature is expected to
@@ -111,55 +112,14 @@ void resized();
 template<typename T>
 class Matrix {
 
-private:
 
-    std::vector<T> m_values;
-    // Number of dimensions.
-    int m_order;
-    // m_extents[i] is the size of the i'th dimension (0-based).
-    std::vector<int> m_extents; // size is m_order
-
-    // m_strides[i] is the number of elements in the underlying 1d array that are needed to go from
-    // element to element in dimension i. The last element of m_strides will always have value 1 since
-    // elements in the last (that is, highest) dimension are always contiguous in memory.
-    std::vector<int> m_strides; // size is m_order
-
-    // If in debug mode, turn on bounds checking.
-#ifdef KUMOZU_DEBUG
-    static constexpr bool m_bounds_check = true;
-#else
-    static constexpr bool m_bounds_check = false;
-#endif
-
-    // Used by constructor that takes extents as parameter.
-    static int extents_to_size(const std::vector<int> &extents) {
-        int elem_count = 1;
-        for (size_t i = 0; i < extents.size(); ++i) {
-            elem_count *= extents[i];
-        }
-        if (elem_count == 0) {
-            error_exit("extents_to_size(): 0-valued extents are not allowed. Exiting.");
-        }
-        return elem_count;
-    }
-
-    // Given the vector of extents, make the vector of strides.
-    static void extents_to_strides(std::vector<int> &strides, const std::vector<int> &extents) {
-        for (int n = static_cast<int>(extents.size()) - 1; n >= 0; --n) {
-            if (n == static_cast<int>(extents.size()) - 1) {
-                strides[n] = 1;
-            } else {
-                strides[n] = strides[n + 1] * extents[n + 1];
-            }
-        }
-    }
 
 public:
 
     /**
      * Create a new 1D matrix of order 0 (0-dimensional).
      * This matrix does not contain any data. If this constructor is used, the
-     * resize() function should be called to give the matrix a nonzero size.
+     * resize() function should then be called to give the matrix a nonzero size.
      */
     Matrix();
 
@@ -171,6 +131,28 @@ public:
      * the i'th extent is the size of the i'th dimension.
      */
     Matrix(const std::vector<int> &extents);
+
+    /**
+     * Create a view that is backed by the supplied array.
+     *
+     * This matrix will be a view of the supplied backing array
+     * with the supplied extents. We define a "view" as a matrix that
+     * does not own its storage. Rather, the storage (i.e., backing array)
+     * is managed by an external object, such as another Matrix or possibly
+     * even a backing array from another tensor library.
+     *
+     * Since this matrix does not own the supplied backing array, it will
+     * not be deleted when this matrix is destructed. The caller is
+     * responsible for deleting the array.
+     *
+     * Care must be taken when attempting to resize a view. The resize()
+     * functions will exit with an error if it is attempted to resize()
+     * to a matrix with a different number of elements.
+     *
+     * @param backing_array The backing array for this view.
+     * @param extents The extents to use for this view.
+     */
+    Matrix(T* backing_array, const std::vector<int> &extents);
 
     /**
      * Create a new 1D matrix with dimension e0, initialized to
@@ -208,7 +190,26 @@ public:
      */
     Matrix(int e0, int e1, int e2, int e3, int e4, int e5);
 
-    virtual ~Matrix() { }
+    // Copy constructor.
+    Matrix(const Matrix<T>& other):
+        m_is_view {false}
+    {
+        m_size = other.m_size;
+        m_order = other.m_order;
+        m_extents = other.m_extents;
+        m_strides = other.m_strides;
+        m_backing_array = new T[m_size] ();
+        for (auto i = 0; i < m_size; ++i) {
+            m_backing_array[i] = other.m_backing_array[i];
+        }
+    }
+
+    virtual ~Matrix()
+    {
+        if (!m_is_view && (m_backing_array != nullptr)) {
+            delete[] m_backing_array;
+        }
+    }
 
     Matrix& operator=(const Matrix& rhs) {
         Matrix& lhs = *this;
@@ -218,7 +219,7 @@ public:
                 resized();
             }
             // Copy contents of B into A.
-        #pragma omp parallel for
+#pragma omp parallel for
             for (int i = 0; i < lhs.size(); i++) {
                 lhs[i] = rhs[i];
             }
@@ -235,60 +236,116 @@ public:
      * the i'th extent is the size of the i'th dimension in the matrix.
      *
      * This will resize to an N-dimensional matrix where N is given by extents.size().
+     * If the number of elements (i.e., size()) is unchanged, the backing array is not
+     * modified. Otherwise, if the new size is different, all elements are initialized
+     * to 0.
+     *
+     * It is not allowed to changed the size of a view.
      *
      * If resized to the same size or smaller, the remaining element values are not changed, but
      * any newly added values are initialized to 0.
      */
     void resize(const std::vector<int> &extents) {
-        m_values.resize(extents_to_size(extents));
+        auto old_size = m_size;
         m_order = static_cast<int>(extents.size());
         m_extents = extents;
         m_strides.resize(m_order);
         extents_to_strides(m_strides, m_extents);
-        resized();
+        m_size = extents_to_size(extents);
+        if (m_size == old_size) {
+            return;
+        }
+        if (is_view()) {
+            error_exit("resize(): Cannot resize a view to a different number of elements.");
+        } else {
+            if (m_backing_array != nullptr) {
+                delete[] m_backing_array;
+            }
+            m_backing_array = new T[m_size]();
+            resized();
+        }
     }
 
     /**
      * Resize to a 1D matrix with dimension e0.
      *
+     * This will resize to an N-dimensional matrix where N is given by extents.size().
+     * If the number of elements (i.e., size()) is unchanged, the backing array is not
+     * modified. Otherwise, if the new size is different, all elements are initialized
+     * to 0.
+     *
+     * It is not allowed to changed the size of a view.
+     *
      * If resized to the same size or smaller, the remaining element values are not changed, but
      * any newly added values are initialized to 0.
      */
     void resize(int e0) {
-        m_values.resize(e0);
+        auto old_size = m_size;
         m_order = 1;
         m_extents.resize(1);
         m_strides.resize(1);
         m_extents[0] = e0;
         extents_to_strides(m_strides, m_extents);
-        resized();
+        m_size = e0;
+        if (m_size == old_size) {
+            return;
+        }
+        if (is_view()) {
+                error_exit("resize(): Cannot resize a view to a different number of elements.");
+        } else {
+            m_backing_array = new T[m_size]();
+            resized();
+        }
     }
 
     /**
      * Resize to a 1D matrix with dimension (e0 x e1).
      *
+     * This will resize to an N-dimensional matrix where N is given by extents.size().
+     * If the number of elements (i.e., size()) is unchanged, the backing array is not
+     * modified. Otherwise, if the new size is different, all elements are initialized
+     * to 0.
+     *
+     * It is not allowed to changed the size of a view.
+     *
      * If resized to the same size or smaller, the remaining element values are not changed, but
      * any newly added values are initialized to 0.
      */
     void resize(int e0, int e1) {
-        m_values.resize(e0 * e1);
+        auto old_size = m_size;
         m_order = 2;
         m_extents.resize(2);
         m_strides.resize(2);
         m_extents[0] = e0;
         m_extents[1] = e1;
         extents_to_strides(m_strides, m_extents);
-        resized();
+        m_size = e0 * e1;
+        if (m_size == old_size) {
+            return;
+        }
+        if (is_view()) {
+                error_exit("resize(): Cannot resize a view to a different number of elements.");
+        } else {
+            m_backing_array = new T[m_size]();
+            resized();
+        }
     }
 
     /**
      * Resize to a 1D matrix with dimension (e0 x e1 x e2).
      *
+     * This will resize to an N-dimensional matrix where N is given by extents.size().
+     * If the number of elements (i.e., size()) is unchanged, the backing array is not
+     * modified. Otherwise, if the new size is different, all elements are initialized
+     * to 0.
+     *
+     * It is not allowed to changed the size of a view.
+     *
      * If resized to the same size or smaller, the remaining element values are not changed, but
      * any newly added values are initialized to 0.
      */
     void resize(int e0, int e1, int e2) {
-        m_values.resize(e0 * e1 * e2);
+        auto old_size = m_size;
         m_order = 3;
         m_extents.resize(3);
         m_strides.resize(3);
@@ -296,17 +353,33 @@ public:
         m_extents[1] = e1;
         m_extents[2] = e2;
         extents_to_strides(m_strides, m_extents);
-        resized();
+        m_size = e0 * e1 * e2;
+        if (m_size == old_size) {
+            return;
+        }
+        if (is_view()) {
+                error_exit("resize(): Cannot resize a view to a different number of elements.");
+        } else {
+            m_backing_array = new T[m_size]();
+            resized();
+        }
     }
 
     /**
      * Resize to a 1D matrix with dimension (e0 x e1 x e2 x e3).
      *
+     * This will resize to an N-dimensional matrix where N is given by extents.size().
+     * If the number of elements (i.e., size()) is unchanged, the backing array is not
+     * modified. Otherwise, if the new size is different, all elements are initialized
+     * to 0.
+     *
+     * It is not allowed to changed the size of a view.
+     *
      * If resized to the same size or smaller, the remaining element values are not changed, but
      * any newly added values are initialized to 0.
      */
     void resize(int e0, int e1, int e2, int e3) {
-        m_values.resize(e0 * e1 * e2 * e3);
+        auto old_size = m_size;
         m_order = 4;
         m_extents.resize(4);
         m_strides.resize(4);
@@ -315,17 +388,33 @@ public:
         m_extents[2] = e2;
         m_extents[3] = e3;
         extents_to_strides(m_strides, m_extents);
-        resized();
+        m_size = e0 * e1 * e2 * e3;
+        if (m_size == old_size) {
+            return;
+        }
+        if (is_view()) {
+                error_exit("resize(): Cannot resize a view to a different number of elements.");
+        } else {
+            m_backing_array = new T[m_size]();
+            resized();
+        }
     }
 
     /**
      * Resize to a 1D matrix with dimension (e0 x e1 x e2 x e3 x e4).
      *
+     * This will resize to an N-dimensional matrix where N is given by extents.size().
+     * If the number of elements (i.e., size()) is unchanged, the backing array is not
+     * modified. Otherwise, if the new size is different, all elements are initialized
+     * to 0.
+     *
+     * It is not allowed to changed the size of a view.
+     *
      * If resized to the same size or smaller, the remaining element values are not changed, but
      * any newly added values are initialized to 0.
      */
     void resize(int e0, int e1, int e2, int e3, int e4) {
-        m_values.resize(e0 * e1 * e2 * e3 * e4);
+        auto old_size = m_size;
         m_order = 5;
         m_extents.resize(5);
         m_strides.resize(5);
@@ -335,17 +424,33 @@ public:
         m_extents[3] = e3;
         m_extents[4] = e4;
         extents_to_strides(m_strides, m_extents);
-        resized();
+        m_size = e0 * e1 * e2 * e3 * e4;
+        if (m_size == old_size) {
+            return;
+        }
+        if (is_view()) {
+                error_exit("resize(): Cannot resize a view to a different number of elements.");
+        } else {
+            m_backing_array = new T[m_size]();
+            resized();
+        }
     }
 
     /**
      * Resize to a 1D matrix with dimension (e0 x e1 x e2 x e3 x e4 x e5).
      *
+     * This will resize to an N-dimensional matrix where N is given by extents.size().
+     * If the number of elements (i.e., size()) is unchanged, the backing array is not
+     * modified. Otherwise, if the new size is different, all elements are initialized
+     * to 0.
+     *
+     * It is not allowed to changed the size of a view.
+     *
      * If resized to the same size or smaller, the remaining element values are not changed, but
      * any newly added values are initialized to 0.
      */
     void resize(int e0, int e1, int e2, int e3, int e4, int e5) {
-        m_values.resize(e0 * e1 * e2 * e3 * e4 * e5);
+        auto old_size = m_size;
         m_order = 6;
         m_extents.resize(6);
         m_strides.resize(6);
@@ -356,7 +461,16 @@ public:
         m_extents[4] = e4;
         m_extents[5] = e5;
         extents_to_strides(m_strides, m_extents);
-        resized();
+        m_size = e0 * e1 * e2 * e3 * e4 * e5;
+        if (m_size == old_size) {
+            return;
+        }
+        if (is_view()) {
+                error_exit("resize(): Cannot resize a view to a different number of elements.");
+        } else {
+            m_backing_array = new T[m_size]();
+            resized();
+        }
     }
 
     /**
@@ -372,7 +486,7 @@ public:
                 error_exit("Bounds check failed.");
             }
         }
-        return m_values[index];
+        return m_backing_array[index];
     }
 
     /**
@@ -388,7 +502,7 @@ public:
                 error_exit("Bounds check failed.");
             }
         }
-        return m_values[index];
+        return m_backing_array[index];
     }
 
     /**
@@ -412,7 +526,7 @@ public:
                 error_exit("operator()(int i0)");
             }
         }
-        return m_values[i0];
+        return m_backing_array[i0];
     }
 
     /**
@@ -436,7 +550,7 @@ public:
                 error_exit("operator()(int i0) const");
             }
         }
-        return m_values[i0];
+        return m_backing_array[i0];
     }
 
     /**
@@ -462,7 +576,7 @@ public:
                 error_exit("operator()(int i0, int i1)");
             }
         }
-        return m_values[i0 * m_strides[0] + i1];
+        return m_backing_array[i0 * m_strides[0] + i1];
     }
 
     /**
@@ -488,7 +602,7 @@ public:
                 error_exit("operator()(int i0, int i1)");
             }
         }
-        return m_values[i0 * m_strides[0] + i1];
+        return m_backing_array[i0 * m_strides[0] + i1];
     }
 
     /**
@@ -518,7 +632,7 @@ public:
                 error_exit("operator()(int i0, int i1, int i2)");
             }
         }
-        return m_values[i0 * m_strides[0] + i1 * m_strides[1] + i2];
+        return m_backing_array[i0 * m_strides[0] + i1 * m_strides[1] + i2];
     }
 
     /**
@@ -548,7 +662,7 @@ public:
                 error_exit("operator()(int i0, int i1, int i2) const");
             }
         }
-        return m_values[i0 * m_strides[0] + i1 * m_strides[1] + i2];
+        return m_backing_array[i0 * m_strides[0] + i1 * m_strides[1] + i2];
     }
 
     /**
@@ -582,7 +696,7 @@ public:
                 error_exit("operator()(int i0, int i1, int i2, int i3)");
             }
         }
-        return m_values[i0 * m_strides[0] + i1 * m_strides[1] + i2 * m_strides[2] + i3];
+        return m_backing_array[i0 * m_strides[0] + i1 * m_strides[1] + i2 * m_strides[2] + i3];
     }
 
     /**
@@ -616,7 +730,7 @@ public:
                 error_exit("operator()(int i0, int i1, int i2, int i3) const");
             }
         }
-        return m_values[i0 * m_strides[0] + i1 * m_strides[1] + i2 * m_strides[2] + i3];
+        return m_backing_array[i0 * m_strides[0] + i1 * m_strides[1] + i2 * m_strides[2] + i3];
     }
 
     /**
@@ -654,7 +768,7 @@ public:
                 error_exit("operator()(int i0, int i1, int i2, int i3, int i4)");
             }
         }
-        return m_values[i0 * m_strides[0] + i1 * m_strides[1] + i2 * m_strides[2] + i3 * m_strides[3] + i4];
+        return m_backing_array[i0 * m_strides[0] + i1 * m_strides[1] + i2 * m_strides[2] + i3 * m_strides[3] + i4];
     }
 
     /**
@@ -692,7 +806,7 @@ public:
                 error_exit("operator()(int i0, int i1, int i2, int i3, int i4) const");
             }
         }
-        return m_values[i0 * m_strides[0] + i1 * m_strides[1] + i2 * m_strides[2] + i3 * m_strides[3] + i4];
+        return m_backing_array[i0 * m_strides[0] + i1 * m_strides[1] + i2 * m_strides[2] + i3 * m_strides[3] + i4];
     }
 
     /**
@@ -734,7 +848,7 @@ public:
                 error_exit("operator()(int i0, int i1, int i2, int i3, int i4, int i5)");
             }
         }
-        return m_values[i0 * m_strides[0] + i1 * m_strides[1] + i2 * m_strides[2] + i3 * m_strides[3] +
+        return m_backing_array[i0 * m_strides[0] + i1 * m_strides[1] + i2 * m_strides[2] + i3 * m_strides[3] +
                 i4 * m_strides[4] + i5];
     }
 
@@ -777,7 +891,7 @@ public:
                 error_exit("operator()(int i0, int i1, int i2, int i3, int i4, int i5) const");
             }
         }
-        return m_values[i0 * m_strides[0] + i1 * m_strides[1] + i2 * m_strides[2] + i3 * m_strides[3] +
+        return m_backing_array[i0 * m_strides[0] + i1 * m_strides[1] + i2 * m_strides[2] + i3 * m_strides[3] +
                 i4 * m_strides[4] + i5];
     }
 
@@ -786,7 +900,14 @@ public:
      * were supplied to the constructor.
      */
     int size() const {
-        return static_cast<int>(m_values.size());
+        return m_size;
+    }
+
+    /**
+     * @return True if this matrix is a view. Otherwise return false.
+     */
+    bool is_view() const {
+        return m_is_view;
     }
 
     /**
@@ -822,31 +943,29 @@ public:
     }
 
     /**
-     * Get pointer to underlying backing array. Be careful!
+     * Get pointer to underlying backing array.
      */
     T *get_backing_data() {
-        return m_values.data();
+        return m_backing_array;
     }
 
     /**
-     * Get pointer to underlying backing array. Be careful!
+     * Get pointer to underlying backing array.
      */
     const T *get_backing_data() const {
-        return m_values.data();
+        return m_backing_array;
     }
 
     /**
-     * Get vector of underlying backing array.
+     * @return a copy of the backing array in a vector. A new vector is
+     * allocated on each call and so this function can be somewhat expensive.
      */
-    std::vector<T> &get_backing_vector() {
-        return m_values;
-    }
-
-    /**
-     * Get vector of underlying backing array.
-     */
-    const std::vector<T> &get_backing_vector() const {
-        return m_values;
+    std::vector<T> get_backing_vector() const {
+        std::vector<T> res;
+        for (int i = 0; i < m_size; ++i) {
+            res.push_back(m_backing_array[i]);
+        }
+        return res;
     }
 
     /**
@@ -985,6 +1104,59 @@ public:
         return true;
     }
 
+private:
+
+    // Number of elements in this matrix.
+    int m_size;
+    // Number of dimensions.
+    int m_order;
+    // m_extents[i] is the size of the i'th dimension (0-based).
+    std::vector<int> m_extents; // size is m_order
+
+    // m_strides[i] is the number of elements in the underlying 1d array that are needed to go from
+    // element to element in dimension i. The last element of m_strides will always have value 1 since
+    // elements in the last (that is, highest) dimension are always contiguous in memory.
+    std::vector<int> m_strides; // size is m_order
+
+    // The backing array for the matrix. By default, this will simply point to the
+    // backing array of the std::vector m_values. Depending on the constructor
+    // that is used, it could alternatively refer to externally-owned storage.
+    T* m_backing_array;
+
+    bool m_is_view;
+
+
+
+    // If in debug mode, turn on bounds checking.
+#ifdef KUMOZU_DEBUG
+    static constexpr bool m_bounds_check = true;
+#else
+    static constexpr bool m_bounds_check = false;
+#endif
+
+    // Used by constructor that takes extents as parameter.
+    static int extents_to_size(const std::vector<int> &extents) {
+        int elem_count = 1;
+        for (size_t i = 0; i < extents.size(); ++i) {
+            elem_count *= extents[i];
+        }
+        if (elem_count == 0) {
+            error_exit("extents_to_size(): 0-valued extents are not allowed. Exiting.");
+        }
+        return elem_count;
+    }
+
+    // Given the vector of extents, make the vector of strides.
+    static void extents_to_strides(std::vector<int> &strides, const std::vector<int> &extents) {
+        for (int n = static_cast<int>(extents.size()) - 1; n >= 0; --n) {
+            if (n == static_cast<int>(extents.size()) - 1) {
+                strides[n] = 1;
+            } else {
+                strides[n] = strides[n + 1] * extents[n + 1];
+            }
+        }
+    }
+
 };
 
 
@@ -992,11 +1164,7 @@ public:
 template<typename T>
 std::ostream &operator<<(std::ostream &os, const Matrix<T> &m);
 
-// Typedefs for common types.
-//typedef Matrix<float> MatrixF;
-//typedef Matrix<double> MatrixD;
-//typedef Matrix<int> MatrixI;
-
+// Using declarations for common types.
 using MatrixF = Matrix<float>;
 using MatrixD = Matrix<double>;
 using MatrixI = Matrix<int>;
@@ -1005,81 +1173,115 @@ using MatrixI = Matrix<int>;
 // Implementation below: Needs to be in header file or else we get linker errors.
 
 // 0-dim matrix:
-// Don't try to put any data in this :)
+// It's empty.
 template<typename T>
 Matrix<T>::Matrix()
-    : m_values(), m_order{0}, m_extents(), m_strides() {
+    : m_size {0},
+      m_order{0}, m_extents(), m_strides(),
+      m_is_view {false}
+{
+    m_backing_array = nullptr;
 }
 
 template<typename T>
 Matrix<T>::Matrix(const std::vector<int> &extents)
-    : m_values(extents_to_size(extents)),
+    : m_size {extents_to_size(extents)},
       m_order{static_cast<int>(extents.size())},
       m_extents(extents),
-      m_strides(m_order) {
+      m_strides(m_order),
+      m_is_view {false}
+{
     extents_to_strides(m_strides, m_extents);
+    m_backing_array = new T[m_size]();
+}
+
+template<typename T>
+Matrix<T>::Matrix(T* backing_array, const std::vector<int> &extents)
+    : m_size {extents_to_size(extents)},
+      m_order{static_cast<int>(extents.size())},
+      m_extents(extents),
+      m_strides(m_order),
+      m_is_view {true}
+{
+    m_backing_array = backing_array;
 }
 
 // 1-dim matrix:
 template<typename T>
 Matrix<T>::Matrix(int e0)
-    : m_values(e0), m_order{1}, m_extents(1), m_strides(1) {
+    : m_size {e0}, m_order{1}, m_extents(1), m_strides(1),
+      m_is_view {false}
+{
     m_extents[0] = e0;
     extents_to_strides(m_strides, m_extents);
+    m_backing_array = new T[m_size]();
 }
 
 // 2-dim matrix:
 template<typename T>
 Matrix<T>::Matrix(int e0, int e1)
-    : m_values(e0 * e1), m_order{2}, m_extents(2), m_strides(2) {
+    : m_size {e0 * e1}, m_order{2}, m_extents(2), m_strides(2),
+      m_is_view {false}
+{
     m_extents[0] = e0;
     m_extents[1] = e1;
     extents_to_strides(m_strides, m_extents);
+    m_backing_array = new T[m_size]();
 }
 
 
 // 3-dim matrix:
 template<typename T>
 Matrix<T>::Matrix(int e0, int e1, int e2)
-    : m_values(e0 * e1 * e2), m_order{3},
-      m_extents(3), m_strides(3) {
+    : m_size {e0 * e1 * e2}, m_order{3},
+      m_extents(3), m_strides(3),
+      m_is_view {false}
+{
     m_extents[0] = e0;
     m_extents[1] = e1;
     m_extents[2] = e2;
     extents_to_strides(m_strides, m_extents);
+    m_backing_array = new T[m_size]();
 }
 
 // 4-dim matrix:
 template<typename T>
 Matrix<T>::Matrix(int e0, int e1, int e2, int e3)
-    : m_values(e0 * e1 * e2 * e3), m_order{4},
-      m_extents(4), m_strides(4) {
+    : m_size {e0 * e1 * e2 * e3}, m_order{4},
+      m_extents(4), m_strides(4),
+      m_is_view {false}
+{
     m_extents[0] = e0;
     m_extents[1] = e1;
     m_extents[2] = e2;
     m_extents[3] = e3;
     extents_to_strides(m_strides, m_extents);
-
+    m_backing_array = new T[m_size]();
 }
 
 // 5-dim matrix:
 template<typename T>
 Matrix<T>::Matrix(int e0, int e1, int e2, int e3, int e4)
-    : m_values(e0 * e1 * e2 * e3 * e4), m_order{5},
-      m_extents(5), m_strides(5) {
+    : m_size {e0 * e1 * e2 * e3 * e4}, m_order{5},
+      m_extents(5), m_strides(5),
+      m_is_view {false}
+{
     m_extents[0] = e0;
     m_extents[1] = e1;
     m_extents[2] = e2;
     m_extents[3] = e3;
     m_extents[4] = e4;
     extents_to_strides(m_strides, m_extents);
+    m_backing_array = new T[m_size]();
 }
 
 // 6-dim matrix:
 template<typename T>
 Matrix<T>::Matrix(int e0, int e1, int e2, int e3, int e4, int e5)
-    : m_values(e0 * e1 * e2 * e3 * e4 * e5), m_order{6},
-      m_extents(6), m_strides(6) {
+    : m_size {e0 * e1 * e2 * e3 * e4 * e5}, m_order{6},
+      m_extents(6), m_strides(6),
+      m_is_view {false}
+{
     m_extents[0] = e0;
     m_extents[1] = e1;
     m_extents[2] = e2;
@@ -1087,6 +1289,7 @@ Matrix<T>::Matrix(int e0, int e1, int e2, int e3, int e4, int e5)
     m_extents[4] = e4;
     m_extents[5] = e5;
     extents_to_strides(m_strides, m_extents);
+    m_backing_array = new T[m_size]();
 }
 
 template<typename T>
@@ -1097,8 +1300,7 @@ Matrix<T>::operator std::vector<T>() const {
     }
     std::vector<T> out(extent(0));
     for (int i = 0; i < extent(0); ++i) {
-        //out.at(i) = get(i);
-        out.at(i) = m_values[i];
+        out.at(i) = m_backing_array[i];
     }
     return out;
 }

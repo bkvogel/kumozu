@@ -1261,7 +1261,12 @@ T min_value(const std::vector<T>& a) {
  */
 template <typename T>
 T max_value(const Matrix<T>& A) {
-    return max_value(A.get_backing_vector());
+    assertion(A.size() > 0, "max_value(): Cannot call on size-0 matrix.");
+    T max_val = A[0];
+    for (auto i = 0; i != A.size(); ++i) {
+        max_val = std::max(max_val, A[i]);
+    }
+    return max_val;
 }
 
 
@@ -1270,7 +1275,12 @@ T max_value(const Matrix<T>& A) {
  */
 template <typename T>
 T min_value(const Matrix<T>& A) {
-    return min_value(A.get_backing_vector());
+    assertion(A.size() > 0, "min_value(): Cannot call on size-0 matrix.");
+    T min_val = A[0];
+    for (auto i = 0; i != A.size(); ++i) {
+        min_val = std::min(min_val, A[i]);
+    }
+    return min_val;
 }
 
 
@@ -1279,8 +1289,8 @@ T min_value(const Matrix<T>& A) {
  */
 template <typename T>
 T max_magnitude_value(const Matrix<T>& A) {
-    T min = min_value(A.get_backing_vector());
-    T max = max_value(A.get_backing_vector());
+    T min = min_value(A);
+    T max = max_value(A);
     if ((min < 0) && (max < 0)) {
         return 0;
     } else {

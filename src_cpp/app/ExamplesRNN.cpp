@@ -1344,8 +1344,6 @@ private:
 
 
 // Choose what kind of RNN slice to use:
-// Note: Some of these use dropout and some don't. You will need to modify the FullSlice constructor
-// arguments below if switching between dropout/no-dropout versions.
 
 //using FullSlice = RNN1LayerSlice; // 1-layer Vanilla RNN
 //using FullSlice = LSTM1LayerSlice; // 1-layer LSTM
@@ -1547,7 +1545,7 @@ void lstm_example() {
     const int rnn_dim = 256; // good size 256 or greater
     // Set up learning rates.
     //float learning_rate_weights = 1e-2f; // 1e-3 -  1e-5
-    float rms_prop_rate_weights = 2e-3f; //2e-3f
+    float rms_prop_rate_weights = 1e-3f; //2e-3f
 
     float weight_decay = 1e-5f; //
     const bool enable_weight_decay = true;

@@ -14,7 +14,7 @@ Kumozu is research software for deep learning and matrix factorization algorithm
 
 * Data visualization using Gnuplot. Activations, layer weights, and various statistics can be plotted and refreshed as frequently as desired during network training.
 
-* Written in a modern C++ style. For example, there are no calls to `delete(raw_ptr)` anywhere in the code. This is because none of the raw pointers used in Kumozu own their memory; that is, their lifetime is allways managed either by automatic variables, or by smart pointers and so there is never a need to explicitly call delete().
+* Written in a modern C++ style using C++11 features. 
 
 * Few dependencies. The code should compile with little modification on most platforms that support C++11. An optimized BLAS implementation is highly recommended, though.
 
@@ -374,8 +374,8 @@ See the included examples, unit tests, and .h files.
 
 #### Notes
 
-A debugging mode can be enabled so that the Matrix class will perform bounds-checking. To enable, uncomment the `makefile` line that defines `KUMOZU_DEBUG`.
-When this mode is enabled, a message will also be printed to stdout whenever a Matrix is resized.
+A debugging mode can be enabled so that the Matrix class will perform bounds-checking. To enable, define `KUMOZU_DEBUG`.
+When this mode is enabled, a message will also be printed to stdout whenever a Matrix is resized. Additional debug information can be printed by setting `VERBOSE_MODE=true` in `Constants.h`. To view the stack trace when an error is detected, set a breakpoint inside `error_exit()` in `Assertions.cpp`.
 
 #### License
 

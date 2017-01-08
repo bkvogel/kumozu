@@ -45,9 +45,9 @@
 namespace kumozu {
 
 /**
- * An that only performs the forward and backward computations and does not contain other nodes.
+ * A node that only performs the forward and backward computations and does not contain other nodes.
  *
- * An AtomicNode is a node that performs forward and backward computations. It can be though
+ * An AtomicNode is a node that performs forward and backward computations. It can be thought
  * of as a "layer" in a network. Unlike a CompositeNode, an AtomicNode does not contain
  * other nodes.
  *
@@ -143,11 +143,10 @@ public:
      * can be resized later and so the default extents create an empty Varaible.
      */
     void add_param(std::string name, std::vector<int> extents = {}) {
-        auto var = std::make_shared<VariableF>(extents);
         if (m_params.find(name) != m_params.end()) {
             error_exit("add_param(): Error. Parameter: " + name + " already exists.");
         }
-        m_params.emplace(name, var);
+        m_params.emplace(name, std::make_shared<VariableF>(extents));
         set_initialized(false);
     }
 
@@ -187,22 +186,6 @@ public:
             if (VERBOSE_MODE) {
                 std::cout << "AtomicNode::copy_params_to():" << std::endl;
                 std::cout << "kv.fist: " << kv.first << std::endl;
-                auto rhs = *m_params[kv.first];
-                auto rhs_data = rhs.data;
-                std::cout << "rhs_data size: " << rhs_data.size() << std::endl;
-                if (other_params_map.size() == 0) {
-                    std::cout << "oops, params map is empty!" << std::endl;
-                }
-                if (other_params_map.find(kv.first) == other_params_map.end()) {
-                    std::cout << "AtomicNode::copy_params_to(): other node: " << other.get_name() << "does not contain the parmaeter: " << kv.first << std::endl;
-                    error_exit("exiting.");
-                }
-                if (other_params_map[kv.first] == nullptr) {
-                    error_exit("oops");
-                }
-                auto lhs = *other_params_map[kv.first];
-                auto lhs_data = lhs.data;
-                std::cout << "lhs_data size: " << lhs_data.size() << std::endl;
             }
             *other_params_map[kv.first] = *this_params_map[kv.first];
         }
@@ -250,7 +233,6 @@ private:
 
     // Map from parameter name to the corresponding Variable.
     std::map<std::string, std::shared_ptr<VariableF>> m_params;
-
 };
 
 }

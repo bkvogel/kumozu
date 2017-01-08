@@ -290,12 +290,8 @@ public:
      * Since the graph structure is changed when a port is added,
      * calling this function will cause this node to become uninitialied so that
      * is_initialized() will then return false if called.
-     * fixme:
-     * @param data An input activations matrix to connect to a new input port. This is a read-only matrix
-     * that contains the activations for the forward pass.
      *
-     * @param grad An input gradients matrix to connect to a new input port. This matrix will
-     * be written to during the backward pass.
+     * @param var An input activations variable to connect to a new input port.
      * @param input_name The name of a new input to this node that will be created by this function and connected to
      * the supplied matrices.
      */
@@ -427,7 +423,7 @@ public:
     /**
      * Create an output port for this Node that is associated with the supplied variable.
      *
-     * @param var The output activations for the output port.
+     * @param var The output activations variable for the output port.
      * @param output_name The name for the output port.
      */
     void create_output_port(VariableF& var, std::string output_name);
@@ -695,7 +691,6 @@ public:
     virtual int get_contained_node_count() const {
         return 0;
     }
-
 
     /**
      * Copy parameter values from this node to the supplied node.

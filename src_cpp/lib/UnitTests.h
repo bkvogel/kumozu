@@ -35,6 +35,7 @@
 
 namespace kumozu {
 
+
   void test_mat_mult();
 
   void benchmark_mat_mult();
