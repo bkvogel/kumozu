@@ -1319,10 +1319,10 @@ public:
      *
      * @param minibatch_size mini-batch size.
      */
-    std::map<std::string, std::unique_ptr<MatrixF>> make_hidden_state_matrices(int minibatch_size) {
-        std::map<std::string, std::unique_ptr<MatrixF>> hidden_mat_map;
+    std::map<std::string, std::unique_ptr<VariableF>> make_hidden_state_variables(int minibatch_size) {
+        std::map<std::string, std::unique_ptr<VariableF>> hidden_mat_map;
         for (std::string hidden_port : m_hidden_port_names) {
-            hidden_mat_map.emplace(hidden_port, std::make_unique<MatrixF>(m_rnn_dim, minibatch_size));
+            hidden_mat_map.emplace(hidden_port, std::make_unique<VariableF>(m_rnn_dim, minibatch_size));
         }
         return hidden_mat_map;
     }
@@ -1350,8 +1350,8 @@ private:
 //using FullSlice = RNN1LayerSlice; // 1-layer Vanilla RNN
 //using FullSlice = LSTM1LayerSlice; // 1-layer LSTM
 //using FullSlice = LSTM1LayerSliceV2; // 1-layer LSTM + dropout
-using FullSlice = LSTM2LayerSlice; // 2-layer LSTM
-//using FullSlice =   LSTM2LayerSliceV2; // 2-layer LSTM + dropout
+//using FullSlice = LSTM2LayerSlice; // 2-layer LSTM
+using FullSlice =   LSTM2LayerSliceV2; // 2-layer LSTM + dropout
 // Check that gradients are computed correctly for LSTMNode.
 void check_gradients_LSTMNode() {
     // Internal size of RNN:
@@ -1587,7 +1587,6 @@ void lstm_example() {
     // Create the hidden state matrices and connect them to input ports of the slice.
     // For training:
     auto name_to_hidden_var_train = slice_0.make_hidden_state_variables(minibatch_size); // todo: make typedef/alias
-    //auto name_to_hidden_backward_matrix_train = slice_0.make_hidden_state_matrices(minibatch_size);
     for (auto& x : name_to_hidden_var_train) {
         string port_name = x.first;
         VariableF& hidden_var = *x.second;
@@ -1595,8 +1594,7 @@ void lstm_example() {
     }
     const int minibatch_size_test = 10; // Mini-batch size for testing.
     // For testing:
-    auto name_to_hidden_var_test = slice_0.make_hidden_state_variables(minibatch_size_test); // todo: make typedef/alias
-    //auto name_to_hidden_backward_matrix_test = slice_0.make_hidden_state_variables(minibatch_size_test);
+    auto name_to_hidden_var_test = slice_0.make_hidden_state_variables(minibatch_size_test);
     for (auto& x : name_to_hidden_var_test) {
         string port_name = x.first;
         VariableF& hidden_var = *x.second;
@@ -1640,8 +1638,7 @@ void lstm_example() {
     //weights_updater.set_mode_rmsprop_momentum(rms_prop_rate_weights, 0.9f, 0.9f);
     weights_updater.set_mode_rmsprop(rms_prop_rate_weights, 0.9f);
     weights_updater.set_flag_weight_decay(weight_decay, enable_weight_decay);
-    //cout << "W size = " << W.size() << endl;
-    
+
     FullSlice slice_clone(rnn_dim, char_dim, "Slice Clone");
     slice_clone.set_shared(rnn_train.get_slice(0));
     SliceSampler slice_sampler(slice_clone, train_getter.get_idx_to_char_map());
@@ -1706,7 +1703,6 @@ void lstm_example() {
                     string port_name = x.first;
                     MatrixF& input_forward = x.second->data;
                     const MatrixF& output_forward = rnn_test.get_output_data(port_name);
-                    //copy_matrix(input_forward, output_forward);
                     input_forward = output_forward;
                 }
 
