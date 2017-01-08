@@ -64,6 +64,8 @@ namespace kumozu {
 
   void test_Matrix6D();
 
+  void test_view();
+
   void test_MatrixResize();
 
 

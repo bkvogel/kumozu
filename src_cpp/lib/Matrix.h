@@ -293,6 +293,9 @@ public:
         if (is_view()) {
                 error_exit("resize(): Cannot resize a view to a different number of elements.");
         } else {
+            if (m_backing_array != nullptr) {
+                delete[] m_backing_array;
+            }
             m_backing_array = new T[m_size]();
             resized();
         }
@@ -326,6 +329,9 @@ public:
         if (is_view()) {
                 error_exit("resize(): Cannot resize a view to a different number of elements.");
         } else {
+            if (m_backing_array != nullptr) {
+                delete[] m_backing_array;
+            }
             m_backing_array = new T[m_size]();
             resized();
         }
@@ -360,6 +366,9 @@ public:
         if (is_view()) {
                 error_exit("resize(): Cannot resize a view to a different number of elements.");
         } else {
+            if (m_backing_array != nullptr) {
+                delete[] m_backing_array;
+            }
             m_backing_array = new T[m_size]();
             resized();
         }
@@ -395,6 +404,9 @@ public:
         if (is_view()) {
                 error_exit("resize(): Cannot resize a view to a different number of elements.");
         } else {
+            if (m_backing_array != nullptr) {
+                delete[] m_backing_array;
+            }
             m_backing_array = new T[m_size]();
             resized();
         }
@@ -431,6 +443,9 @@ public:
         if (is_view()) {
                 error_exit("resize(): Cannot resize a view to a different number of elements.");
         } else {
+            if (m_backing_array != nullptr) {
+                delete[] m_backing_array;
+            }
             m_backing_array = new T[m_size]();
             resized();
         }
@@ -468,6 +483,9 @@ public:
         if (is_view()) {
                 error_exit("resize(): Cannot resize a view to a different number of elements.");
         } else {
+            if (m_backing_array != nullptr) {
+                delete[] m_backing_array;
+            }
             m_backing_array = new T[m_size]();
             resized();
         }
@@ -1164,6 +1182,7 @@ private:
 template<typename T>
 std::ostream &operator<<(std::ostream &os, const Matrix<T> &m);
 
+
 // Using declarations for common types.
 using MatrixF = Matrix<float>;
 using MatrixD = Matrix<double>;
@@ -1203,6 +1222,7 @@ Matrix<T>::Matrix(T* backing_array, const std::vector<int> &extents)
       m_strides(m_order),
       m_is_view {true}
 {
+    extents_to_strides(m_strides, m_extents);
     m_backing_array = backing_array;
 }
 

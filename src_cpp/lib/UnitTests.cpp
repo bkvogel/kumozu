@@ -568,6 +568,31 @@ void test_MatrixF6D() {
 }
 
 
+void test_view() {
+    cout << "test_view()..." << endl;
+    const int dim0 = 3;
+    const int dim1 = 4;
+    MatrixF mat_2d(dim0, dim1);
+    // Make a view.
+    MatrixF view_mat(mat_2d.get_backing_data(), mat_2d.get_extents());
+    // Fill with data:
+    for (int i=0; i < dim0; ++i) {
+        for (int j = 0; j < dim1; ++j) {
+            mat_2d(i,j) = i*i + j*j - 1234;
+        }
+    }
+    cout << "mat_2d: " << endl << mat_2d << endl;
+    cout << "view_mat: " << endl << view_mat << endl;
+    // Read and verify data:
+    for (int i=0; i < dim0; ++i) {
+        for (int j = 0; j < dim1; ++j) {
+            float read_val = view_mat(i,j);
+            float true_val = i*i + j*j - 1234;
+            assert_almost_equal(read_val, true_val, 1e-4f);
+        }
+    }
+    cout << "PASSED" << endl;
+}
 
 void test_MatrixResize() {
     cout << "test_MatrixResize()..." << endl;
@@ -2630,6 +2655,7 @@ void run_all_tests() {
     test_MatrixF4D();
     test_MatrixF5D();
     test_MatrixF6D();
+    test_view();
     test_mat_mult();
     test_mat_multiply_left_transpose();
     test_mat_multiply_left_transpose_accumulate();
