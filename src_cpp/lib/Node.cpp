@@ -54,7 +54,9 @@ void Node::forward() {
     // call reinitialize().
     //cout << get_name() << " : size of m_input_port_forward_map = " << m_input_port_forward_map.size() << endl;
     bool extents_changed = false;
+    //cout << "m_input_port_var_map.size(): " << m_input_port_var_map.size() << endl;
     for (const auto& x : m_input_port_var_map) {
+        //cout << "name: " << x.first << endl;
         auto& prev_extents = m_input_port_extents_map[x.first];
         const auto& cur_extents = x.second.get().get_extents();
         if (cur_extents != prev_extents) {

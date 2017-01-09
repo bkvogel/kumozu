@@ -74,17 +74,17 @@ void CompositeNode::schedule_node(Node& node) {
 }
 
 void CompositeNode::add_node(std::unique_ptr<Node> node_ptr) {
-    m_added_nodes.push_back(std::move(node_ptr));
     m_scheduled_nodes.push_back(*node_ptr);
+    m_added_nodes.push_back(std::move(node_ptr));
     set_initialized(false);
 }
 
 Node& CompositeNode::get_node(int n) {
-    return m_scheduled_nodes[n].get();
+    return m_scheduled_nodes.at(n).get();
 }
 
 const Node& CompositeNode::get_node(int n) const {
-    return m_scheduled_nodes[n].get();
+    return m_scheduled_nodes.at(n).get();
 }
 
 int CompositeNode::get_contained_node_count() const {

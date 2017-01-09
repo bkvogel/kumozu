@@ -597,7 +597,7 @@ public:
         // they appear as private member variables.
         m_concat_x_t_and_h_t {0, "ConcatNode: x_t concat h_t"},
         m_linear {4*rnn_dim, "Linear: i,f,o,g"},
-        m_extractor_4 {{rnn_dim, rnn_dim, rnn_dim, rnn_dim}, "Extractor: i,f,o.g"},
+        m_extractor_4 {4, "Extractor: i,f,o.g"},
         m_sigmoid_i{ColumnActivationFunction::ACTIVATION_TYPE::sigmoid, "Sigmoid: input gate"},
         m_sigmoid_f{ColumnActivationFunction::ACTIVATION_TYPE::sigmoid, "Sigmoid: forget gate"},
         m_sigmoid_o{ColumnActivationFunction::ACTIVATION_TYPE::sigmoid, "Sigmoid: output gate"},
@@ -802,10 +802,19 @@ public:
      *
      * @param minibatch_size mini-batch size.
      */
+    /*
     std::map<std::string, std::unique_ptr<MatrixF>> make_hidden_state_matrices(int minibatch_size) {
         std::map<std::string, std::unique_ptr<MatrixF>> hidden_mat_map;
         for (std::string hidden_port : m_hidden_port_names) {
             hidden_mat_map.emplace(hidden_port, std::make_unique<MatrixF>(m_rnn_dim, minibatch_size));
+        }
+        return hidden_mat_map;
+    }
+    */
+    std::map<std::string, std::unique_ptr<VariableF>> make_hidden_state_variables(int minibatch_size) {
+        std::map<std::string, std::unique_ptr<VariableF>> hidden_mat_map;
+        for (std::string hidden_port : m_hidden_port_names) {
+            hidden_mat_map.emplace(hidden_port, std::make_unique<VariableF>(m_rnn_dim, minibatch_size));
         }
         return hidden_mat_map;
     }
@@ -918,10 +927,19 @@ public:
      *
      * @param minibatch_size mini-batch size.
      */
+    /*
     std::map<std::string, std::unique_ptr<MatrixF>> make_hidden_state_matrices(int minibatch_size) {
         std::map<std::string, std::unique_ptr<MatrixF>> hidden_mat_map;
         for (std::string hidden_port : m_hidden_port_names) {
             hidden_mat_map.emplace(hidden_port, std::make_unique<MatrixF>(m_rnn_dim, minibatch_size));
+        }
+        return hidden_mat_map;
+    }
+    */
+    std::map<std::string, std::unique_ptr<VariableF>> make_hidden_state_variables(int minibatch_size) {
+        std::map<std::string, std::unique_ptr<VariableF>> hidden_mat_map;
+        for (std::string hidden_port : m_hidden_port_names) {
+            hidden_mat_map.emplace(hidden_port, std::make_unique<VariableF>(m_rnn_dim, minibatch_size));
         }
         return hidden_mat_map;
     }
@@ -1037,6 +1055,7 @@ public:
      *
      * @param minibatch_size mini-batch size.
      */
+    /*
     std::map<std::string, std::unique_ptr<MatrixF>> make_hidden_state_matrices(int minibatch_size) {
         std::map<std::string, std::unique_ptr<MatrixF>> hidden_mat_map;
         for (std::string hidden_port : m_hidden_port_names) {
@@ -1044,6 +1063,15 @@ public:
         }
         return hidden_mat_map;
     }
+    */
+    std::map<std::string, std::unique_ptr<VariableF>> make_hidden_state_variables(int minibatch_size) {
+        std::map<std::string, std::unique_ptr<VariableF>> hidden_mat_map;
+        for (std::string hidden_port : m_hidden_port_names) {
+            hidden_mat_map.emplace(hidden_port, std::make_unique<VariableF>(m_rnn_dim, minibatch_size));
+        }
+        return hidden_mat_map;
+    }
+
 
 private:
 
@@ -1174,6 +1202,15 @@ public:
      *
      * @param minibatch_size mini-batch size.
      */
+    /*
+    std::map<std::string, std::unique_ptr<VariableF>> make_hidden_state_variables(int minibatch_size) {
+        std::map<std::string, std::unique_ptr<VariableF>> hidden_mat_map;
+        for (std::string hidden_port : m_hidden_port_names) {
+            hidden_mat_map.emplace(hidden_port, std::make_unique<VariableF>(m_rnn_dim, minibatch_size));
+        }
+        return hidden_mat_map;
+    }
+    */
     std::map<std::string, std::unique_ptr<VariableF>> make_hidden_state_variables(int minibatch_size) {
         std::map<std::string, std::unique_ptr<VariableF>> hidden_mat_map;
         for (std::string hidden_port : m_hidden_port_names) {
@@ -1406,7 +1443,7 @@ public:
         m_slice.set_target_activations(target_activations);
 
         // Seed character: Set to whatever character you want.
-        input_var.data(0) = 1.0f;
+        input_var.data[0] = 1.0f;
 
         MatrixF temperature_probs;
         cout << "Generating text:" << endl << endl;
@@ -1432,7 +1469,7 @@ public:
             }
 
             set_value(input_var.data, 0.0f);
-            input_var.data(index_chosen) = 1.0f; // Character for next time slice.
+            input_var.data[index_chosen] = 1.0f; // Character for next time slice.
             // Copy hidden state output into hidden state input for next slice.
             for (auto& x : name_to_hidden_vars) {
                 string port_name = x.first;
