@@ -6,7 +6,7 @@ Kumozu is research software for deep learning and matrix factorization algorithm
 
 * Includes a multi-dimensional matrix class template (`Matrix`), various utility functions in `Utilities.h`, and layer classes such as fully-connected, convolutional, batch normalization, dropout, etc. for constructing deep neural networks.
 
-* Support for general computation graphs using the base graph `Node` class. A node can have an arbitrary number of named input and output ports and can itself contain a subgraph of other Node instances, enabling expressive architectures such as recurrent neural networks. Kumozu is different from other frameworks in that it supports descriptive string-valued port names, rather than positional or integer-valued names. This is intended to improve code readability and reduce the chance of user error when making port connections between nodes.
+* Support for general computation graphs using the base graph `Node` class. A node can have an arbitrary number of named input and output ports and can itself contain a subgraph of other Node instances, enabling expressive architectures such as recurrent neural networks. Kumozu is different from other frameworks in that it supports descriptive string-valued port names, rather than positional or integer-valued names. This is intended to improve code readability and reduce the chance of user errors when defining the computatino graph.
 
 * Recurrent neural networks (RNNs) are supported by two features: shared parameters (`set_shared()` member function of `Node` class) and the `SliceUnroller` class, which automatically unrolls the computation sub-graph for a single RNN time slice a specified number of times so that truncated backpropagation through time can be performed. See `ExamplesRNN.cpp` for examples.
 
@@ -27,9 +27,11 @@ Kumozu is research software for deep learning and matrix factorization algorithm
 
 #### Limitations
 
-* No GPU support.. 
+* No GPU support.
 
 * Limited file IO capability. Currently, only a few C++ and Python functions are provided to load/save float-type multi-dimensional arrays to disk. This makes it possible to easily move multi-dimensional array data between Python scripts and the C++ code. No support for csv/text-formated files yet.
+
+* The whole API is still considered experimental and so no effort is currently made to maintain backward compatability.
 
 
 #### Requirements
